@@ -18,8 +18,12 @@ interface IERC20hTokenBranchFactory {
      * @notice Function to create a new Branch hToken.
      * @param _name Name of the Token.
      * @param _symbol Symbol of the Token.
+     * @param _decimals Decimals of the Token.
+     * @param _addPrefix Boolean to add or not the chain prefix to the token name and symbol.
      */
-    function createToken(string memory _name, string memory _symbol) external returns (ERC20hTokenBranch newToken);
+    function createToken(string memory _name, string memory _symbol, uint8 _decimals, bool _addPrefix)
+        external
+        returns (ERC20hTokenBranch newToken);
 
     /*///////////////////////////////////////////////////////////////
                                 ERRORS

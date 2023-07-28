@@ -34,6 +34,7 @@ import {Deposit, DepositStatus, DepositMultipleInput, DepositInput} from "@omni/
 
 import {WETH9 as WETH} from "./mocks/WETH9.sol";
 import {Multicall2} from "./mocks/Multicall2.sol";
+
 contract RootBridgeAgentDecodeTest is DSTestPlus {
     MockRootBridgeAgent mockRootBridgeAgent;
 
@@ -50,7 +51,6 @@ contract RootBridgeAgentDecodeTest is DSTestPlus {
         mockRootBridgeAgent = new MockRootBridgeAgent(
             WETH9(address(1)),
         0,
-        address(1),
         address(1),
         address(1),
         address(1),
@@ -81,7 +81,7 @@ contract RootBridgeAgentDecodeTest is DSTestPlus {
         _deposits[0] = 0 ether;
         _deposits[1] = 50 ether;
 
-        bytes memory data = abi.encodePacked(uint8(2), _nonce, _hTokens, _tokens, _amounts, _deposits, uint24(4));
+        bytes memory data = abi.encodePacked(uint8(2), _nonce, _hTokens, _tokens, _amounts, _deposits);
 
         DepositMultipleParams memory expected = DepositMultipleParams({
             numberOfAssets: uint8(2),
@@ -89,11 +89,10 @@ contract RootBridgeAgentDecodeTest is DSTestPlus {
             hTokens: _hTokens,
             tokens: _tokens,
             amounts: _amounts,
-            deposits: _deposits,
-            toChain: uint24(4)
+            deposits: _deposits
         });
 
-        DepositMultipleParams memory actual = mockRootBridgeAgent.bridgeInMultiple(address(this), data, uint24(4));
+        DepositMultipleParams memory actual = mockRootBridgeAgent.bridgeInMultiple(address(this), data, uint16(4));
 
         console2.log("actual.numberOfAssets");
         require(actual.numberOfAssets == expected.numberOfAssets);
@@ -115,8 +114,6 @@ contract RootBridgeAgentDecodeTest is DSTestPlus {
         require(((actual.amounts[1]) == (expected.amounts[1])));
         console2.log("actual.deposits");
         require(((actual.deposits[1]) == (expected.deposits[1])));
-        console2.log("actual.toChain");
-        require(actual.toChain == expected.toChain);
     }
 
     function compareDynamicArrays(bytes memory a, bytes memory b) public pure returns (bool aEqualsB) {

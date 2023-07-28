@@ -13,7 +13,7 @@ interface ICoreRootRouter {
 /// @title Struct that contains the information of the Gas Pool - used for swapping in and out of a given Branch Chain's Gas Token.
 struct GasPoolInfo {
     bool zeroForOneOnInflow;
-    uint24 priceImpactPercentage;
+    uint16 priceImpactPercentage;
     address gasTokenGlobalAddress;
     address poolAddress;
 }
@@ -74,7 +74,7 @@ interface IRootPort {
      * @param _fromChain The chainId of the chain where the token is deployed.
      * @param _toChain The chainId of the chain where the token is deployed.
      */
-    function getLocalToken(address _localAddress, uint24 _fromChain, uint24 _toChain) external view returns (address);
+    function getLocalToken(address _localAddress, uint16 _fromChain, uint16 _toChain) external view returns (address);
 
     /**
      * @notice View Function returns a underlying token address from it's local address.
@@ -88,31 +88,31 @@ interface IRootPort {
      * @param _globalAddress The address of the token in the global chain.
      * @param _fromChain The chainId of the chain where the token is deployed.
      */
-    function getUnderlyingTokenFromGlobal(address _globalAddress, uint24 _fromChain) external view returns (address);
+    function getUnderlyingTokenFromGlobal(address _globalAddress, uint16 _fromChain) external view returns (address);
 
     /**
      * @notice View Function returns True if Global Token is already added in current chain, false otherwise.
      * @param _globalAddress The address of the token in the global chain.
      * @param _fromChain The chainId of the chain where the token is deployed.
      */
-    function isGlobalToken(address _globalAddress, uint24 _fromChain) external view returns (bool);
+    function isGlobalToken(address _globalAddress, uint16 _fromChain) external view returns (bool);
 
     /**
      * @notice View Function returns True if Local Token is already added in current chain, false otherwise.
      *  @param _localAddress The address of the token in the local chain.
      *  @param _fromChain The chainId of the chain where the token is deployed.
      */
-    function isLocalToken(address _localAddress, uint24 _fromChain) external view returns (bool);
+    function isLocalToken(address _localAddress, uint16 _fromChain) external view returns (bool);
 
     /// @notice View Function returns True if Local Token and is also already added in another branch chain, false otherwise.
-    function isLocalToken(address _localAddress, uint24 _fromChain, uint24 _toChain) external view returns (bool);
+    function isLocalToken(address _localAddress, uint16 _fromChain, uint16 _toChain) external view returns (bool);
 
     /**
      * @notice View Function returns True if the underlying Token is already added in current chain, false otherwise.
      * @param _underlyingToken The address of the underlying token.
      * @param _fromChain The chainId of the chain where the token is deployed.
      */
-    function isUnderlyingToken(address _underlyingToken, uint24 _fromChain) external view returns (bool);
+    function isUnderlyingToken(address _underlyingToken, uint16 _fromChain) external view returns (bool);
 
     /// @notice View Function returns wrapped native token address for a given chain.
     function getWrappedNativeToken(uint256 _chainId) external view returns (address);
@@ -123,7 +123,7 @@ interface IRootPort {
         view
         returns (
             bool zeroForOneOnInflow,
-            uint24 priceImpactPercentage,
+            uint16 priceImpactPercentage,
             address gasTokenGlobalAddress,
             address poolAddress
         );
@@ -141,7 +141,7 @@ interface IRootPort {
      * @param _amount amount of hTokens to burn.
      * @param _fromChain The chainId of the chain where the token is deployed.
      */
-    function burn(address _from, address _hToken, uint256 _amount, uint24 _fromChain) external;
+    function burn(address _from, address _hToken, uint256 _amount, uint16 _fromChain) external;
 
     /**
      * @notice Updates root port state to match a new deposit.
@@ -151,7 +151,7 @@ interface IRootPort {
      * @param _deposit amount of underlying tokens to deposit.
      * @param _fromChainId The chainId of the chain where the token is deployed.
      */
-    function bridgeToRoot(address _recipient, address _hToken, uint256 _amount, uint256 _deposit, uint24 _fromChainId)
+    function bridgeToRoot(address _recipient, address _hToken, uint256 _amount, uint256 _deposit, uint16 _fromChainId)
         external;
 
     /**
@@ -196,7 +196,7 @@ interface IRootPort {
      *   @param _localAddress new underlying/native token address to set.
      *
      */
-    function setAddresses(address _globalAddress, address _localAddress, address _underlyingAddress, uint24 _fromChain)
+    function setAddresses(address _globalAddress, address _localAddress, address _underlyingAddress, uint16 _fromChain)
         external;
 
     /**
@@ -205,7 +205,7 @@ interface IRootPort {
      *   @param _localAddress new underlying/native token address to set.
      *
      */
-    function setLocalAddress(address _globalAddress, address _localAddress, uint24 _fromChain) external;
+    function setLocalAddress(address _globalAddress, address _localAddress, uint16 _fromChain) external;
 
     /*///////////////////////////////////////////////////////////////
                     VIRTUAL ACCOUNT MANAGEMENT FUNCTIONS
@@ -234,7 +234,7 @@ interface IRootPort {
      * @param _rootBridgeAgent address of the root bridge agent.
      * @param _fromChain chainId of the chain to set the bridge agent for.
      */
-    function syncBranchBridgeAgentWithRoot(address _newBranchBridgeAgent, address _rootBridgeAgent, uint24 _fromChain)
+    function syncBranchBridgeAgentWithRoot(address _newBranchBridgeAgent, address _rootBridgeAgent, uint16 _fromChain)
         external;
 
     /**
@@ -264,30 +264,20 @@ interface IRootPort {
 
     /**
      * @notice Adds a new chain to the root port lists of chains
-     * @param _pledger address of the addNewChain proposal initial liquidity pledger.
-     * @param _pledgedInitialAmount address of the core branch bridge agent
      * @param _coreBranchBridgeAgentAddress address of the core branch bridge agent
      * @param _chainId chainId of the new chain
      * @param _wrappedGasTokenName gas token name of the chain to add
      * @param _wrappedGasTokenSymbol gas token symbol of the chain to add
-     * @param _fee fee of the chain to add
-     * @param _priceImpactPercentage price impact percentage of the chain to add
-     * @param _sqrtPriceX96 sqrt price of the chain to add
-     * @param _nonFungiblePositionManagerAddress address of the NFT position manager
+     * @param _wrappedGasTokenDecimals gas token decimals of the chain to add
      * @param _newLocalBranchWrappedNativeTokenAddress address of the wrapped native token of the new branch
      * @param _newUnderlyingBranchWrappedNativeTokenAddress address of the underlying wrapped native token of the new branch
      */
     function addNewChain(
-        address _pledger,
-        uint256 _pledgedInitialAmount,
         address _coreBranchBridgeAgentAddress,
-        uint24 _chainId,
+        uint16 _chainId,
         string memory _wrappedGasTokenName,
         string memory _wrappedGasTokenSymbol,
-        uint24 _fee,
-        uint24 _priceImpactPercentage,
-        uint160 _sqrtPriceX96,
-        address _nonFungiblePositionManagerAddress,
+        uint8 _wrappedGasTokenDecimals,
         address _newLocalBranchWrappedNativeTokenAddress,
         address _newUnderlyingBranchWrappedNativeTokenAddress
     ) external;
@@ -297,7 +287,7 @@ interface IRootPort {
      * @param _chainId chainId of the chain to set the gas pool info for
      * @param _gasPoolInfo gas pool info to set
      */
-    function setGasPoolInfo(uint24 _chainId, GasPoolInfo calldata _gasPoolInfo) external;
+    function setGasPoolInfo(uint16 _chainId, GasPoolInfo calldata _gasPoolInfo) external;
 
     /**
      * @notice Adds an ecosystem hToken to a branch chain
@@ -314,17 +304,17 @@ interface IRootPort {
 
     event BridgeAgentAdded(address indexed bridgeAgent, address manager);
     event BridgeAgentToggled(address indexed bridgeAgent);
-    event BridgeAgentSynced(address indexed bridgeAgent, address indexed rootBridgeAgent, uint24 indexed fromChain);
+    event BridgeAgentSynced(address indexed bridgeAgent, address indexed rootBridgeAgent, uint16 indexed fromChain);
 
-    event NewChainAdded(uint24 indexed chainId);
-    event GasPoolInfoSet(uint24 indexed chainId, GasPoolInfo gasPoolInfo);
+    event NewChainAdded(uint16 indexed chainId);
+    event GasPoolInfoSet(uint16 indexed chainId, GasPoolInfo gasPoolInfo);
 
     event VirtualAccountCreated(address indexed user, address account);
 
     event LocalTokenAdded(
-        address indexed underlyingAddress, address localAddress, address globalAddress, uint24 chainId
+        address indexed underlyingAddress, address localAddress, address globalAddress, uint16 chainId
     );
-    event GlobalTokenAdded(address indexed localAddress, address indexed globalAddress, uint24 chainId);
+    event GlobalTokenAdded(address indexed localAddress, address indexed globalAddress, uint16 chainId);
     event EcosystemTokenAdded(address indexed ecoTokenGlobalAddress);
 
     /*///////////////////////////////////////////////////////////////

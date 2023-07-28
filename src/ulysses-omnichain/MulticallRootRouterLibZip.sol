@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import {LibZip} from "solady/utils/LibZip.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
@@ -49,7 +50,7 @@ struct OutputMultipleParams {
  *         0x06         | multicallSignedMultipleOutput
  *
  */
-contract MulticallRootRouter is IRootRouter, Ownable {
+contract MulticallRootRouterLibZip is IRootRouter, Ownable {
     using SafeTransferLib for address;
 
     /// @notice Address for Local Port Address where funds deposited from this chain are kept, managed and supplied to different Port Strategies.
@@ -193,7 +194,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
     {
         /// FUNC ID: 1 (multicallNoOutput)
         if (funcId == 0x01) {
-            (IMulticall.Call[] memory callData) = abi.decode(encodedData, (IMulticall.Call[]));
+            (IMulticall.Call[] memory callData) = abi.decode(LibZip.cdDecompress(encodedData), (IMulticall.Call[]));
 
             _multicall(callData);
 
@@ -204,7 +205,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
                 OutputParams memory outputParams,
                 uint16 toChain,
                 GasParams memory gasParams
-            ) = abi.decode(encodedData, (IMulticall.Call[], OutputParams, uint16, GasParams));
+            ) = abi.decode(LibZip.cdDecompress(encodedData), (IMulticall.Call[], OutputParams, uint16, GasParams));
 
             _multicall(callData);
 
@@ -225,7 +226,9 @@ contract MulticallRootRouter is IRootRouter, Ownable {
                 OutputMultipleParams memory outputParams,
                 uint16 toChain,
                 GasParams memory gasParams
-            ) = abi.decode(encodedData, (IMulticall.Call[], OutputMultipleParams, uint16, GasParams));
+            ) = abi.decode(
+                LibZip.cdDecompress(encodedData), (IMulticall.Call[], OutputMultipleParams, uint16, GasParams)
+            );
 
             _multicall(callData);
 
@@ -274,7 +277,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
     {
         /// FUNC ID: 1 (multicallNoOutput)
         if (funcId == 0x01) {
-            Call[] memory calls = abi.decode(encodedData, (Call[]));
+            Call[] memory calls = abi.decode(LibZip.cdDecompress(encodedData), (Call[]));
 
             //Call desired functions
             IVirtualAccount(userAccount).call(calls);
@@ -282,7 +285,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
             /// FUNC ID: 2 (multicallSingleOutput)
         } else if (funcId == 0x02) {
             (Call[] memory calls, OutputParams memory outputParams, uint16 toChain, GasParams memory gasParams) =
-                abi.decode(encodedData, (Call[], OutputParams, uint16, GasParams));
+                abi.decode(LibZip.cdDecompress(encodedData), (Call[], OutputParams, uint16, GasParams));
 
             //Call desired functions
             IVirtualAccount(userAccount).call(calls);
@@ -303,7 +306,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
             /// FUNC ID: 3 (multicallMultipleOutput)
         } else if (funcId == 0x03) {
             (Call[] memory calls, OutputMultipleParams memory outputParams, uint16 toChain, GasParams memory gasParams)
-            = abi.decode(encodedData, (Call[], OutputMultipleParams, uint16, GasParams));
+            = abi.decode(LibZip.cdDecompress(encodedData), (Call[], OutputMultipleParams, uint16, GasParams));
 
             //Call desired functions
             IVirtualAccount(userAccount).call(calls);
@@ -350,7 +353,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
     ) external payable override requiresExecutor lock {
         /// FUNC ID: 1 (multicallNoOutput)
         if (funcId == 0x01) {
-            Call[] memory calls = abi.decode(encodedData, (Call[]));
+            Call[] memory calls = abi.decode(LibZip.cdDecompress(encodedData), (Call[]));
 
             //Call desired functions
             IVirtualAccount(userAccount).call(calls);
@@ -358,7 +361,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
             /// FUNC ID: 2 (multicallSingleOutput)
         } else if (funcId == 0x02) {
             (Call[] memory calls, OutputParams memory outputParams, uint16 toChain, GasParams memory gasParams) =
-                abi.decode(encodedData, (Call[], OutputParams, uint16, GasParams));
+                abi.decode(LibZip.cdDecompress(encodedData), (Call[], OutputParams, uint16, GasParams));
 
             //Call desired functions
             IVirtualAccount(userAccount).call(calls);
@@ -379,7 +382,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
             /// FUNC ID: 3 (multicallMultipleOutput)
         } else if (funcId == 0x03) {
             (Call[] memory calls, OutputMultipleParams memory outputParams, uint16 toChain, GasParams memory gasParams)
-            = abi.decode(encodedData, (Call[], OutputMultipleParams, uint16, GasParams));
+            = abi.decode(LibZip.cdDecompress(encodedData), (Call[], OutputMultipleParams, uint16, GasParams));
 
             //Call desired functions
             IVirtualAccount(userAccount).call(calls);
@@ -426,7 +429,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
     ) external payable requiresExecutor lock {
         /// FUNC ID: 1 (multicallNoOutput)
         if (funcId == 0x01) {
-            Call[] memory calls = abi.decode(encodedData, (Call[]));
+            Call[] memory calls = abi.decode(LibZip.cdDecompress(encodedData), (Call[]));
 
             //Call desired functions
             IVirtualAccount(userAccount).call(calls);
@@ -434,7 +437,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
             /// FUNC ID: 2 (multicallSingleOutput)
         } else if (funcId == 0x02) {
             (Call[] memory calls, OutputParams memory outputParams, uint16 toChain, GasParams memory gasParams) =
-                abi.decode(encodedData, (Call[], OutputParams, uint16, GasParams));
+                abi.decode(LibZip.cdDecompress(encodedData), (Call[], OutputParams, uint16, GasParams));
 
             //Call desired functions
             IVirtualAccount(userAccount).call(calls);
@@ -455,7 +458,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
             /// FUNC ID: 3 (multicallMultipleOutput)
         } else if (funcId == 0x03) {
             (Call[] memory calls, OutputMultipleParams memory outputParams, uint16 toChain, GasParams memory gasParams)
-            = abi.decode(encodedData, (Call[], OutputMultipleParams, uint16, GasParams));
+            = abi.decode(LibZip.cdDecompress(encodedData), (Call[], OutputMultipleParams, uint16, GasParams));
 
             //Call desired functions
             IVirtualAccount(userAccount).call(calls);

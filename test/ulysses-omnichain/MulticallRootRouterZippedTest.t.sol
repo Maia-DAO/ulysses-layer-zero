@@ -18,7 +18,7 @@ import {BranchBridgeAgent} from "./mocks/MockBranchBridgeAgent.t.sol";
 import {ArbitrumBranchBridgeAgent} from "@omni/ArbitrumBranchBridgeAgent.sol";
 
 import {BaseBranchRouter} from "@omni/BaseBranchRouter.sol";
-import {MulticallRootRouter} from "@omni/MulticallRootRouter.sol";
+import {MulticallRootRouterLibZip as MulticallRootRouter} from "@omni/MulticallRootRouterLibZip.sol";
 import {CoreRootRouter} from "@omni/CoreRootRouter.sol";
 import {ArbitrumCoreBranchRouter} from "@omni/ArbitrumCoreBranchRouter.sol";
 
@@ -38,6 +38,7 @@ import {
     DepositInput,
     GasParams
 } from "@omni/interfaces/IBranchBridgeAgent.sol";
+import {LibZip} from "solady/utils/LibZip.sol";
 
 import {WETH9 as WETH} from "./mocks/WETH9.sol";
 import {Multicall2} from "./mocks/Multicall2.sol";
@@ -594,7 +595,7 @@ contract MulticallRootRouterTest is DSTestPlus {
             Multicall2.Call({target: mockApp, callData: abi.encodeWithSelector(bytes4(keccak256(bytes("distro()"))))});
 
         //RLP Encode Calldata
-        bytes memory data = abi.encode(calls);
+        bytes memory data = LibZip.cdCompress(abi.encode(calls));
 
         //Pack FuncId
         bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
@@ -627,7 +628,7 @@ contract MulticallRootRouterTest is DSTestPlus {
         });
 
         //RLP Encode Calldata
-        bytes memory data = abi.encode(calls);
+        bytes memory data = LibZip.cdCompress(abi.encode(calls));
 
         //Pack FuncId
         bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
@@ -679,7 +680,7 @@ contract MulticallRootRouterTest is DSTestPlus {
             });
 
             //RLP Encode Calldata
-            bytes memory data = abi.encode(calls);
+            bytes memory data = LibZip.cdCompress(abi.encode(calls));
 
             //Pack FuncId
             packedData = abi.encodePacked(bytes1(0x01), data);
@@ -780,7 +781,7 @@ contract MulticallRootRouterTest is DSTestPlus {
             uint16 toChain = ftmChainId;
 
             //RLP Encode Calldata
-            bytes memory data = abi.encode(calls, outputParams, toChain);
+            bytes memory data = LibZip.cdCompress(abi.encode(calls, outputParams, toChain));
 
             //Pack FuncId
             packedData = abi.encodePacked(bytes1(0x02), data);
@@ -846,7 +847,7 @@ contract MulticallRootRouterTest is DSTestPlus {
             uint16 toChain = ftmChainId;
 
             //RLP Encode Calldata
-            bytes memory data = abi.encode(calls, outputParams, toChain);
+            bytes memory data = LibZip.cdCompress(abi.encode(calls, outputParams, toChain));
 
             //Pack FuncId
             packedData = abi.encodePacked(bytes1(0x02), data);
@@ -914,7 +915,7 @@ contract MulticallRootRouterTest is DSTestPlus {
             uint16 toChain = avaxChainId;
 
             //RLP Encode Calldata
-            bytes memory data = abi.encode(calls, outputParams, toChain);
+            bytes memory data = LibZip.cdCompress(abi.encode(calls, outputParams, toChain));
 
             //Pack FuncId
             packedData = abi.encodePacked(bytes1(0x02), data);
@@ -974,7 +975,7 @@ contract MulticallRootRouterTest is DSTestPlus {
             OutputParams memory outputParams = OutputParams(address(this), outputToken, amountOut, depositOut);
 
             //RLP Encode Calldata
-            bytes memory data = abi.encode(calls, outputParams, ftmChainId);
+            bytes memory data = LibZip.cdCompress(abi.encode(calls, outputParams, ftmChainId));
 
             //Pack FuncId
             packedData = abi.encodePacked(bytes1(0x02), data);
@@ -1086,7 +1087,7 @@ contract MulticallRootRouterTest is DSTestPlus {
             uint16 toChain = ftmChainId;
 
             //RLP Encode Calldata
-            bytes memory data = abi.encode(calls, outputMultipleParams, toChain);
+            bytes memory data = LibZip.cdCompress(abi.encode(calls, outputMultipleParams, toChain));
 
             //Pack FuncId
             packedData = abi.encodePacked(bytes1(0x03), data);
@@ -1160,7 +1161,7 @@ contract MulticallRootRouterTest is DSTestPlus {
             uint16 toChain = ftmChainId;
 
             //RLP Encode Calldata
-            bytes memory data = abi.encode(calls, outputMultipleParams, toChain);
+            bytes memory data = LibZip.cdCompress(abi.encode(calls, outputMultipleParams, toChain));
 
             //Pack FuncId
             packedData = abi.encodePacked(bytes1(0x03), data);
@@ -1237,7 +1238,7 @@ contract MulticallRootRouterTest is DSTestPlus {
             uint16 toChain = ftmChainId;
 
             //RLP Encode Calldata
-            bytes memory data = abi.encode(calls, outputMultipleParams, toChain);
+            bytes memory data = LibZip.cdCompress(abi.encode(calls, outputMultipleParams, toChain));
 
             //Pack FuncId
             packedData = abi.encodePacked(bytes1(0x03), data);
@@ -1328,7 +1329,7 @@ contract MulticallRootRouterTest is DSTestPlus {
             uint16 toChain = ftmChainId;
 
             //RLP Encode Calldata
-            bytes memory data = abi.encode(calls, outputMultipleParams, toChain);
+            bytes memory data = LibZip.cdCompress(abi.encode(calls, outputMultipleParams, toChain));
 
             //Pack FuncId
             packedData = abi.encodePacked(bytes1(0x03), data);

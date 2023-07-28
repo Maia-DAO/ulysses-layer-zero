@@ -18,8 +18,11 @@ interface IERC20hTokenRootFactory {
      * @notice Function to create a new hToken.
      * @param _name Name of the Token.
      * @param _symbol Symbol of the Token.
+     * @param _decimals Decimals of the Token.
      */
-    function createToken(string memory _name, string memory _symbol) external returns (ERC20hTokenRoot newToken);
+    function createToken(string memory _name, string memory _symbol, uint8 _decimals)
+        external
+        returns (ERC20hTokenRoot newToken);
 
     /*///////////////////////////////////////////////////////////////
                                 ERRORS

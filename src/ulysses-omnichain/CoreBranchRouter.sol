@@ -6,7 +6,7 @@ import {Ownable} from "solady/auth/Ownable.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import {IBranchPort as IPort} from "./interfaces/IBranchPort.sol";
-import {IBranchBridgeAgent as IBridgeAgent} from "./interfaces/IBranchBridgeAgent.sol";
+import {IBranchBridgeAgent as IBridgeAgent, GasParams} from "./interfaces/IBranchBridgeAgent.sol";
 import {IBranchBridgeAgentFactory as IBridgeAgentFactory} from "./interfaces/IBranchBridgeAgentFactory.sol";
 import {IBranchRouter} from "./interfaces/IBranchRouter.sol";
 import {ICoreBranchRouter} from "./interfaces/ICoreBranchRouter.sol";
@@ -20,11 +20,7 @@ contract CoreBranchRouter is BaseBranchRouter {
     /// @notice hToken Factory Address.
     address public hTokenFactoryAddress;
 
-    /// @notice Local Port Address.
-    address public localPortAddress;
-
-    constructor(address _hTokenFactoryAddress, address _localPortAddress) BaseBranchRouter() {
-        localPortAddress = _localPortAddress;
+    constructor(address _hTokenFactoryAddress) BaseBranchRouter() {
         hTokenFactoryAddress = _hTokenFactoryAddress;
     }
 
@@ -35,47 +31,41 @@ contract CoreBranchRouter is BaseBranchRouter {
      * @notice This function is used to add a global token to a branch.
      * @param _globalAddress Address of the token to be added.
      * @param _toChain Chain Id of the chain to which the deposit is being added.
-     * @param _remoteExecutionGas Gas to be used for the remote execution in destination chain.
-     * @param _rootExecutionGas Gas to be saved for the final root execution.
+     * @param _gParams Gas parameters for remote execution.
      */
-    function addGlobalToken(
-        address _globalAddress,
-        uint24 _toChain,
-        uint128 _remoteExecutionGas,
-        uint128 _rootExecutionGas
-    ) external payable {
+    function addGlobalToken(address _globalAddress, uint24 _toChain, GasParams[3] calldata _gParams) external payable {
         //Encode Call Data
-        bytes memory data = abi.encode(msg.sender, _globalAddress, _toChain, _rootExecutionGas);
+        bytes memory data = abi.encode(msg.sender, _globalAddress, _toChain, [_gParams[1], _gParams[2]]);
 
         //Pack FuncId
         bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
 
         //Send Cross-Chain request (System Response/Request)
-        IBridgeAgent(localBridgeAgentAddress).performCallOut{value: msg.value}(
-            msg.sender, packedData, 0, _remoteExecutionGas
-        );
+        IBridgeAgent(localBridgeAgentAddress).callOut{value: msg.value}(payable(msg.sender), packedData, _gParams[0]);
     }
 
     /**
      * @notice This function is used to add a local token to the system.
      * @param _underlyingAddress Address of the underlying token to be added.
+     * @param _gParams Gas parameters for remote execution.
      */
-    function addLocalToken(address _underlyingAddress) external payable virtual {
+    function addLocalToken(address _underlyingAddress, GasParams calldata _gParams) external payable virtual {
         //Get Token Info
-        string memory name = ERC20(_underlyingAddress).name();
-        string memory symbol = ERC20(_underlyingAddress).symbol();
+        uint8 decimals = ERC20(_underlyingAddress).decimals();
 
         //Create Token
-        ERC20hToken newToken = ITokenFactory(hTokenFactoryAddress).createToken(name, symbol);
+        ERC20hToken newToken = ITokenFactory(hTokenFactoryAddress).createToken(
+            ERC20(_underlyingAddress).name(), ERC20(_underlyingAddress).symbol(), decimals, true
+        );
 
         //Encode Data
-        bytes memory data = abi.encode(_underlyingAddress, newToken, name, symbol);
+        bytes memory data = abi.encode(_underlyingAddress, newToken, newToken.name(), newToken.symbol(), decimals);
 
         //Pack FuncId
         bytes memory packedData = abi.encodePacked(bytes1(0x02), data);
 
         //Send Cross-Chain request (System Response/Request)
-        IBridgeAgent(localBridgeAgentAddress).performCallOut{value: msg.value}(msg.sender, packedData, 0, 0);
+        IBridgeAgent(localBridgeAgentAddress).callOutSystem{value: msg.value}(payable(msg.sender), packedData, _gParams);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -87,7 +77,7 @@ contract CoreBranchRouter is BaseBranchRouter {
      *  @param _globalAddress the address of the global virtualized token.
      *  @param _name token name.
      *  @param _symbol token symbol.
-     *  @param _rootExecutionGas the amount of gas to be used in the root execution.
+     *  @param _gParams Gas parameters for remote execution.
      *  @dev FUNC ID: 1
      *  @dev all hTokens have 18 decimals.
      *
@@ -96,10 +86,11 @@ contract CoreBranchRouter is BaseBranchRouter {
         address _globalAddress,
         string memory _name,
         string memory _symbol,
-        uint128 _rootExecutionGas
+        uint8 _decimals,
+        GasParams memory _gParams
     ) internal {
         //Create Token
-        ERC20hToken newToken = ITokenFactory(hTokenFactoryAddress).createToken(_name, _symbol);
+        ERC20hToken newToken = ITokenFactory(hTokenFactoryAddress).createToken(_name, _symbol, _decimals, false);
 
         //Encode Data
         bytes memory data = abi.encode(_globalAddress, newToken);
@@ -108,18 +99,20 @@ contract CoreBranchRouter is BaseBranchRouter {
         bytes memory packedData = abi.encodePacked(bytes1(0x03), data);
 
         //Send Cross-Chain request
-        IBridgeAgent(localBridgeAgentAddress).performSystemCallOut(address(this), packedData, _rootExecutionGas, 0);
+        IBridgeAgent(localBridgeAgentAddress).callOutSystem{value: msg.value}(
+            payable(address(localPortAddress)), packedData, _gParams
+        );
     }
 
     /**
      * @notice Function to deploy/add a token already active in the global environment in the Root Chain. Must be called from another chain.
-     *  @param _newBranchRouter the address of the new branch router.
-     *  @param _branchBridgeAgentFactory the address of the branch bridge agent factory.
-     *  @param _rootBridgeAgent the address of the root bridge agent.
-     *  @param _rootBridgeAgentFactory the address of the root bridge agent factory.
-     *  @param _remoteExecutionGas the amount of gas to be used in the remote execution.
-     *  @dev FUNC ID: 2
-     *  @dev all hTokens have 18 decimals.
+     *    @param _newBranchRouter the address of the new branch router.
+     *    @param _branchBridgeAgentFactory the address of the branch bridge agent factory.
+     *    @param _rootBridgeAgent the address of the root bridge agent.
+     *    @param _rootBridgeAgentFactory the address of the root bridge agent factory.
+     *    @param _gParams Gas parameters for remote execution.
+     *    @dev FUNC ID: 2
+     *    @dev all hTokens have 18 decimals.
      *
      */
     function _receiveAddBridgeAgent(
@@ -127,14 +120,14 @@ contract CoreBranchRouter is BaseBranchRouter {
         address _branchBridgeAgentFactory,
         address _rootBridgeAgent,
         address _rootBridgeAgentFactory,
-        uint128 _remoteExecutionGas
+        GasParams memory _gParams
     ) internal virtual {
         //Check if msg.sender is a valid BridgeAgentFactory
         if (!IPort(localPortAddress).isBridgeAgentFactory(_branchBridgeAgentFactory)) {
             revert UnrecognizedBridgeAgentFactory();
         }
 
-        //Create Token
+        //Create BridgeAgent
         address newBridgeAgent = IBridgeAgentFactory(_branchBridgeAgentFactory).createBridgeAgent(
             _newBranchRouter, _rootBridgeAgent, _rootBridgeAgentFactory
         );
@@ -151,7 +144,9 @@ contract CoreBranchRouter is BaseBranchRouter {
         bytes memory packedData = abi.encodePacked(bytes1(0x04), data);
 
         //Send Cross-Chain request
-        IBridgeAgent(localBridgeAgentAddress).performSystemCallOut(address(this), packedData, _remoteExecutionGas, 0);
+        IBridgeAgent(localBridgeAgentAddress).callOutSystem{value: msg.value}(
+            payable(address(localPortAddress)), packedData, _gParams
+        );
     }
 
     /**
@@ -226,19 +221,13 @@ contract CoreBranchRouter is BaseBranchRouter {
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchRouter
-    function anyExecuteNoSettlement(bytes calldata _data)
-        external
-        virtual
-        override
-        requiresAgentExecutor
-        returns (bool success, bytes memory result)
-    {
+    function executeNoSettlement(bytes calldata _data) external payable virtual override requiresAgentExecutor {
         /// _receiveAddGlobalToken
         if (_data[0] == 0x01) {
-            (address globalAddress, string memory name, string memory symbol, uint128 gasToBridgeOut) =
-                abi.decode(_data[1:], (address, string, string, uint128));
+            (address globalAddress, string memory name, string memory symbol, uint8 decimals, GasParams memory gParams)
+            = abi.decode(_data[1:], (address, string, string, uint8, GasParams));
 
-            _receiveAddGlobalToken(globalAddress, name, symbol, gasToBridgeOut);
+            _receiveAddGlobalToken(globalAddress, name, symbol, decimals, gParams);
             /// _receiveAddBridgeAgent
         } else if (_data[0] == 0x02) {
             (
@@ -246,11 +235,11 @@ contract CoreBranchRouter is BaseBranchRouter {
                 address branchBridgeAgentFactory,
                 address rootBridgeAgent,
                 address rootBridgeAgentFactory,
-                uint128 remoteExecutionGas
-            ) = abi.decode(_data[1:], (address, address, address, address, uint128));
+                GasParams memory gParams
+            ) = abi.decode(_data[1:], (address, address, address, address, GasParams));
 
             _receiveAddBridgeAgent(
-                newBranchRouter, branchBridgeAgentFactory, rootBridgeAgent, rootBridgeAgentFactory, remoteExecutionGas
+                newBranchRouter, branchBridgeAgentFactory, rootBridgeAgent, rootBridgeAgentFactory, gParams
             );
 
             /// _toggleBranchBridgeAgentFactory
@@ -276,9 +265,8 @@ contract CoreBranchRouter is BaseBranchRouter {
 
             /// Unrecognized Function Selector
         } else {
-            return (false, "unknown selector");
+            revert UnrecognizedFunctionId();
         }
-        return (true, "");
     }
 
     fallback() external payable {}

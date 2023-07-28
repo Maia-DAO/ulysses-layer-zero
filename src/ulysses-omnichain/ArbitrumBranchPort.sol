@@ -19,7 +19,7 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
     using SafeTransferLib for address;
 
     /// @notice Local Network Identifier.
-    uint24 public localChainId;
+    uint16 public localChainId;
 
     /// @notice Address for Local Port Address where funds deposited from this chain are kept, managed and supplied to different Port Strategies.
     address public rootPortAddress;
@@ -30,7 +30,7 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
      * @param _localChainId local chain id.
      * @param _rootPortAddress address of the Root Port.
      */
-    constructor(uint24 _localChainId, address _rootPortAddress, address _owner) BranchPort(_owner) {
+    constructor(uint16 _localChainId, address _rootPortAddress, address _owner) BranchPort(_owner) {
         require(_rootPortAddress != address(0), "Root Port Address cannot be 0");
 
         localChainId = _localChainId;
@@ -55,7 +55,7 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
     }
 
     ///@inheritdoc IArbitrumBranchPort
-    function withdrawFromPort(address _depositor, address _recipient, address _globalAddress, uint256 _deposit)
+    function withdrawFromPort(address _depositor, address _recipient, address _globalAddress, uint256 _amount)
         external
         requiresBridgeAgent
     {
@@ -67,20 +67,9 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
 
         if (underlyingAddress == address(0)) revert UnknownUnderlyingToken();
 
-        IRootPort(rootPortAddress).burnFromLocalBranch(_depositor, _globalAddress, _deposit);
+        IRootPort(rootPortAddress).burnFromLocalBranch(_depositor, _globalAddress, _amount);
 
-        underlyingAddress.safeTransfer(_recipient, _denormalizeDecimals(_deposit, ERC20(underlyingAddress).decimals()));
-    }
-
-    /// @inheritdoc IBranchPort
-    function withdraw(address _recipient, address _underlyingAddress, uint256 _deposit)
-        external
-        override(IBranchPort, BranchPort)
-        requiresBridgeAgent
-    {
-        _underlyingAddress.safeTransfer(
-            _recipient, _denormalizeDecimals(_deposit, ERC20(_underlyingAddress).decimals())
-        );
+        underlyingAddress.safeTransfer(_recipient, _amount);
     }
 
     /// @inheritdoc IBranchPort
@@ -115,13 +104,14 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
         uint256 _amount,
         uint256 _deposit
     ) external override(IBranchPort, BranchPort) requiresBridgeAgent {
-        if (_deposit > 0) {
-            _underlyingAddress.safeTransferFrom(
-                _depositor, address(this), _denormalizeDecimals(_deposit, ERC20(_underlyingAddress).decimals())
-            );
-        }
+        //Burn hTokens if any are being used
         if (_amount - _deposit > 0) {
             IRootPort(rootPortAddress).bridgeToRootFromLocalBranch(_depositor, _localAddress, _amount - _deposit);
+        }
+
+        //Store Underlying Tokens
+        if (_deposit > 0) {
+            _underlyingAddress.safeTransferFrom(_depositor, address(this), _deposit);
         }
     }
 
@@ -134,17 +124,16 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
         uint256[] memory _deposits
     ) external override(IBranchPort, BranchPort) requiresBridgeAgent {
         for (uint256 i = 0; i < _localAddresses.length;) {
-            if (_deposits[i] > 0) {
-                _underlyingAddresses[i].safeTransferFrom(
-                    _depositor,
-                    address(this),
-                    _denormalizeDecimals(_deposits[i], ERC20(_underlyingAddresses[i]).decimals())
-                );
-            }
+            //Burn hTokens if any are being used
             if (_amounts[i] - _deposits[i] > 0) {
                 IRootPort(rootPortAddress).bridgeToRootFromLocalBranch(
                     _depositor, _localAddresses[i], _amounts[i] - _deposits[i]
                 );
+            }
+
+            //Store Underlying Tokens
+            if (_deposits[i] > 0) {
+                _underlyingAddresses[i].safeTransferFrom(_depositor, address(this), _deposits[i]);
             }
 
             unchecked {

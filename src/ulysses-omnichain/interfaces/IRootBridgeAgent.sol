@@ -1,27 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {IApp} from "./IApp.sol";
+import {ILayerZeroReceiver} from "./ILayerZeroReceiver.sol";
+
+import {GasParams} from "./IBranchBridgeAgent.sol";
 
 /*///////////////////////////////////////////////////////////////
                             STRUCTS
 //////////////////////////////////////////////////////////////*/
-
-struct SwapCallbackData {
-    address tokenIn; //Token being sold
-}
-
-struct UserFeeInfo {
-    uint128 depositedGas; //Gas deposited by user
-    uint128 gasToBridgeOut; //Gas to be sent to bridge
-}
-
-struct GasPoolInfo {
-    //zeroForOne when swapping gas from branch chain into root chain gas
-    bool zeroForOneOnInflow;
-    uint24 priceImpactPercentage; //Price impact percentage
-    address poolAddress; //Uniswap V3 Pool Address
-}
 
 enum SettlementStatus {
     Success, //Settlement was successful
@@ -29,8 +15,7 @@ enum SettlementStatus {
 }
 
 struct Settlement {
-    uint24 toChain; //Destination chain for interaction.
-    uint128 gasToBridgeOut; //Gas owed to user
+    uint16 toChain; //Destination chain for interaction.
     address owner; //Owner of the settlement
     address recipient; //Recipient of the settlement.
     SettlementStatus status; //Status of the settlement
@@ -39,6 +24,18 @@ struct Settlement {
     uint256[] amounts; //Amount of Local hTokens deposited for interaction.
     uint256[] deposits; //Amount of native tokens deposited for interaction.
     bytes callData; //Call data for settlement
+}
+
+struct SettlementInput {
+    address globalAddress; //Input Global hTokens Address.
+    uint256 amount; //Amount of Local hTokens deposited for interaction.
+    uint256 deposit; //Amount of native tokens deposited for interaction.
+}
+
+struct SettlementMultipleInput {
+    address[] globalAddresses; //Input Global hTokens Addresses.
+    uint256[] amounts; //Amount of Local hTokens deposited for interaction.
+    uint256[] deposits; //Amount of native tokens deposited for interaction.
 }
 
 struct SettlementParams {
@@ -67,7 +64,6 @@ struct DepositParams {
     address token; //Input Native / underlying Token Address.
     uint256 amount; //Amount of Local hTokens deposited for interaction.
     uint256 deposit; //Amount of native tokens deposited for interaction.
-    uint24 toChain; //Destination chain for interaction.
 }
 
 struct DepositMultipleParams {
@@ -78,31 +74,25 @@ struct DepositMultipleParams {
     address[] tokens; //Input Native / underlying Token Address.
     uint256[] amounts; //Amount of Local hTokens deposited for interaction.
     uint256[] deposits; //Amount of native tokens deposited for interaction.
-    uint24 toChain; //Destination chain for interaction.
 }
 
 /**
  * @title  Root Bridge Agent Contract
  * @author MaiaDAO
  * @notice Contract responsible for interfacing with Users and Routers acting as a middleman to
- *         access Anycall cross-chain messaging and Port communication for asset management.
+ *         access LayerZero cross-chain messaging and Port communication for asset management.
  * @dev    Bridge Agents allow for the encapsulation of business logic as well as the standardize
  *         cross-chain communication, allowing for the creation of custom Routers to perform
  *         actions as a response to remote user requests. This contract is for deployment in the Root
  *         Chain Omnichain Environment based on Arbitrum.
- *         This contract manages gas spenditure calling `_replenishingGas` after each remote initiated
+ *         The Root Bridge Agent is responsible for sending/receiving requests to/from the LayerZero Messaging Layer for
  *         execution, as well as requests tokens clearances and tx execution from the `RootBridgeAgentExecutor`.
- *         Remote execution is "sandboxed" in 3 different nestings:
- *         - 1: Anycall Messaging Layer will revert execution if by the end of the call the
- *              balance in the executionBudget AnycallConfig contract to the Root Bridge Agent
- *              being called is inferior to the  executionGasSpent, throwing the error `no enough budget`.
- *         - 2: The `RootBridgeAgent` will trigger a revert all state changes if by the end of the remote initiated call
- *              Router interaction the userDepositedGas < executionGasSpent. This is done by calling the `_forceRevert()`
- *              internal function clearing all executionBudget from the AnycallConfig contract forcing the error `no enough budget`.
- *         - 3: The `RootBridgeAgentExecutor` is in charge of requesting token deposits for each remote interaction as well
- *              as performing the Router calls, if any of the calls initiated by the Router lead to an invlaid state change
- *              both the token deposit clearances as well as the external interactions will be reverted. Yet executionGas
- *              will still be credited by the `RootBridgeAgent`.
+ *         Remote execution is "sandboxed" within 2 different layers / nestings:
+ *         - 1: Upon receiving a request from LayerZero Messaging Layer to avoid blocking future requests due to execution reversion,
+ *              ensuring our app is Non-Blocking. (See https://github.com/LayerZero-Labs/solidity-examples/blob/8e62ebc886407aafc89dbd2a778e61b7c0a25ca0/contracts/lzApp/NonblockingLzApp.sol)
+ *         - 2: The call to `RootBridgeAgentExecutor` is in charge of requesting token deposits for each remote interaction as well
+ *              as performing the Router calls, if any of the calls initiated by the Router lead to an invalid state change both the
+ *              token deposit clearances as well as the external interactions will be reverted and caught by the `RootBridgeAgent`.
  *
  *          Func IDs for calling these  functions through messaging layer:
  *
@@ -126,53 +116,33 @@ struct DepositMultipleParams {
  *           - ht = hToken
  *           - t = Token
  *           - A = Amount
- *           - D = Destination
- *           - C = ChainId
+ *           - D = Deposit
  *           - b = bytes
  *           - n = number of assets
- *           ___________________________________________________________________________________________________________________________
- *          |            Flag               |        Deposit Info        |             Token Info             |   DATA   |  Gas Info   |
- *          |           1 byte              |         4-25 bytes         |     3 + (105 or 128) * n bytes     |   ---	 |  32 bytes   |
- *          |                               |                            |          hT - t - A - D - C        |          |             |
- *          |_______________________________|____________________________|____________________________________|__________|_____________|
- *          | callOutSystem = 0x0   	    |                 4b(nonce)  |            -------------           |   ---	 |  dep + bOut |
- *          | callOut = 0x1                 |                 4b(nonce)  |            -------------           |   ---	 |  dep + bOut |
- *          | callOutSingle = 0x2           |                 4b(nonce)  |      20b + 20b + 32b + 32b + 3b    |   ---	 |  16b + 16b  |
- *          | callOutMulti = 0x3            |         1b(n) + 4b(nonce)  |   	32b + 32b + 32b + 32b + 3b    |   ---	 |  16b + 16b  |
- *          | callOutSigned = 0x4           |    20b(recip) + 4b(nonce)  |   	      -------------           |   ---    |  16b + 16b  |
- *          | callOutSignedSingle = 0x5     |           20b + 4b(nonce)  |      20b + 20b + 32b + 32b + 3b 	  |   ---	 |  16b + 16b  |
- *          | callOutSignedMultiple = 0x6   |   20b + 1b(n) + 4b(nonce)  |      32b + 32b + 32b + 32b + 3b 	  |   ---	 |  16b + 16b  |
- *          |_______________________________|____________________________|____________________________________|__________|_____________|
+ *           _____________________________________________________________________________________________________________
+ *          |            Flag               |        Deposit Info        |             Token Info             |   DATA   |
+ *          |           1 byte              |         4-25 bytes         |       104 or (128 * n) bytes       |   ---	 |
+ *          |                               |                            |           hT - t - A - D           |          |
+ *          |_______________________________|____________________________|____________________________________|__________|
+ *          | callOutSystem = 0x0   	    |                 4b(nonce)  |            -------------           |   ---	 |
+ *          | callOut = 0x1                 |                 4b(nonce)  |            -------------           |   ---	 |
+ *          | callOutSingle = 0x2           |                 4b(nonce)  |        20b + 20b + 32b + 32b       |   ---	 |
+ *          | callOutMulti = 0x3            |         1b(n) + 4b(nonce)  |   	  32b + 32b + 32b + 32b       |   ---	 |
+ *          | callOutSigned = 0x4           |    20b(recip) + 4b(nonce)  |   	      -------------           |   ---    |
+ *          | callOutSignedSingle = 0x5     |           20b + 4b(nonce)  |        20b + 20b + 32b + 32b       |   ---	 |
+ *          | callOutSignedMultiple = 0x6   |   20b + 1b(n) + 4b(nonce)  |        32b + 32b + 32b + 32b       |   ---	 |
+ *          |_______________________________|____________________________|____________________________________|__________|
  *
- *          Contract Interaction Flows:
+ *          Generic Contract Interaction Flow:
  *
- *          - 1) Remote to Remote:
- *                  RootBridgeAgent.anyExecute**() -> BridgeAgentExecutor.execute**() -> Router.anyExecute**() -> BridgeAgentExecutor (txExecuted) -> RootBridgeAgent (replenishedGas)
+ *              - BridgeAgent.lzReceive() -> BridgeAgentExecutor.execute**() -> Router.execute**() -> BridgeAgentExecutor (txExecuted)
  *
- *          - 2) Remote to Arbitrum:
- *                  RootBridgeAgent.anyExecute**() -> BridgeAgentExecutor.execute**() -> Router.anyExecute**() -> BridgeAgentExecutor (txExecuted) -> RootBridgeAgent (replenishedGas)
- *
- *          - 3) Arbitrum to Arbitrum:
- *                  RootBridgeAgent.anyExecute**() -> BridgeAgentExecutor.execute**() -> Router.anyExecute**() -> BridgeAgentExecutor (txExecuted)
  *
  */
-interface IRootBridgeAgent is IApp {
+interface IRootBridgeAgent is ILayerZeroReceiver {
     /*///////////////////////////////////////////////////////////////
                             VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-    /**
-     * @notice External function to get the intial gas available for remote request execution.
-     *   @return uint256 Initial gas available for remote request execution.
-     */
-    function initialGas() external view returns (uint256);
-
-    /**
-     * @notice External get gas fee details for current remote request being executed.
-     *   @return uint256 Gas fee for remote request execution.
-     *   @return uint256 Gas fee for remote request execution.
-     */
-    function userFeeInfo() external view returns (uint128, uint128);
-
     /**
      * @notice External function to get the Bridge Agent Executor Address.
      * @return address Bridge Agent Executor Address.
@@ -199,60 +169,74 @@ interface IRootBridgeAgent is IApp {
      */
     function isBranchBridgeAgentAllowed(uint256 _chainId) external view returns (bool);
 
+    /**
+     * @notice External function that returns the message value needed for a cross-chain call according to destination chain and the given calldata and gas requirements.
+     *   @param _toChain destination Chain ID.
+     *   @param _payload Calldata for branch router execution.
+     *   @param _gasLimit Gas limit for cross-chain message.
+     *   @param _remoteBranchExecutionGas Gas limit for branch router execution.
+     *   @return _fee Message value needed for cross-chain call.
+     */
+    function getFeeEstimate(
+        uint16 _toChain,
+        bytes calldata _payload,
+        uint256 _gasLimit,
+        uint256 _remoteBranchExecutionGas
+    ) external view returns (uint256 _fee);
+
     /*///////////////////////////////////////////////////////////////
                             REMOTE CALL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice External function performs call to AnycallProxy Contract for cross-chain messaging.
+     * @notice External function performs call to LayerZero Endpoint Contract for cross-chain messaging.
      *   @param _recipient address to receive any outstanding gas on the destination chain.
-     *   @param _calldata Calldata for function call.
      *   @param _toChain Chain to bridge to.
-     *   @dev Internal function performs call to AnycallProxy Contract for cross-chain messaging.
+     *   @param _params Calldata for function call.
+     *   @param _gParams Gas Parameters for cross-chain message.
+     *   @dev Internal function performs call to LayerZero Endpoint Contract for cross-chain messaging.
      */
-    function callOut(address _recipient, bytes memory _calldata, uint24 _toChain) external payable;
+    function callOut(address _recipient, uint16 _toChain, bytes memory _params, GasParams calldata _gParams)
+        external
+        payable;
 
     /**
      * @notice External function to move assets from root chain to branch omnichain envirsonment.
      *   @param _owner address allowed for redeeming assets after a failed settlement fallback. This address' Virtual Account is also allowed.
      *   @param _recipient recipient of bridged tokens and any outstanding gas on the destination chain.
-     *   @param _data parameters for function call on branch chain.
-     *   @param _globalAddress global token to be moved.
-     *   @param _amount amount of ´token´.
-     *   @param _deposit amount of native / underlying token.
      *   @param _toChain chain to bridge to.
+     *   @param _sParams settlement parameters for asset bridging to branch chains.
+     *   @param _params parameters for function call on branch chain.
+     *   @param _gParams Gas Parameters for cross-chain message.
      *
      */
     function callOutAndBridge(
         address _owner,
         address _recipient,
-        bytes memory _data,
-        address _globalAddress,
-        uint256 _amount,
-        uint256 _deposit,
-        uint24 _toChain
+        uint16 _toChain,
+        bytes calldata _params,
+        SettlementInput calldata _sParams,
+        GasParams calldata _gParams
     ) external payable;
 
     /**
      * @notice External function to move assets from branch chain to root omnichain environment.
      *   @param _owner address allowed for redeeming assets after a failed settlement fallback. This address' Virtual Account is also allowed.
      *   @param _recipient recipient of bridged tokens.
-     *   @param _data parameters for function call on branch chain.
-     *   @param _globalAddresses global tokens to be moved.
-     *   @param _amounts amounts of token.
-     *   @param _deposits amounts of underlying / token.
      *   @param _toChain chain to bridge to.
+     *   @param _params parameters for function call on branch chain.
+     *   @param _sParams settlement parameters for asset bridging to branch chains.
+     *   @param _gParams Gas Parameters for cross-chain message.
      *
      *
      */
     function callOutAndBridgeMultiple(
         address _owner,
         address _recipient,
-        bytes memory _data,
-        address[] memory _globalAddresses,
-        uint256[] memory _amounts,
-        uint256[] memory _deposits,
-        uint24 _toChain
+        uint16 _toChain,
+        bytes calldata _params,
+        SettlementMultipleInput calldata _sParams,
+        GasParams calldata _gParams
     ) external payable;
 
     /*///////////////////////////////////////////////////////////////
@@ -261,14 +245,16 @@ interface IRootBridgeAgent is IApp {
 
     /**
      * @notice Function to move assets from branch chain to root omnichain environment. Called in response to Bridge Agent Executor.
+     *   @param _recipient recipient of bridged token.
      *   @param _dParams Cross-Chain Deposit of Multiple Tokens Params.
      *   @param _fromChain chain to bridge from.
      *
      */
-    function bridgeIn(address _recipient, DepositParams memory _dParams, uint24 _fromChain) external;
+    function bridgeIn(address _recipient, DepositParams memory _dParams, uint16 _fromChain) external;
 
     /**
      * @notice Function to move assets from branch chain to root omnichain environment. Called in response to Bridge Agent Executor.
+     *   @param _recipient recipient of bridged tokens.
      *   @param _dParams Cross-Chain Deposit of Multiple Tokens Params.
      *   @param _fromChain chain to bridge from.
      *   @dev Since the input data is encodePacked we need to parse it:
@@ -287,7 +273,8 @@ interface IRootBridgeAgent is IApp {
      *         4. PARAMS_TKN_START + (PARAMS_DEPOSIT_OFFSET * N)
      *
      */
-    function bridgeInMultiple(address _recipient, DepositMultipleParams memory _dParams, uint24 _fromChain) external;
+    function bridgeInMultiple(address _recipient, DepositMultipleParams calldata _dParams, uint16 _fromChain)
+        external;
 
     /*///////////////////////////////////////////////////////////////
                         SETTLEMENT FUNCTIONS
@@ -310,10 +297,10 @@ interface IRootBridgeAgent is IApp {
     /**
      * @notice Function to retry a user's Settlement balance.
      *   @param _settlementNonce Identifier for token settlement.
-     *   @param _remoteExecutionGas Identifier for token settlement.
+     *   @param _gParams Gas Parameters for cross-chain message.
      *
      */
-    function retrySettlement(uint32 _settlementNonce, uint128 _remoteExecutionGas) external payable;
+    function retrySettlement(uint32 _settlementNonce, GasParams calldata _gParams) external payable;
 
     /**
      * @notice External function that returns a given settlement entry.
@@ -327,39 +314,7 @@ interface IRootBridgeAgent is IApp {
      *   @param _newBranchBridgeAgent address of the new branch bridge agent
      *   @param _branchChainId chainId of the branch chain
      */
-    function syncBranchBridgeAgent(address _newBranchBridgeAgent, uint24 _branchChainId) external;
-
-    /*///////////////////////////////////////////////////////////////
-                            GAS SWAP FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-     * @notice Checks if a pool is eligible to call uniswapV3SwapCallback
-     *   @param amount0 amount of token0 to swap
-     *   @param amount1 amount of token1 to swap
-     *   @param _data abi encoded data
-     */
-    function uniswapV3SwapCallback(int256 amount0, int256 amount1, bytes calldata _data) external;
-
-    /*///////////////////////////////////////////////////////////////
-                            ANYCALL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-     * @notice Function to force revert when a remote action does not have enough gas or is being retried after having been previously executed.
-     */
-    function forceRevert() external;
-
-    /**
-     * @notice Function to deposit gas for use by the Branch Bridge Agent.
-     */
-    function depositGasAnycallConfig() external payable;
-
-    /**
-     * @notice Function to collect excess gas fees.
-     *   @dev only callable by the DAO.
-     */
-    function sweep() external;
+    function syncBranchBridgeAgent(address _newBranchBridgeAgent, uint16 _branchChainId) external;
 
     /*///////////////////////////////////////////////////////////////
                             ADMIN FUNCTIONS
@@ -375,25 +330,30 @@ interface IRootBridgeAgent is IApp {
                              EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    event LogCallin(bytes1 selector, bytes data, uint24 fromChainId);
-    event LogCallout(bytes1 selector, bytes data, uint256, uint24 toChainId);
-    event LogCalloutFail(bytes1 selector, bytes data, uint24 toChainId);
+    event LogCallin(bytes1 selector, bytes data, uint16 fromChainId);
+    event LogCallout(bytes1 selector, bytes data, uint256, uint16 toChainId);
+    event LogCalloutFail(bytes1 selector, bytes data, uint16 toChainId);
 
     /*///////////////////////////////////////////////////////////////
                             ERRORS
     //////////////////////////////////////////////////////////////*/
 
     error GasErrorOrRepeatedTx();
+    error AlreadyExecutedTransaction();
+    error UnknownFlag();
 
     error NotDao();
-    error AnycallUnauthorizedCaller();
+
+    error LayerZeroUnauthorizedEndpoint();
+    error LayerZeroUnauthorizedCaller();
 
     error AlreadyAddedBridgeAgent();
     error UnrecognizedExecutor();
     error UnrecognizedPort();
     error UnrecognizedBridgeAgent();
+    error UnrecognizedLocalBridgeAgent();
     error UnrecognizedBridgeAgentManager();
-    error UnrecognizedCallerNotRouter();
+    error UnrecognizedRouter();
 
     error UnrecognizedUnderlyingAddress();
     error UnrecognizedLocalAddress();

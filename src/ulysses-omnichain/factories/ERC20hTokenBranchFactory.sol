@@ -24,9 +24,16 @@ contract ERC20hTokenBranchFactory is Ownable, IERC20hTokenBranchFactory {
     /// @notice Number of hTokens deployed in current chain.
     uint256 public hTokensLenght;
 
-    constructor(uint24 _localChainId, address _localPortAddress) {
-        require(_localPortAddress != address(0), "Port address cannot be 0");
+    /// @notice Name of the chain for token name preffix.
+    string public chainName;
 
+    /// @notice Symbol of the chain for token symbol preffix.
+    string public chainSymbol;
+
+    constructor(uint24 _localChainId, address _localPortAddress, string memory _chainName, string memory _chainSymbol) {
+        require(_localPortAddress != address(0), "Port address cannot be 0");
+        chainName = string.concat(_chainName, " Ulysses");
+        chainSymbol = string.concat(_chainSymbol, "-u");
         localChainId = _localChainId;
         localPortAddress = _localPortAddress;
         _initializeOwner(msg.sender);
@@ -36,8 +43,11 @@ contract ERC20hTokenBranchFactory is Ownable, IERC20hTokenBranchFactory {
         require(_coreRouter != address(0), "CoreRouter address cannot be 0");
 
         ERC20hTokenBranch newToken = new ERC20hTokenBranch(
+            chainName,
+            chainSymbol,
             ERC20(_wrappedNativeTokenAddress).name(),
             ERC20(_wrappedNativeTokenAddress).symbol(),
+            ERC20(_wrappedNativeTokenAddress).decimals(),
             localPortAddress
         );
 
@@ -56,13 +66,16 @@ contract ERC20hTokenBranchFactory is Ownable, IERC20hTokenBranchFactory {
      * @notice Function to create a new hToken.
      * @param _name Name of the Token.
      * @param _symbol Symbol of the Token.
+     * @param _decimals Decimals of the Token.
      */
-    function createToken(string memory _name, string memory _symbol)
+    function createToken(string memory _name, string memory _symbol, uint8 _decimals, bool _addPrefix)
         external
         requiresCoreRouter
         returns (ERC20hTokenBranch newToken)
     {
-        newToken = new ERC20hTokenBranch(_name, _symbol, localPortAddress);
+        newToken = _addPrefix
+            ? new ERC20hTokenBranch( chainName, chainSymbol, _name, _symbol, _decimals, localPortAddress)
+            : new ERC20hTokenBranch( "", "", _name, _symbol, _decimals, localPortAddress);
         hTokens.push(newToken);
         hTokensLenght++;
     }

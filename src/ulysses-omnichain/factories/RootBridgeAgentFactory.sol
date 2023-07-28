@@ -17,7 +17,7 @@ import {DeployRootBridgeAgent, RootBridgeAgent} from "../RootBridgeAgent.sol";
 /// @title Root Bridge Agent Factory Contract
 contract RootBridgeAgentFactory is IRootBridgeAgentFactory {
     /// @notice Root Chain Id
-    uint24 public immutable rootChainId;
+    uint16 public immutable rootChainId;
 
     /// @notice Local Wrapped Native Token
     WETH9 public immutable wrappedNativeToken;
@@ -29,10 +29,7 @@ contract RootBridgeAgentFactory is IRootBridgeAgentFactory {
     address public immutable daoAddress;
 
     /// @notice Local Anycall Address
-    address public immutable localAnyCallAddress;
-
-    /// @notice Local Anyexec Address
-    address public immutable localAnyCallExecutorAddress;
+    address public immutable lzEndpointAddress;
 
     /// @notice Bridge Agent Manager
     mapping(address => address) public getBridgeAgentManager;
@@ -41,14 +38,14 @@ contract RootBridgeAgentFactory is IRootBridgeAgentFactory {
      * @notice Constructor for Bridge Agent.
      *     @param _rootChainId Root Chain Id.
      *     @param _wrappedNativeToken Local Wrapped Native Token.
-     *     @param _localAnyCallAddress Local Anycall Address.
+     *     @param _lzEndpointAddress Local Layer Zero Endpoint for cross-chain communication.
      *     @param _rootPortAddress Local Port Address.
      *     @param _daoAddress DAO Address.
      */
     constructor(
-        uint24 _rootChainId,
+        uint16 _rootChainId,
         WETH9 _wrappedNativeToken,
-        address _localAnyCallAddress,
+        address _lzEndpointAddress,
         address _rootPortAddress,
         address _daoAddress
     ) {
@@ -58,8 +55,7 @@ contract RootBridgeAgentFactory is IRootBridgeAgentFactory {
 
         rootChainId = _rootChainId;
         wrappedNativeToken = _wrappedNativeToken;
-        localAnyCallAddress = _localAnyCallAddress;
-        localAnyCallExecutorAddress = IAnycallProxy(localAnyCallAddress).executor();
+        lzEndpointAddress = _lzEndpointAddress;
         rootPortAddress = _rootPortAddress;
         daoAddress = _daoAddress;
     }
@@ -75,13 +71,7 @@ contract RootBridgeAgentFactory is IRootBridgeAgentFactory {
     function createBridgeAgent(address _newRootRouterAddress) external returns (address newBridgeAgent) {
         newBridgeAgent = address(
             DeployRootBridgeAgent.deploy(
-                wrappedNativeToken,
-                rootChainId,
-                daoAddress,
-                localAnyCallAddress,
-                localAnyCallExecutorAddress,
-                rootPortAddress,
-                _newRootRouterAddress
+                wrappedNativeToken, rootChainId, daoAddress, lzEndpointAddress, rootPortAddress, _newRootRouterAddress
             )
         );
 

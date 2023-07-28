@@ -23,10 +23,9 @@ import {Ownable} from "solady/auth/Ownable.sol";
 contract MockRootBridgeAgent is RootBridgeAgent {
     constructor(
         WETH9 _wrappedNativeToken,
-        uint24 _localChainId,
+        uint16 _localChainId,
         address _daoAddress,
-        address _localAnyCallAddress,
-        address _localAnyCallExecutorAddress,
+        address _lzEndpointAddress,
         address _localPortAddress,
         address _localRouterAddress
     )
@@ -34,8 +33,7 @@ contract MockRootBridgeAgent is RootBridgeAgent {
             _wrappedNativeToken,
             _localChainId,
             _daoAddress,
-            _localAnyCallAddress,
-            _localAnyCallExecutorAddress,
+            _lzEndpointAddress,
             _localPortAddress,
             _localRouterAddress
         )
@@ -47,9 +45,11 @@ contract MockRootBridgeAgent is RootBridgeAgent {
 
     /// AnyExec Consts
 
-    uint8 internal constant PARAMS_END_OFFSET = 9;
+    // uint8 internal constant PARAMS_END_OFFSET = 9;
+    uint8 internal constant PARAMS_END_OFFSET = 6;
 
-    uint8 internal constant PARAMS_END_SIGNED_OFFSET = 29;
+    // uint8 internal constant PARAMS_END_SIGNED_OFFSET = 29;
+    uint8 internal constant PARAMS_END_SIGNED_OFFSET = 26;
 
     uint8 internal constant PARAMS_ENTRY_SIZE = 32;
 
@@ -61,7 +61,7 @@ contract MockRootBridgeAgent is RootBridgeAgent {
                 TOKEN MANAGEMENT INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function bridgeInMultiple(address, bytes calldata _dParams, uint24)
+    function bridgeInMultiple(address, bytes calldata _dParams, uint16)
         public
         view
         returns (DepositMultipleParams memory)
@@ -69,7 +69,7 @@ contract MockRootBridgeAgent is RootBridgeAgent {
         // Parse Parameters
         uint8 numOfAssets = uint8(bytes1(_dParams[0]));
         uint32 nonce = uint32(bytes4(_dParams[PARAMS_START:5]));
-        uint24 toChain = uint24(bytes3(_dParams[_dParams.length - 3:_dParams.length]));
+        // uint24 toChain = uint24(bytes3(_dParams[_dParams.length - 3:_dParams.length]));
 
         address[] memory hTokens = new address[](numOfAssets);
         address[] memory tokens = new address[](numOfAssets);
@@ -161,7 +161,6 @@ contract MockRootBridgeAgent is RootBridgeAgent {
             console2.log("tokens[i]", tokens[i]);
             console2.log("amounts[i]", amounts[i]);
             console2.log("deposits[i]", deposits[i]);
-            console2.log("toChain", toChain);
 
             unchecked {
                 ++i;
@@ -174,8 +173,7 @@ contract MockRootBridgeAgent is RootBridgeAgent {
                 hTokens: hTokens,
                 tokens: tokens,
                 amounts: amounts,
-                deposits: deposits,
-                toChain: toChain
+                deposits: deposits
             })
         );
     }

@@ -9,7 +9,7 @@ import {WETH9} from "./interfaces/IWETH9.sol";
 
 import {IERC20hTokenRootFactory as IFactory} from "./interfaces/IERC20hTokenRootFactory.sol";
 import {IRootRouter} from "./interfaces/IRootRouter.sol";
-import {IRootBridgeAgent as IBridgeAgent} from "./interfaces/IRootBridgeAgent.sol";
+import {IRootBridgeAgent as IBridgeAgent, GasParams} from "./interfaces/IRootBridgeAgent.sol";
 import {IRootPort as IPort} from "./interfaces/IRootPort.sol";
 import {IVirtualAccount, Call} from "./interfaces/IVirtualAccount.sol";
 
@@ -40,7 +40,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
     WETH9 public immutable wrappedNativeToken;
 
     /// @notice Address for Local Port Address where funds deposited from this chain are kept, managed and supplied to different Port Strategies.
-    uint24 public immutable rootChainId;
+    uint16 public immutable rootChainId;
 
     /// @notice Address for Local Port Address where funds deposited from this chain are kept, managed and supplied to different Port Strategies.
     address public immutable rootPortAddress;
@@ -53,7 +53,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
     /// @notice Uni V3 Factory Address
     address public hTokenFactoryAddress;
 
-    constructor(uint24 _rootChainId, address _wrappedNativeToken, address _rootPortAddress) {
+    constructor(uint16 _rootChainId, address _wrappedNativeToken, address _rootPortAddress) {
         rootChainId = _rootChainId;
         wrappedNativeToken = WETH9(_wrappedNativeToken);
         rootPortAddress = _rootPortAddress;
@@ -76,15 +76,15 @@ contract CoreRootRouter is IRootRouter, Ownable {
      * @param _newBranchRouter Address of the new branch router.
      * @param _gasReceiver Address of the excess gas receiver.
      * @param _toChain Chain Id of the branch chain where the new Bridge Agent will be deployed.
-     * @param _remoteExecutionGas gas to be bridged back to root chain.
+     * @param _gParams Gas parameters for remote execution.
      */
     function addBranchToBridgeAgent(
         address _rootBridgeAgent,
         address _branchBridgeAgentFactory,
         address _newBranchRouter,
         address _gasReceiver,
-        uint24 _toChain,
-        uint128 _remoteExecutionGas
+        uint16 _toChain,
+        GasParams[2] calldata _gParams
     ) external payable {
         // Check if msg.sender is the Bridge Agent Manager
         if (msg.sender != IPort(rootPortAddress).getBridgeAgentManager(_rootBridgeAgent)) {
@@ -105,14 +105,14 @@ contract CoreRootRouter is IRootRouter, Ownable {
 
         //Encode CallData
         bytes memory data = abi.encode(
-            _newBranchRouter, _branchBridgeAgentFactory, _rootBridgeAgent, rootBridgeAgentFactory, _remoteExecutionGas
+            _newBranchRouter, _branchBridgeAgentFactory, _rootBridgeAgent, rootBridgeAgentFactory, _gParams[1]
         );
 
         //Pack funcId into data
         bytes memory packedData = abi.encodePacked(bytes1(0x02), data);
 
         //Add new global token to branch chain
-        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, packedData, _toChain);
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, _toChain, packedData, _gParams[0]);
     }
 
     /**
@@ -122,7 +122,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
      *   @param _fromChain branch chain id.
      *
      */
-    function _syncBranchBridgeAgent(address _newBranchBridgeAgent, address _rootBridgeAgent, uint24 _fromChain)
+    function _syncBranchBridgeAgent(address _newBranchBridgeAgent, address _rootBridgeAgent, uint16 _fromChain)
         internal
     {
         IPort(rootPortAddress).syncBranchBridgeAgentWithRoot(_newBranchBridgeAgent, _rootBridgeAgent, _fromChain);
@@ -134,13 +134,13 @@ contract CoreRootRouter is IRootRouter, Ownable {
 
     /**
      * @notice Internal function to add a global token to a specific chain. Must be called from a branch.
-     *   @param _remoteExecutionGas gas to be used in remote execution.
-     *   @param _globalAddress global token to be added.
      *   @param _gasReceiver Address of the excess gas receiver.
+     *   @param _globalAddress global token to be added.
      *   @param _toChain chain to which the Global Token will be added.
+     *   @param _gParams Gas parameters for remote execution.
      *
      */
-    function _addGlobalToken(uint128 _remoteExecutionGas, address _globalAddress, address _gasReceiver, uint24 _toChain)
+    function _addGlobalToken(address _gasReceiver, address _globalAddress, uint16 _toChain, GasParams memory _gParams)
         internal
     {
         if (_toChain == rootChainId) revert InvalidChainId();
@@ -156,14 +156,18 @@ contract CoreRootRouter is IRootRouter, Ownable {
 
         //Encode CallData
         bytes memory data = abi.encode(
-            _globalAddress, ERC20(_globalAddress).name(), ERC20(_globalAddress).symbol(), _remoteExecutionGas
+            _globalAddress,
+            ERC20(_globalAddress).name(),
+            ERC20(_globalAddress).symbol(),
+            ERC20(_globalAddress).decimals(),
+            _gParams
         );
 
         //Pack funcId into data
         bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
 
         //Add new global token to branch chain
-        IBridgeAgent(bridgeAgentAddress).callOut(_gasReceiver, packedData, _toChain);
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, _toChain, packedData, _gParams);
     }
 
     /**
@@ -172,6 +176,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
      *   @param _localAddress the token's address.
      *   @param _name the token's name.
      *   @param _symbol the token's symbol.
+     *   @param _decimals the token's decimals.
      *   @param _fromChain the token's origin chain Id.
      *
      */
@@ -180,7 +185,8 @@ contract CoreRootRouter is IRootRouter, Ownable {
         address _localAddress,
         string memory _name,
         string memory _symbol,
-        uint24 _fromChain
+        uint8 _decimals,
+        uint16 _fromChain
     ) internal {
         // Verify if underlying address is already known by branch or root chain
         if (
@@ -190,7 +196,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
         ) revert TokenAlreadyAdded();
 
         //Create new global token
-        address newToken = address(IFactory(hTokenFactoryAddress).createToken(_name, _symbol));
+        address newToken = address(IFactory(hTokenFactoryAddress).createToken(_name, _symbol, _decimals));
 
         //Update Registry
         IPort(rootPortAddress).setAddresses(
@@ -205,7 +211,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
      *   @param _toChain local token's chain.
      *
      */
-    function _setLocalToken(address _globalAddress, address _localAddress, uint24 _toChain) internal {
+    function _setLocalToken(address _globalAddress, address _localAddress, uint16 _toChain) internal {
         // Verify if token already added
         if (IPort(rootPortAddress).isLocalToken(_localAddress, _toChain)) revert TokenAlreadyAdded();
 
@@ -223,12 +229,14 @@ contract CoreRootRouter is IRootRouter, Ownable {
      * @param _branchBridgeAgentFactory Address of the branch Bridge Agent Factory.
      * @param _gasReceiver Receiver of any leftover execution gas upon reaching destination network.
      * @param _toChain Chain Id of the branch chain where the new Bridge Agent will be deployed.
+     * @param _gParams Gas parameters for remote execution.
      */
     function toggleBranchBridgeAgentFactory(
         address _rootBridgeAgentFactory,
         address _branchBridgeAgentFactory,
         address _gasReceiver,
-        uint24 _toChain
+        uint16 _toChain,
+        GasParams calldata _gParams
     ) external payable onlyOwner {
         if (!IPort(rootPortAddress).isBridgeAgentFactory(_rootBridgeAgentFactory)) {
             revert UnrecognizedBridgeAgentFactory();
@@ -241,7 +249,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
         bytes memory packedData = abi.encodePacked(bytes1(0x03), data);
 
         //Add new global token to branch chain
-        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, packedData, _toChain);
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, _toChain, packedData, _gParams);
     }
 
     /**
@@ -249,12 +257,14 @@ contract CoreRootRouter is IRootRouter, Ownable {
      * @param _branchBridgeAgent Address of the Branch Bridge Agent to be updated.
      * @param _gasReceiver Receiver of any leftover execution gas upon reaching destination network.
      * @param _toChain Chain Id of the branch chain where the new Bridge Agent will be deployed.
+     * @param _gParams Gas parameters for remote execution.
      */
-    function removeBranchBridgeAgent(address _branchBridgeAgent, address _gasReceiver, uint24 _toChain)
-        external
-        payable
-        onlyOwner
-    {
+    function removeBranchBridgeAgent(
+        address _branchBridgeAgent,
+        address _gasReceiver,
+        uint16 _toChain,
+        GasParams calldata _gParams
+    ) external payable onlyOwner {
         //Encode CallData
         bytes memory data = abi.encode(_branchBridgeAgent);
 
@@ -262,7 +272,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
         bytes memory packedData = abi.encodePacked(bytes1(0x04), data);
 
         //Add new global token to branch chain
-        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, packedData, _toChain);
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, _toChain, packedData, _gParams);
     }
 
     /**
@@ -271,12 +281,14 @@ contract CoreRootRouter is IRootRouter, Ownable {
      * @param _minimumReservesRatio Minimum Branch Port reserves ratio for the underlying token.
      * @param _gasReceiver Receiver of any leftover execution gas upon reaching destination network.
      * @param _toChain Chain Id of the branch chain where the new Bridge Agent will be deployed.
+     * @param _gParams Gas parameters for remote execution.
      */
     function manageStrategyToken(
         address _underlyingToken,
         uint256 _minimumReservesRatio,
         address _gasReceiver,
-        uint24 _toChain
+        uint16 _toChain,
+        GasParams calldata _gParams
     ) external payable onlyOwner {
         //Encode CallData
         bytes memory data = abi.encode(_underlyingToken, _minimumReservesRatio);
@@ -285,7 +297,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
         bytes memory packedData = abi.encodePacked(bytes1(0x05), data);
 
         //Add new global token to branch chain
-        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, packedData, _toChain);
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, _toChain, packedData, _gParams);
     }
 
     /**
@@ -296,6 +308,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
      * @param _isUpdateDailyLimit Boolean to safely indicate if the Port Strategy is being updated and not deactivated.
      * @param _gasReceiver Receiver of any leftover execution gas upon reaching destination network.
      * @param _toChain Chain Id of the branch chain where the new Bridge Agent will be deployed.
+     * @param _gParams Gas parameters for remote execution.
      */
     function managePortStrategy(
         address _portStrategy,
@@ -303,7 +316,8 @@ contract CoreRootRouter is IRootRouter, Ownable {
         uint256 _dailyManagementLimit,
         bool _isUpdateDailyLimit,
         address _gasReceiver,
-        uint24 _toChain
+        uint16 _toChain,
+        GasParams calldata _gParams
     ) external payable onlyOwner {
         //Encode CallData
         bytes memory data = abi.encode(_portStrategy, _underlyingToken, _dailyManagementLimit, _isUpdateDailyLimit);
@@ -312,7 +326,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
         bytes memory packedData = abi.encodePacked(bytes1(0x06), data);
 
         //Add new global token to branch chain
-        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, packedData, _toChain);
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, _toChain, packedData, _gParams);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -320,110 +334,91 @@ contract CoreRootRouter is IRootRouter, Ownable {
     ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IRootRouter
-    function anyExecuteResponse(bytes1 _funcId, bytes calldata _encodedData, uint24 fromChainId)
+    function executeResponse(bytes1 _funcId, bytes calldata _encodedData, uint16 _fromChainId)
         external
         payable
         override
         requiresExecutor
-        returns (bool, bytes memory)
     {
-        /// FUNC ID: 3 (_setLocalToken)
-        if (_funcId == 0x03) {
+        ///  FUNC ID: 2 (_addLocalToken)
+        if (_funcId == 0x02) {
+            (address underlyingAddress, address localAddress, string memory name, string memory symbol, uint8 decimals)
+            = abi.decode(_encodedData, (address, address, string, string, uint8));
+
+            _addLocalToken(underlyingAddress, localAddress, name, symbol, decimals, _fromChainId);
+
+            /// FUNC ID: 3 (_setLocalToken)
+        } else if (_funcId == 0x03) {
             (address globalAddress, address localAddress) = abi.decode(_encodedData, (address, address));
 
-            _setLocalToken(globalAddress, localAddress, fromChainId);
+            _setLocalToken(globalAddress, localAddress, _fromChainId);
 
             /// FUNC ID: 4 (_syncBranchBridgeAgent)
         } else if (_funcId == 0x04) {
             (address newBranchBridgeAgent, address rootBridgeAgent) = abi.decode(_encodedData, (address, address));
 
-            _syncBranchBridgeAgent(newBranchBridgeAgent, rootBridgeAgent, fromChainId);
+            _syncBranchBridgeAgent(newBranchBridgeAgent, rootBridgeAgent, _fromChainId);
 
             /// Unrecognized Function Selector
         } else {
-            return (false, "unknown selector");
+            revert UnrecognizedFunctionId();
         }
-        return (true, "");
     }
 
     /// @inheritdoc IRootRouter
-    function anyExecute(bytes1 _funcId, bytes calldata _encodedData, uint24 _fromChainId)
-        external
-        payable
-        override
-        requiresExecutor
-        returns (bool, bytes memory)
-    {
+    function execute(bytes1 _funcId, bytes calldata _encodedData, uint16) external payable override requiresExecutor {
         /// FUNC ID: 1 (_addGlobalToken)
         if (_funcId == 0x01) {
-            (address gasReceiver, address globalAddress, uint24 toChain, uint128 remoteExecutionGas) =
-                abi.decode(_encodedData, (address, address, uint24, uint128));
+            (address gasReceiver, address globalAddress, uint16 toChain, GasParams memory gasParams) =
+                abi.decode(_encodedData, (address, address, uint16, GasParams));
 
-            _addGlobalToken(remoteExecutionGas, globalAddress, gasReceiver, toChain);
-
-            ///  FUNC ID: 2 (_addLocalToken)
-        } else if (_funcId == 0x02) {
-            (address underlyingAddress, address localAddress, string memory name, string memory symbol) =
-                abi.decode(_encodedData, (address, address, string, string));
-
-            _addLocalToken(underlyingAddress, localAddress, name, symbol, _fromChainId);
+            _addGlobalToken(gasReceiver, globalAddress, toChain, gasParams);
 
             /// Unrecognized Function Selector
         } else {
-            return (false, "unknown selector");
+            revert UnrecognizedFunctionId();
         }
-        return (true, "");
     }
 
     /// @inheritdoc IRootRouter
-    function anyExecuteDepositSingle(bytes1, bytes memory, DepositParams memory, uint24)
+    function executeDepositSingle(bytes1, bytes memory, DepositParams memory, uint16)
         external
         payable
         override
         requiresExecutor
-        returns (bool, bytes memory)
     {
         revert();
     }
 
     /// @inheritdoc IRootRouter
-    function anyExecuteDepositMultiple(bytes1, bytes calldata, DepositMultipleParams memory, uint24)
+    function executeDepositMultiple(bytes1, bytes calldata, DepositMultipleParams memory, uint16)
         external
         payable
         requiresExecutor
-        returns (bool, bytes memory)
     {
         revert();
     }
 
     /// @inheritdoc IRootRouter
-    function anyExecuteSigned(bytes1, bytes memory, address, uint24)
-        external
-        payable
-        override
-        requiresExecutor
-        returns (bool, bytes memory)
-    {
+    function executeSigned(bytes1, bytes memory, address, uint16) external payable override requiresExecutor {
         revert();
     }
 
     /// @inheritdoc IRootRouter
-    function anyExecuteSignedDepositSingle(bytes1, bytes memory, DepositParams memory, address, uint24)
+    function executeSignedDepositSingle(bytes1, bytes memory, DepositParams memory, address, uint16)
         external
         payable
         override
         requiresExecutor
-        returns (bool, bytes memory)
     {
         revert();
     }
 
     /// @inheritdoc IRootRouter
-    function anyExecuteSignedDepositMultiple(bytes1, bytes memory, DepositMultipleParams memory, address, uint24)
+    function executeSignedDepositMultiple(bytes1, bytes memory, DepositMultipleParams memory, address, uint16)
         external
         payable
         requiresExecutor
-        returns (bool, bytes memory)
     {
         revert();
     }

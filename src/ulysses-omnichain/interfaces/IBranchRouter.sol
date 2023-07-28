@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {
+    GasParams,
     Deposit,
     DepositInput,
     DepositMultipleInput,
@@ -21,6 +22,9 @@ interface IBranchRouter {
     /*///////////////////////////////////////////////////////////////
                             VIEW / STATE
     //////////////////////////////////////////////////////////////*/
+    
+    /// @notice External function to return the Branch Chain's Local Port Address.
+    function localPortAddress() external view returns (address);
 
     /// @notice Address for local Branch Bridge Agent who processes requests and ineracts with local port.
     function localBridgeAgentAddress() external view returns (address);
@@ -35,21 +39,21 @@ interface IBranchRouter {
     /**
      * @notice Function to perform a call to the Root Omnichain Router without token deposit.
      *   @param params RLP enconded parameters to execute on the root chain.
-     *   @param rootExecutionGas gas allocated for remote execution.
+     *   @param gParams gas parameters for the cross-chain call.
      *   @dev ACTION ID: 1 (Call without deposit)
      *
      */
-    function callOut(bytes calldata params, uint128 rootExecutionGas) external payable;
+    function callOut(bytes calldata params, GasParams calldata gParams) external payable;
 
     /**
      * @notice Function to perform a call to the Root Omnichain Router while depositing a single asset.
      *   @param params RLP enconded parameters to execute on the root chain.
      *   @param dParams additional token deposit parameters.
-     *   @param rootExecutionGas gas allocated for remote execution.
+     *   @param gParams gas parameters for the cross-chain call.
      *   @dev ACTION ID: 2 (Call with single deposit)
      *
      */
-    function callOutAndBridge(bytes calldata params, DepositInput memory dParams, uint128 rootExecutionGas)
+    function callOutAndBridge(bytes calldata params, DepositInput calldata dParams, GasParams calldata gParams)
         external
         payable;
 
@@ -57,23 +61,23 @@ interface IBranchRouter {
      * @notice Function to perform a call to the Root Omnichain Router while depositing two or more assets.
      *   @param params RLP enconded parameters to execute on the root chain.
      *   @param dParams additional token deposit parameters.
-     *   @param rootExecutionGas gas allocated for remote execution.
+     *   @param gParams gas parameters for the cross-chain call.
      *   @dev ACTION ID: 3 (Call with multiple deposit)
      *
      */
     function callOutAndBridgeMultiple(
         bytes calldata params,
-        DepositMultipleInput memory dParams,
-        uint128 rootExecutionGas
+        DepositMultipleInput calldata dParams,
+        GasParams calldata gParams
     ) external payable;
 
     /**
      * @notice External function to retry a failed Settlement entry on the root chain.
      *     @param _settlementNonce Identifier for user settlement.
-     *     @param _gasToBoostSettlement Additional gas to boost settlement.
+     *     @param gParams gas parameters for the cross-chain call.
      *
      */
-    function retrySettlement(uint32 _settlementNonce, uint128 _gasToBoostSettlement) external payable;
+    function retrySettlement(uint32 _settlementNonce, GasParams calldata gParams) external payable;
 
     /**
      * @notice External function to retry a failed Deposit entry on this branch chain.
@@ -95,32 +99,32 @@ interface IBranchRouter {
 
     /**
      * @notice Function responsible of executing a branch router response.
-     *     @param data data received from messaging layer.
+     *     @param params data received from messaging layer.
      */
-    function anyExecuteNoSettlement(bytes calldata data) external returns (bool success, bytes memory result);
+    function executeNoSettlement(bytes calldata params) external payable;
 
     /**
      * @dev Function responsible of executing a crosschain request without any deposit.
-     *     @param data data received from messaging layer.
+     *     @param params data received from messaging layer.
      *     @param sParams SettlementParams struct.
      */
-    function anyExecuteSettlement(bytes calldata data, SettlementParams memory sParams)
-        external
-        returns (bool success, bytes memory result);
+    function executeSettlement(bytes calldata params, SettlementParams calldata sParams) external payable;
 
     /**
      * @dev Function responsible of executing a crosschain request which contains cross-chain deposit information attached.
-     *     @param data data received from messaging layer.
+     *     @param params data received from messaging layer.
      *     @param sParams SettlementParams struct containing deposit information.
      *
      */
-    function anyExecuteSettlementMultiple(bytes calldata data, SettlementMultipleParams memory sParams)
+    function executeSettlementMultiple(bytes calldata params, SettlementMultipleParams calldata sParams)
         external
-        returns (bool success, bytes memory result);
+        payable;
 
     /*///////////////////////////////////////////////////////////////
                              ERRORS
     //////////////////////////////////////////////////////////////*/
+
+    error UnrecognizedFunctionId();
 
     error UnrecognizedBridgeAgentExecutor();
 }

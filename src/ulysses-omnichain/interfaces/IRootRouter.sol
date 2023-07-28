@@ -23,10 +23,7 @@ interface IRootRouter {
      *     @param fromChainId chain where the request originated from.
      *
      */
-    function anyExecuteResponse(bytes1 funcId, bytes memory encodedData, uint24 fromChainId)
-        external
-        payable
-        returns (bool success, bytes memory result);
+    function executeResponse(bytes1 funcId, bytes memory encodedData, uint16 fromChainId) external payable;
 
     /**
      *     @notice Function responsible of executing a crosschain request without any deposit.
@@ -35,10 +32,7 @@ interface IRootRouter {
      *     @param fromChainId chain where the request originated from.
      *
      */
-    function anyExecute(bytes1 funcId, bytes memory encodedData, uint24 fromChainId)
-        external
-        payable
-        returns (bool success, bytes memory result);
+    function execute(bytes1 funcId, bytes memory encodedData, uint16 fromChainId) external payable;
 
     /**
      *   @notice Function responsible of executing a crosschain request which contains cross-chain deposit information attached.
@@ -48,12 +42,12 @@ interface IRootRouter {
      *   @param fromChainId chain where the request originated from.
      *
      */
-    function anyExecuteDepositSingle(
+    function executeDepositSingle(
         bytes1 funcId,
         bytes memory encodedData,
         DepositParams memory dParams,
-        uint24 fromChainId
-    ) external payable returns (bool success, bytes memory result);
+        uint16 fromChainId
+    ) external payable;
 
     /**
      *   @notice Function responsible of executing a crosschain request which contains cross-chain deposit information for multiple assets attached.
@@ -63,12 +57,12 @@ interface IRootRouter {
      *   @param fromChainId chain where the request originated from.
      *
      */
-    function anyExecuteDepositMultiple(
+    function executeDepositMultiple(
         bytes1 funcId,
         bytes memory encodedData,
         DepositMultipleParams memory dParams,
-        uint24 fromChainId
-    ) external payable returns (bool success, bytes memory result);
+        uint16 fromChainId
+    ) external payable;
 
     /**
      * @notice Function responsible of executing a crosschain request with msg.sender without any deposit.
@@ -77,10 +71,9 @@ interface IRootRouter {
      * @param userAccount user account address.
      * @param fromChainId chain where the request originated from.
      */
-    function anyExecuteSigned(bytes1 funcId, bytes memory encodedData, address userAccount, uint24 fromChainId)
+    function executeSigned(bytes1 funcId, bytes memory encodedData, address userAccount, uint16 fromChainId)
         external
-        payable
-        returns (bool success, bytes memory result);
+        payable;
 
     /**
      * @notice Function responsible of executing a crosschain request which contains cross-chain deposit information and msg.sender attached.
@@ -90,13 +83,13 @@ interface IRootRouter {
      * @param userAccount user account address.
      * @param fromChainId chain where the request originated from.
      */
-    function anyExecuteSignedDepositSingle(
+    function executeSignedDepositSingle(
         bytes1 funcId,
         bytes memory encodedData,
         DepositParams memory dParams,
         address userAccount,
-        uint24 fromChainId
-    ) external payable returns (bool success, bytes memory result);
+        uint16 fromChainId
+    ) external payable;
 
     /**
      * @notice Function responsible of executing a crosschain request which contains cross-chain deposit information for multiple assets and msg.sender attached.
@@ -106,17 +99,18 @@ interface IRootRouter {
      * @param userAccount user account address.
      * @param fromChainId chain where the request originated from.
      */
-    function anyExecuteSignedDepositMultiple(
+    function executeSignedDepositMultiple(
         bytes1 funcId,
         bytes memory encodedData,
         DepositMultipleParams memory dParams,
         address userAccount,
-        uint24 fromChainId
-    ) external payable returns (bool success, bytes memory result);
+        uint16 fromChainId
+    ) external payable;
 
     /*///////////////////////////////////////////////////////////////
                              ERRORS
     //////////////////////////////////////////////////////////////*/
 
+    error UnrecognizedFunctionId();
     error UnrecognizedBridgeAgentExecutor();
 }

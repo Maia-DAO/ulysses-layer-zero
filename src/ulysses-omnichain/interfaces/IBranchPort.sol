@@ -98,6 +98,7 @@ interface IBranchPort {
      * @notice Setter function to decrease local hToken supply.
      *   @param _localAddress token address.
      *   @param _amount amount of tokens.
+     *   @param _deposit amount of underlying tokens.
      *
      */
     function bridgeOut(

@@ -50,8 +50,9 @@ contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
      * @notice Function to create a new hToken.
      * @param _name Name of the Token.
      * @param _symbol Symbol of the Token.
+     * @param _decimals Decimals of the Token.
      */
-    function createToken(string memory _name, string memory _symbol)
+    function createToken(string memory _name, string memory _symbol, uint8 _decimals)
         external
         requiresCoreRouter
         returns (ERC20hTokenRoot newToken)
@@ -61,7 +62,8 @@ contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
             address(this),
             rootPortAddress,
             _name,
-            _symbol
+            _symbol,
+            _decimals
         );
         hTokens.push(newToken);
         hTokensLenght++;

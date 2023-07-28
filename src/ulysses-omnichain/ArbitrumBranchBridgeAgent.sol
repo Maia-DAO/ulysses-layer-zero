@@ -8,6 +8,8 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import {WETH9} from "./interfaces/IWETH9.sol";
 
+import {ILayerZeroEndpoint} from "./interfaces/ILayerZeroEndpoint.sol";
+
 import {AnycallFlags} from "./lib/AnycallFlags.sol";
 import {IAnycallProxy} from "./interfaces/IAnycallProxy.sol";
 import {IAnycallConfig} from "./interfaces/IAnycallConfig.sol";
@@ -20,7 +22,7 @@ import {IRootBridgeAgent} from "./interfaces/IRootBridgeAgent.sol";
 
 import {
     IBranchBridgeAgent,
-    IApp,
+    ILayerZeroReceiver,
     Deposit,
     DepositStatus,
     DepositInput,
@@ -37,10 +39,9 @@ import {BranchBridgeAgentExecutor, DeployBranchBridgeAgentExecutor} from "./Bran
 library DeployArbitrumBranchBridgeAgent {
     function deploy(
         WETH9 _wrappedNativeToken,
-        uint256 _localChainId,
+        uint16 _localChainId,
         address _daoAddress,
-        address _localAnyCallAddress,
-        address _localAnyCallExecutorAddress,
+        address _lzEndpointAddress,
         address _localPortAddress,
         address _localRouterAddress
     ) external returns (ArbitrumBranchBridgeAgent) {
@@ -48,8 +49,7 @@ library DeployArbitrumBranchBridgeAgent {
             _wrappedNativeToken,
             _localChainId,
             _daoAddress,
-            _localAnyCallAddress,
-            _localAnyCallExecutorAddress,
+            _lzEndpointAddress,
             _localPortAddress,
             _localRouterAddress
         );
@@ -70,10 +70,9 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
 
     constructor(
         WETH9 _wrappedNativeToken,
-        uint256 _localChainId,
+        uint16 _localChainId,
         address _rootBridgeAgentAddress,
-        address _localAnyCallAddress,
-        address _localAnyCallExecutorAddress,
+        address _lzEndpointAddress,
         address _localRouterAddress,
         address _localPortAddress
     )
@@ -82,8 +81,7 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
             _localChainId,
             _localChainId,
             _rootBridgeAgentAddress,
-            _localAnyCallAddress,
-            _localAnyCallExecutorAddress,
+            _lzEndpointAddress,
             _localRouterAddress,
             _localPortAddress
         )
@@ -100,9 +98,7 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
      *
      */
     function depositToPort(address underlyingAddress, uint256 amount) external payable lock {
-        IArbPort(localPortAddress).depositToPort(
-            msg.sender, msg.sender, underlyingAddress, _normalizeDecimals(amount, ERC20(underlyingAddress).decimals())
-        );
+        IArbPort(localPortAddress).depositToPort(msg.sender, msg.sender, underlyingAddress, amount);
     }
 
     /**
@@ -120,79 +116,19 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Internal function to move gas to RootBridgeAgent for remote chain execution.
-     *   @param _gasToBridgeOut amount of gas to be deposited.
+     * @notice Internal function performs call to LayerZero messaging layer Endpoint for cross-chain messaging.
+     *   @param _calldata params for root bridge agent execution.
      */
-    function _depositGas(uint128 _gasToBridgeOut) internal override {
-        address(wrappedNativeToken).safeTransfer(rootBridgeAgentAddress, _gasToBridgeOut);
+    function _performCall(address payable, bytes memory _calldata, bytes memory) internal override {
+        //Send Gas to Root Bridge Agent
+        rootBridgeAgentAddress.call{value: msg.value}("");
+        //Execute locally
+        IRootBridgeAgent(rootBridgeAgentAddress).lzReceive(rootChainId, "", 0, _calldata);
     }
 
-    /**
-     * @notice Reverts the current transaction with a "no enough budget" message.
-     * @dev This function is used to revert the current transaction with a "no enough budget" message.
-     */
-    function _forceRevert() internal pure override {
-        revert GasErrorOrRepeatedTx();
-    }
-
-    /**
-     * @notice Internal function performs call to AnycallProxy Contract for cross-chain messaging.
-     *   @param _callData bytes of the call to be sent to the AnycallProxy.
-     */
-    function _performCall(bytes memory _callData) internal override {
-        IRootBridgeAgent(rootBridgeAgentAddress).anyExecute(_callData);
-    }
-
-    /**
-     * @notice Internal that clears gas allocated for usage with remote request
-     */
-    function _gasSwapIn(bytes memory gasData) internal override returns (uint256 gasAmount) {
-        //Gas already provided by Root Bridge Agent
-    }
-
-    /**
-     * @notice Internal function to pay for execution gas. Overwritten Gas is processed by Root Bridge Agent contract - `depositedGas` is used to pay for execution and `gasToBridgeOut`is cleared to recipient.
-     */
-    function _payExecutionGas(address _recipient, uint256) internal override {
-        //Get gas remaining
-        uint256 gasRemaining = wrappedNativeToken.balanceOf(address(this));
-
-        if (gasRemaining > 0) {
-            //Unwrap Gas
-            wrappedNativeToken.withdraw(gasRemaining);
-
-            //Transfer gas remaining to recipient
-            SafeTransferLib.safeTransferETH(_recipient, gasRemaining);
-        }
-
-        delete(remoteCallDepositedGas);
-    }
-
-    /**
-     * @notice Internal function to pay for fallback gas. Overwritten no cross-chain messaging fallback between Arbitrum Branch Bridge Agent and Root Bridge Agent.
-     */
-    function _payFallbackGas(uint32, uint256) internal override {
-        //Cross-chain messaging + Fallback is managed by the Root Bridge Agent
-    }
-
-    /**
-     * @notice Internal function to deposit gas to the AnycallProxy. Cross-chain messaging + Gas is managed by the Root Bridge Agent
-     */
-    function _replenishGas(uint256) internal override {}
-
-    /// @notice Verifies the caller is the Anycall Executor. Internal function used in modifier to reduce contract bytesize.
-    function _requiresExecutor() internal view override {
-        if (msg.sender != rootBridgeAgentAddress) revert AnycallUnauthorizedCaller();
-    }
-
-    /// @notice Verifies enough gas is deposited to pay for an eventual fallback call. Reuse to reduce contract bytesize.
-    function _requiresFallbackGas() internal view override {
-        //Cross-chain messaging + Fallback is managed by the Root Bridge Agent
-    }
-
-    /// @notice Verifies enough gas is deposited to pay for an eventual fallback call.
-    function _requiresFallbackGas(uint256) internal view override {
-        //Cross-chain messaging + Fallback is managed by the Root Bridge Agent
+    /// @notice Verifies the caller is the Root Bridge Agent. Internal function used in modifier to reduce contract bytesize.
+    function _requiresEndpoint(address _endpoint, bytes calldata) internal view override {
+        if (_endpoint != rootBridgeAgentAddress) revert LayerZeroUnauthorizedEndpoint();
     }
 
     /*///////////////////////////////////////////////////////////////

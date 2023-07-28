@@ -16,11 +16,10 @@ import {console2} from "forge-std/console2.sol";
 contract MockBranchBridgeAgent is BranchBridgeAgent {
     constructor(
         WETH9 _wrappedNativeToken,
-        uint256 _rootChainId,
-        uint256 _localChainId,
+        uint16 _rootChainId,
+        uint16 _localChainId,
         address _rootBridgeAgentAddress,
-        address _localAnyCallAddress,
-        address _localAnyCallExecutorAddress,
+        address _lzEndpointAddress,
         address _localRouterAddress,
         address _localPortAddress
     )
@@ -29,8 +28,7 @@ contract MockBranchBridgeAgent is BranchBridgeAgent {
             _rootChainId,
             _localChainId,
             _rootBridgeAgentAddress,
-            _localAnyCallAddress,
-            _localAnyCallExecutorAddress,
+            _lzEndpointAddress,
             _localRouterAddress,
             _localPortAddress
         )

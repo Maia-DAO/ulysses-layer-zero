@@ -9,9 +9,14 @@ import {IERC20hTokenBranch} from "../interfaces/IERC20hTokenBranch.sol";
 
 /// @title ERC20 hToken Branch Contract
 contract ERC20hTokenBranch is ERC20, Ownable, IERC20hTokenBranch {
-    constructor(string memory _name, string memory _symbol, address _owner)
-        ERC20(string(string.concat("Hermes - ", _name)), string(string.concat("h-", _symbol)), 18)
-    {
+    constructor(
+        string memory chainName,
+        string memory chainSymbol,
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals,
+        address _owner
+    ) ERC20(string(string.concat(chainName, _name)), string(string.concat(chainSymbol, _symbol)), _decimals) {
         _initializeOwner(_owner);
     }
 

@@ -208,9 +208,7 @@ contract BranchPort is Ownable, IBranchPort {
         virtual
         requiresBridgeAgent
     {
-        _underlyingAddress.safeTransfer(
-            _recipient, _denormalizeDecimals(_deposit, ERC20(_underlyingAddress).decimals())
-        );
+        _underlyingAddress.safeTransfer(_recipient, _deposit);
     }
 
     /// @inheritdoc IBranchPort
@@ -245,14 +243,18 @@ contract BranchPort is Ownable, IBranchPort {
         uint256 _amount,
         uint256 _deposit
     ) external virtual requiresBridgeAgent {
-        if (_amount - _deposit > 0) {
-            _localAddress.safeTransferFrom(_depositor, address(this), _amount - _deposit);
-            ERC20hTokenBranch(_localAddress).burn(_amount - _deposit);
+        //Get hToken Amount
+        uint256 hTokenAmount = _amount - _deposit;
+
+        //Burn hTokens if any are being used
+        if (hTokenAmount > 0) {
+            _localAddress.safeTransferFrom(_depositor, address(this), hTokenAmount);
+            ERC20hTokenBranch(_localAddress).burn(hTokenAmount);
         }
+
+        //Store Underlying Tokens
         if (_deposit > 0) {
-            _underlyingAddress.safeTransferFrom(
-                _depositor, address(this), _denormalizeDecimals(_deposit, ERC20(_underlyingAddress).decimals())
-            );
+            _underlyingAddress.safeTransferFrom(_depositor, address(this), _deposit);
         }
     }
 
@@ -265,17 +267,20 @@ contract BranchPort is Ownable, IBranchPort {
         uint256[] memory _deposits
     ) external virtual requiresBridgeAgent {
         for (uint256 i = 0; i < _localAddresses.length;) {
+            //Get hToken Amount
+            uint256 hTokenAmount = _amounts[i] - _deposits[i];
+
+            //Burn hTokens if any are being used
+            if (hTokenAmount > 0) {
+                _localAddresses[i].safeTransferFrom(_depositor, address(this), hTokenAmount);
+                ERC20hTokenBranch(_localAddresses[i]).burn(hTokenAmount);
+            }
+
+            //Store Underlying Tokens
             if (_deposits[i] > 0) {
-                _underlyingAddresses[i].safeTransferFrom(
-                    _depositor,
-                    address(this),
-                    _denormalizeDecimals(_deposits[i], ERC20(_underlyingAddresses[i]).decimals())
-                );
+                _underlyingAddresses[i].safeTransferFrom(_depositor, address(this), _deposits[i]);
             }
-            if (_amounts[i] - _deposits[i] > 0) {
-                _localAddresses[i].safeTransferFrom(_depositor, address(this), _amounts[i] - _deposits[i]);
-                ERC20hTokenBranch(_localAddresses[i]).burn(_amounts[i] - _deposits[i]);
-            }
+
             unchecked {
                 i++;
             }
@@ -374,19 +379,6 @@ contract BranchPort is Ownable, IBranchPort {
         strategyDailyLimitAmount[_portStrategy][_token] = _dailyManagementLimit;
 
         emit PortStrategyUpdated(_portStrategy, _token, _dailyManagementLimit);
-    }
-
-    /*///////////////////////////////////////////////////////////////
-                            HELPERS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-     * @notice Internal function that denormalizes an input from 18 decimal places.
-     * @param _amount amount of tokens
-     * @param _decimals number of decimal places
-     */
-    function _denormalizeDecimals(uint256 _amount, uint8 _decimals) internal pure returns (uint256) {
-        return _decimals == 18 ? _amount : _amount * 1 ether / (10 ** _decimals);
     }
 
     /*///////////////////////////////////////////////////////////////

@@ -29,6 +29,7 @@ import {BranchBridgeAgentFactory} from "@omni/factories/BranchBridgeAgentFactory
 import {ArbitrumBranchBridgeAgentFactory} from "@omni/factories/ArbitrumBranchBridgeAgentFactory.sol";
 
 //UTILS
+import {GasParams} from "@omni/interfaces/IBranchBridgeAgent.sol";
 import {DepositParams, DepositMultipleParams} from "./mocks/MockRootBridgeAgent.t.sol";
 import {Deposit, DepositStatus, DepositMultipleInput, DepositInput} from "@omni/interfaces/IBranchBridgeAgent.sol";
 
@@ -88,11 +89,11 @@ contract ArbitrumBranchTest is DSTestPlus {
 
     ArbitrumBranchBridgeAgentFactory localBranchBridgeAgentFactory;
 
-    uint24 rootChainId = uint24(42161);
+    uint16 rootChainId = uint16(42161);
 
-    uint24 avaxChainId = uint24(1088);
+    uint16 avaxChainId = uint16(1088);
 
-    uint24 ftmChainId = uint24(2040);
+    uint16 ftmChainId = uint16(2040);
 
     address avaxGlobalToken;
 
@@ -124,11 +125,9 @@ contract ArbitrumBranchTest is DSTestPlus {
 
     address ftmPortAddressM = address(0xABAC);
 
-    address localAnyCallAddress = address(0xCAFE);
-
     address localAnyCongfig = address(0xCAFF);
 
-    address localAnyCallExecutorAddress = address(0xABFD);
+    address lzEndpointAddress = address(0xABFD);
 
     address owner = address(this);
 
@@ -136,11 +135,9 @@ contract ArbitrumBranchTest is DSTestPlus {
 
     function setUp() public {
         //Mock calls
-        hevm.mockCall(
-            localAnyCallAddress, abi.encodeWithSignature("executor()"), abi.encode(localAnyCallExecutorAddress)
-        );
+        hevm.mockCall(lzEndpointAddress, abi.encodeWithSignature("executor()"), abi.encode(lzEndpointAddress));
 
-        hevm.mockCall(localAnyCallAddress, abi.encodeWithSignature("config()"), abi.encode(localAnyCongfig));
+        hevm.mockCall(lzEndpointAddress, abi.encodeWithSignature("config()"), abi.encode(localAnyCongfig));
 
         /////////////////////////////////
         //      Deploy Root Utils      //
@@ -157,7 +154,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         bridgeAgentFactory = new RootBridgeAgentFactory(
             rootChainId,
             WETH9(wrappedNativeToken),
-            localAnyCallAddress,
+            lzEndpointAddress,
             address(rootPort),
             dao
         );
@@ -203,14 +200,13 @@ contract ArbitrumBranchTest is DSTestPlus {
 
         arbitrumMulticallRouter = new BaseBranchRouter();
 
-        arbitrumCoreRouter = new ArbitrumCoreBranchRouter(address(0), address(localPortAddress));
+        arbitrumCoreRouter = new ArbitrumCoreBranchRouter();
 
         localBranchBridgeAgentFactory = new ArbitrumBranchBridgeAgentFactory(
             rootChainId,
             address(bridgeAgentFactory),
             WETH9(wrappedNativeToken),
-            localAnyCallAddress,
-            localAnyCallExecutorAddress,
+            lzEndpointAddress,
             address(arbitrumCoreRouter),
             address(localPortAddress),
             owner
@@ -292,57 +288,22 @@ contract ArbitrumBranchTest is DSTestPlus {
 
         ftmGlobalToken = 0x1418E54090a03eA9da72C00B0B4f707181DcA8dd;
 
-        hevm.mockCall(
-            nonFungiblePositionManagerAddress,
-            abi.encodeWithSignature(
-                "createAndInitializePoolIfNecessary(address,address,uint24,uint160)",
-                avaxGlobalToken,
-                wrappedNativeToken,
-                uint24(100),
-                uint160(200)
-            ),
-            abi.encode(address(new MockPool(wrappedNativeToken,address(avaxGlobalToken))))
-        );
-
         RootPort(rootPort).addNewChain(
-            address(this),
-            1 ether,
             avaxCoreBridgeAgentAddress,
             avaxChainId,
             "Avalanche",
             "AVAX",
-            100,
-            50,
-            200,
-            nonFungiblePositionManagerAddress,
+            18,
             avaxLocalWrappedNativeTokenAddress,
             avaxUnderlyingWrappedNativeTokenAddress
         );
 
-        //Mock calls
-        hevm.mockCall(
-            nonFungiblePositionManagerAddress,
-            abi.encodeWithSignature(
-                "createAndInitializePoolIfNecessary(address,address,uint24,uint160)",
-                ftmGlobalToken,
-                wrappedNativeToken,
-                uint24(100),
-                uint160(200)
-            ),
-            abi.encode(address(new MockPool(wrappedNativeToken, address(ftmGlobalToken))))
-        );
-
         RootPort(rootPort).addNewChain(
-            address(this),
-            1 ether,
             ftmCoreBridgeAgentAddress,
             ftmChainId,
             "Fantom Opera",
             "FTM",
-            100,
-            50,
-            200,
-            nonFungiblePositionManagerAddress,
+            18,
             ftmLocalWrappedNativeTokenAddress,
             ftmUnderlyingWrappedNativeTokenAddress
         );
@@ -399,7 +360,8 @@ contract ArbitrumBranchTest is DSTestPlus {
             address(bridgeAgentFactory),
             address(rootPort),
             "Hermes Global hToken 1",
-            "hGT1"
+            "hGT1",
+            18
         );
 
         avaxNativeAssethToken = new MockERC20("hTOKEN-AVAX", "LOCAL hTOKEN FOR TOKEN IN AVAX", 18);
@@ -438,14 +400,15 @@ contract ArbitrumBranchTest is DSTestPlus {
 
         uint256 balanceBefore = MockERC20(wrappedNativeToken).balanceOf(address(coreBridgeAgent));
 
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+
         //Call Deposit function
-        encodeCallNoDeposit(
+        encodeSystemCall(
             payable(avaxCoreBridgeAgentAddress),
             payable(address(coreBridgeAgent)),
             uint32(1),
             packedData,
-            0.00005 ether,
-            0,
+            gasParams,
             avaxChainId
         );
 
@@ -479,8 +442,14 @@ contract ArbitrumBranchTest is DSTestPlus {
         //Add Local Token from Avax
         testAddLocalToken();
 
+        //Gas Params
+        GasParams memory _gasParams = GasParams(0.5 ether, 0.5 ether);
+
+        //Gas Params
+        GasParams[2] memory gasParams = [GasParams(0.5 ether, 0.5 ether), GasParams(0.5 ether, 0.5 ether)];
+
         //Encode Call Data
-        bytes memory data = abi.encode(ftmCoreBridgeAgentAddress, newAvaxAssetGlobalAddress, ftmChainId, 0.000025 ether);
+        bytes memory data = abi.encode(ftmCoreBridgeAgentAddress, newAvaxAssetGlobalAddress, ftmChainId, gasParams);
 
         //Pack FuncId
         bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
@@ -491,8 +460,7 @@ contract ArbitrumBranchTest is DSTestPlus {
             payable(address(coreBridgeAgent)),
             uint32(1),
             packedData,
-            0.0001 ether,
-            0.00005 ether,
+            _gasParams,
             ftmChainId
         );
         //State change occurs in setLocalToken
@@ -510,14 +478,16 @@ contract ArbitrumBranchTest is DSTestPlus {
         //Pack FuncId
         bytes memory packedData = abi.encodePacked(bytes1(0x03), data);
 
+        //Gas Params
+        GasParams memory _gasParams = GasParams(0.5 ether, 0.5 ether);
+
         //Call Deposit function
         encodeSystemCall(
             payable(ftmCoreBridgeAgentAddress),
             payable(address(coreBridgeAgent)),
-            uint32(1),
+            uint32(2),
             packedData,
-            0.00001 ether,
-            0,
+            _gasParams,
             ftmChainId
         );
 
@@ -543,8 +513,11 @@ contract ArbitrumBranchTest is DSTestPlus {
         //Get some gas.
         hevm.deal(address(this), 1 ether);
 
+        //Get gas params
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+
         //Add new localToken
-        arbitrumCoreRouter.addLocalToken(address(arbitrumNativeToken));
+        arbitrumCoreRouter.addLocalToken(address(arbitrumNativeToken), gasParams);
 
         uint256 balanceBefore = MockERC20(wrappedNativeToken).balanceOf(address(coreBridgeAgent));
 
@@ -577,8 +550,11 @@ contract ArbitrumBranchTest is DSTestPlus {
         //Get some gas.
         hevm.deal(address(this), 1 ether);
 
+        //Gas Params
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+
         //Add new localToken
-        arbitrumCoreRouter.addLocalToken(ftmGlobalToken);
+        arbitrumCoreRouter.addLocalToken(ftmGlobalToken, gasParams);
 
         newArbitrumAssetGlobalAddress =
             RootPort(rootPort).getLocalTokenFromUnder(address(arbitrumNativeToken), rootChainId);
@@ -653,6 +629,9 @@ contract ArbitrumBranchTest is DSTestPlus {
         //Set up
         testAddLocalTokenArbitrum();
 
+        //Get gas
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+
         //Prepare data
         address outputToken;
         uint256 amountOut;
@@ -674,7 +653,7 @@ contract ArbitrumBranchTest is DSTestPlus {
             OutputParams memory outputParams = OutputParams(address(this), outputToken, amountOut, depositOut);
 
             //toChain
-            uint24 toChain = rootChainId;
+            uint16 toChain = rootChainId;
 
             //RLP Encode Calldata
             bytes memory data = abi.encode(calls, outputParams, toChain);
@@ -697,8 +676,7 @@ contract ArbitrumBranchTest is DSTestPlus {
             hToken: address(newArbitrumAssetGlobalAddress),
             token: address(arbitrumNativeToken),
             amount: 100 ether,
-            deposit: 100 ether,
-            toChain: rootChainId
+            deposit: 100 ether
         });
 
         //Mock messaging layer fees
@@ -709,7 +687,9 @@ contract ArbitrumBranchTest is DSTestPlus {
         );
 
         //Call Deposit function
-        arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(packedData, depositInput, 0.5 ether);
+        arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(
+            payable(address(this)), packedData, depositInput, gasParams
+        );
 
         // Test If Deposit was successful
         testCreateDepositSingle(
@@ -747,15 +727,19 @@ contract ArbitrumBranchTest is DSTestPlus {
         uint256 _amountOut,
         uint256 _depositOut
     ) public {
+        _amount %= type(uint256).max / 1 ether;
+
         // Input restrictions
-        // hevm.assume(_user != address(0) && _amount > 0 && _amount > _deposit);
         hevm.assume(
-            _user != address(0) && _amount > 0 && _amount > _deposit && _amount >= _amountOut
-                && _amount - _amountOut >= _depositOut && _depositOut < _amountOut
+            _user != address(0) && _amount > _deposit && _amount >= _amountOut && _amount - _amountOut >= _depositOut
+                && _depositOut < _amountOut
         );
 
         //Set up
         testAddLocalTokenArbitrum();
+
+        //Gas Params
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
 
         //Prepare data
         bytes memory packedData;
@@ -796,8 +780,7 @@ contract ArbitrumBranchTest is DSTestPlus {
             hToken: address(newArbitrumAssetGlobalAddress),
             token: address(arbitrumNativeToken),
             amount: _amount,
-            deposit: _deposit,
-            toChain: rootChainId
+            deposit: _deposit
         });
 
         console2.log("BALANCE BEFORE:");
@@ -813,7 +796,9 @@ contract ArbitrumBranchTest is DSTestPlus {
         hevm.startPrank(_user);
         arbitrumNativeToken.approve(address(localPortAddress), _deposit);
         ERC20hTokenRoot(newArbitrumAssetGlobalAddress).approve(address(rootPort), _amount - _deposit);
-        arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(packedData, depositInput, 0.5 ether);
+        arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(
+            payable(_user), packedData, depositInput, gasParams
+        );
         hevm.stopPrank();
 
         // Test If Deposit was successful
@@ -923,35 +908,25 @@ contract ArbitrumBranchTest is DSTestPlus {
     function encodeSystemCall(
         address payable _fromBridgeAgent,
         address payable _toBridgeAgent,
-        uint32,
+        uint32 _nonce,
         bytes memory _data,
-        uint128 _rootExecGas,
-        uint128 _remoteExecGas,
-        uint24 _fromChainId
+        GasParams memory _gasParams,
+        uint16 _fromChainId
     ) private {
-        // Mock anycall context
-        hevm.mockCall(
-            localAnyCallExecutorAddress,
-            abi.encodeWithSignature("context()"),
-            abi.encode(_fromBridgeAgent, _fromChainId, 22)
-        );
+        //Get some gas
+        hevm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
         //Encode Data
-        bytes memory inputCalldata = abi.encodePacked(bytes1(0x00), nonce++, _data, _rootExecGas, _remoteExecGas);
-
-        hevm.mockCall(
-            address(localAnyCongfig),
-            abi.encodeWithSignature(
-                "calcSrcFees(address,uint256,uint256)", address(0), _fromChainId, inputCalldata.length
-            ),
-            abi.encode(0)
-        );
+        bytes memory inputCalldata = abi.encodePacked(bytes1(0x00), _nonce, _data);
 
         // Prank into user account
-        hevm.startPrank(localAnyCallExecutorAddress);
+        hevm.startPrank(lzEndpointAddress);
 
-        //Call Deposit function
-        RootBridgeAgent(_toBridgeAgent).anyExecute(inputCalldata);
+        // Perform Call
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+            _fromChainId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
+        );
 
         // Prank out of user account
         hevm.stopPrank();
@@ -960,79 +935,24 @@ contract ArbitrumBranchTest is DSTestPlus {
     function encodeCallNoDeposit(
         address payable _fromBridgeAgent,
         address payable _toBridgeAgent,
-        uint32,
+        uint32 _nonce,
         bytes memory _data,
-        uint128 _rootExecGas,
-        uint128 _remoteExecGas,
-        uint24 _fromChainId
+        GasParams memory _gasParams,
+        uint16 _fromChainId
     ) private {
-        // Mock anycall context
-        hevm.mockCall(
-            localAnyCallExecutorAddress,
-            abi.encodeWithSignature("context()"),
-            abi.encode(_fromBridgeAgent, _fromChainId, 22)
-        );
-
+        //Get some gas
+        hevm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
         //Encode Data
-        bytes memory inputCalldata = abi.encodePacked(bytes1(0x01), nonce++, _data, _rootExecGas, _remoteExecGas);
-
-        console2.log(_remoteExecGas);
-        console2.logBytes(inputCalldata);
-
-        hevm.mockCall(
-            address(localAnyCongfig),
-            abi.encodeWithSignature(
-                "calcSrcFees(address,uint256,uint256)", address(0), _fromChainId, inputCalldata.length
-            ),
-            abi.encode(0)
-        );
+        bytes memory inputCalldata = abi.encodePacked(bytes1(0x01), _nonce, _data);
 
         // Prank into user account
-        hevm.startPrank(localAnyCallExecutorAddress);
+        hevm.startPrank(lzEndpointAddress);
 
-        //Get some gas.
-        // hevm.deal(_user, 1 ether);
-
-        //Call Deposit function
-        RootBridgeAgent(_toBridgeAgent).anyExecute(inputCalldata);
-
-        // Prank out of user account
-        hevm.stopPrank();
-    }
-
-    function encodeCallNoDepositSigned(
-        address payable _fromBridgeAgent,
-        address payable _toBridgeAgent,
-        uint32,
-        address _user,
-        bytes memory _data,
-        uint128 _rootExecGas,
-        uint128 _remoteExecGas,
-        uint24 _fromChainId
-    ) private {
-        // Mock anycall context
-        hevm.mockCall(
-            localAnyCallExecutorAddress,
-            abi.encodeWithSignature("context()"),
-            abi.encode(_fromBridgeAgent, _fromChainId, 22)
+        // Perform Call
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+            _fromChainId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
         );
-
-        //Encode Data
-        bytes memory inputCalldata = abi.encodePacked(bytes1(0x04), _user, nonce++, _data, _rootExecGas, _remoteExecGas);
-
-        hevm.mockCall(
-            address(localAnyCongfig),
-            abi.encodeWithSignature(
-                "calcSrcFees(address,uint256,uint256)", address(0), _fromChainId, inputCalldata.length
-            ),
-            abi.encode(0)
-        );
-
-        // Prank into user account
-        hevm.startPrank(localAnyCallExecutorAddress);
-
-        //Call Deposit function
-        RootBridgeAgent(_toBridgeAgent).anyExecute(inputCalldata);
 
         // Prank out of user account
         hevm.stopPrank();
@@ -1041,32 +961,31 @@ contract ArbitrumBranchTest is DSTestPlus {
     function encodeCallWithDeposit(
         address payable _fromBridgeAgent,
         address payable _toBridgeAgent,
-        uint24 _fromChainId,
-        bytes memory _packedData
+        uint32 _nonce,
+        address _hToken,
+        address _token,
+        uint256 _amount,
+        uint256 _deposit,
+        uint16 _toChain,
+        bytes memory _data,
+        GasParams memory _gasParams,
+        uint16 _fromChainId
     ) private {
-        // Mock anycall context
-        hevm.mockCall(
-            localAnyCallExecutorAddress,
-            abi.encodeWithSignature("context()"),
-            abi.encode(_fromBridgeAgent, _fromChainId, 22)
-        );
+        //Get some gas
+        hevm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
-        hevm.mockCall(
-            address(localAnyCongfig),
-            abi.encodeWithSignature(
-                "calcSrcFees(address,uint256,uint256)", address(0), _fromChainId, _packedData.length
-            ),
-            abi.encode(0)
-        );
+        //Encode Data
+        bytes memory inputCalldata =
+            abi.encodePacked(bytes1(0x02), _nonce, _hToken, _token, _amount, _deposit, _toChain, _data);
 
         // Prank into user account
-        hevm.startPrank(localAnyCallExecutorAddress);
+        hevm.startPrank(lzEndpointAddress);
 
-        //Get some gas.
-        // hevm.deal(_user, 1 ether);
-
-        //Call Deposit function
-        RootBridgeAgent(_toBridgeAgent).anyExecute(_packedData);
+        // Perform Call
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+            _fromChainId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
+        );
 
         // Prank out of user account
         hevm.stopPrank();
@@ -1075,29 +994,33 @@ contract ArbitrumBranchTest is DSTestPlus {
     function encodeCallWithDepositMultiple(
         address payable _fromBridgeAgent,
         address payable _toBridgeAgent,
-        uint24 _fromChainId,
-        bytes memory _packedData
+        uint32 _nonce,
+        address,
+        address[] memory _hTokens,
+        address[] memory _tokens,
+        uint256[] memory _amounts,
+        uint256[] memory _deposits,
+        uint16 _toChain,
+        bytes memory _data,
+        GasParams memory _gasParams,
+        uint16 _fromChainId
     ) private {
-        // Mock anycall context
-        hevm.mockCall(
-            localAnyCallExecutorAddress,
-            abi.encodeWithSignature("context()"),
-            abi.encode(_fromBridgeAgent, _fromChainId, 22)
-        );
+        //Get some gas
+        hevm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
-        hevm.mockCall(
-            address(localAnyCongfig),
-            abi.encodeWithSignature(
-                "calcSrcFees(address,uint256,uint256)", address(0), _fromChainId, _packedData.length
-            ),
-            abi.encode(0)
+        //Encode Data for cross-chain call.
+        bytes memory inputCalldata = abi.encodePacked(
+            bytes1(0x03), uint8(_hTokens.length), _nonce, _hTokens, _tokens, _amounts, _deposits, _toChain, _data
         );
 
         // Prank into user account
-        hevm.startPrank(localAnyCallExecutorAddress);
+        hevm.startPrank(lzEndpointAddress);
 
-        //Call Deposit function
-        RootBridgeAgent(_toBridgeAgent).anyExecute(_packedData);
+        // Perform Call
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+            _fromChainId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
+        );
 
         // Prank out of user account
         hevm.stopPrank();
@@ -1138,7 +1061,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         address _token,
         uint256 _amount,
         uint256 _deposit,
-        uint24 _toChain,
+        uint16 _toChain,
         bytes memory _data,
         uint128 _rootExecGas,
         uint128 _remoteExecGas
@@ -1156,7 +1079,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         address _token,
         uint256 _amount,
         uint256 _deposit,
-        uint24 _toChain,
+        uint16 _toChain,
         bytes memory _data,
         uint128 _rootExecGas,
         uint128 _remoteExecGas
@@ -1183,7 +1106,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         address[] memory _tokens,
         uint256[] memory _amounts,
         uint256[] memory _deposits,
-        uint24 _toChain,
+        uint16 _toChain,
         bytes memory _data,
         uint128 _rootExecGas,
         uint128 _remoteExecGas
@@ -1211,7 +1134,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         address[] memory _tokens,
         uint256[] memory _amounts,
         uint256[] memory _deposits,
-        uint24 _toChain,
+        uint16 _toChain,
         bytes memory _data,
         uint128 _rootExecGas,
         uint128 _remoteExecGas

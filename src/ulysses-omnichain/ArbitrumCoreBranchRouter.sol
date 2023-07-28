@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-import {IBranchBridgeAgent as IBridgeAgent} from "./interfaces/IBranchBridgeAgent.sol";
+import {IBranchBridgeAgent as IBridgeAgent, GasParams} from "./interfaces/IBranchBridgeAgent.sol";
 import {IBranchBridgeAgentFactory as IBridgeAgentFactory} from "./interfaces/IBranchBridgeAgentFactory.sol";
 import {IERC20hTokenBranchFactory as IFactory} from "./interfaces/IERC20hTokenBranchFactory.sol";
 import {IArbitrumBranchPort as IPort} from "./interfaces/IArbitrumBranchPort.sol";
@@ -35,28 +35,28 @@ import {ERC20hTokenBranch as ERC20hToken} from "./token/ERC20hTokenBranch.sol";
  *
  */
 contract ArbitrumCoreBranchRouter is CoreBranchRouter {
-    constructor(address _hTokenFactoryAddress, address _localPortAddress)
-        CoreBranchRouter(_hTokenFactoryAddress, _localPortAddress)
-    {}
+    constructor() CoreBranchRouter(address(0)) {}
 
     /*///////////////////////////////////////////////////////////////
                     TOKEN MANAGEMENT EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     ///@inheritdoc CoreBranchRouter
-    function addLocalToken(address _underlyingAddress) external payable override {
-        //Get Token Info
-        string memory name = ERC20(_underlyingAddress).name();
-        string memory symbol = ERC20(_underlyingAddress).symbol();
-
+    function addLocalToken(address _underlyingAddress, GasParams calldata) external payable override {
         //Encode Data
-        bytes memory data = abi.encode(_underlyingAddress, address(0), name, symbol);
+        bytes memory data = abi.encode(
+            _underlyingAddress,
+            address(0),
+            string.concat("Arbitrum Ulysses ", ERC20(_underlyingAddress).name()),
+            string.concat("arb-u", ERC20(_underlyingAddress).symbol()),
+            ERC20(_underlyingAddress).decimals()
+        );
 
         //Pack FuncId
         bytes memory packedData = abi.encodePacked(bytes1(0x02), data);
 
         //Send Cross-Chain request (System Response/Request)
-        IBridgeAgent(localBridgeAgentAddress).performCallOut(msg.sender, packedData, 0, 0);
+        IBridgeAgent(localBridgeAgentAddress).callOutSystem(payable(msg.sender), packedData, GasParams(0, 0));
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -64,12 +64,14 @@ contract ArbitrumCoreBranchRouter is CoreBranchRouter {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Add a new Branch Bridge Agent and respective Router to a Root Bridge Agent.
-     *  @param _newBranchRouter the address of the new branch router.
-     *  @param _branchBridgeAgentFactory the address of the branch bridge agent factory.
-     *  @param _rootBridgeAgent the address of the root bridge agent.
-     *  @param _rootBridgeAgentFactory the address of the root bridge agent factory.
-     *  @dev FUNC ID: 4
+     * @notice Function to deploy/add a token already active in the global environment in the Root Chain. Must be called from another chain.
+     *    @param _newBranchRouter the address of the new branch router.
+     *    @param _branchBridgeAgentFactory the address of the branch bridge agent factory.
+     *    @param _rootBridgeAgent the address of the root bridge agent.
+     *    @param _rootBridgeAgentFactory the address of the root bridge agent factory.
+     *    @param _gParams Gas parameters for remote execution.
+     *    @dev FUNC ID: 2
+     *    @dev all hTokens have 18 decimals.
      *
      */
     function _receiveAddBridgeAgent(
@@ -77,7 +79,7 @@ contract ArbitrumCoreBranchRouter is CoreBranchRouter {
         address _branchBridgeAgentFactory,
         address _rootBridgeAgent,
         address _rootBridgeAgentFactory,
-        uint128
+        GasParams memory _gParams
     ) internal override {
         //Check if msg.sender is a valid BridgeAgentFactory
         if (!IPort(localPortAddress).isBridgeAgentFactory(_branchBridgeAgentFactory)) {
@@ -101,7 +103,7 @@ contract ArbitrumCoreBranchRouter is CoreBranchRouter {
         bytes memory packedData = abi.encodePacked(bytes1(0x04), data);
 
         //Send Cross-Chain request
-        IBridgeAgent(localBridgeAgentAddress).performSystemCallOut(address(this), packedData, 0, 0);
+        IBridgeAgent(localBridgeAgentAddress).callOutSystem(payable(localPortAddress), packedData, _gParams);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -109,22 +111,17 @@ contract ArbitrumCoreBranchRouter is CoreBranchRouter {
     //////////////////////////////////////////////////////////////*/
 
     ///@inheritdoc CoreBranchRouter
-    function anyExecuteNoSettlement(bytes calldata _data)
-        external
-        override
-        requiresAgentExecutor
-        returns (bool success, bytes memory result)
-    {
+    function executeNoSettlement(bytes calldata _data) external payable override requiresAgentExecutor {
         if (_data[0] == 0x02) {
             (
                 address newBranchRouter,
                 address branchBridgeAgentFactory,
                 address rootBridgeAgent,
                 address rootBridgeAgentFactory,
-            ) = abi.decode(_data[1:], (address, address, address, address, uint128));
+            ) = abi.decode(_data[1:], (address, address, address, address, GasParams));
 
             _receiveAddBridgeAgent(
-                newBranchRouter, branchBridgeAgentFactory, rootBridgeAgent, rootBridgeAgentFactory, 0
+                newBranchRouter, branchBridgeAgentFactory, rootBridgeAgent, rootBridgeAgentFactory, GasParams(0, 0)
             );
 
             /// _toggleBranchBridgeAgentFactory
@@ -151,8 +148,7 @@ contract ArbitrumCoreBranchRouter is CoreBranchRouter {
 
             /// Unrecognized Function Selector
         } else {
-            return (false, "unknown selector");
+            revert UnrecognizedFunctionId();
         }
-        return (true, "");
     }
 }

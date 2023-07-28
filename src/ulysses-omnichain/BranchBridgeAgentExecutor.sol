@@ -63,17 +63,11 @@ contract BranchBridgeAgentExecutor is Ownable {
      * @notice Function to execute a crosschain request without any settlement.
      * @param _router Address of the router contract to execute the request.
      * @param _data Data received from messaging layer.
-     * @return success Boolean indicating if the operation was successful.
-     * @return result Result of the execution.
      * @dev SETTLEMENT FLAG: 0 (No settlement)
      */
-    function executeNoSettlement(address _router, bytes calldata _data)
-        external
-        onlyOwner
-        returns (bool success, bytes memory result)
-    {
-        //Execute remote request
-        (success, result) = IRouter(_router).anyExecuteNoSettlement(_data[25:_data.length - PARAMS_GAS_OUT]);
+    function executeNoSettlement(address _router, bytes calldata _data) external payable onlyOwner {
+        // Execute Calldata if there is code in destination router
+        IRouter(_router).executeNoSettlement{value: msg.value}(_data[25:]);
     }
 
     /**
@@ -81,14 +75,12 @@ contract BranchBridgeAgentExecutor is Ownable {
      * @param _recipient Address of the recipient of the settlement.
      * @param _router Address of the router contract to execute the request.
      * @param _data Data received from messaging layer.
-     * @return success Boolean indicating if the operation was successful.
-     * @return result Result of the execution.
      * @dev SETTLEMENT FLAG: 1 (Single Settlement)
      */
     function executeWithSettlement(address _recipient, address _router, bytes calldata _data)
         external
+        payable
         onlyOwner
-        returns (bool success, bytes memory result)
     {
         //Clear Token / Execute Settlement
         SettlementParams memory sParams = SettlementParams({
@@ -105,11 +97,10 @@ contract BranchBridgeAgentExecutor is Ownable {
             sParams.recipient, sParams.hToken, sParams.token, sParams.amount, sParams.deposit
         );
 
-        if (_data.length - PARAMS_GAS_OUT > 129) {
+        // Execute Calldata if there is any and code in destination router
+        if (_data.length > 129) {
             //Execute remote request
-            (success, result) = IRouter(_router).anyExecuteSettlement(_data[129:_data.length - PARAMS_GAS_OUT], sParams);
-        } else {
-            success = true;
+            IRouter(_router).executeSettlement{value: msg.value}(_data[129:], sParams);
         }
     }
 
@@ -118,14 +109,12 @@ contract BranchBridgeAgentExecutor is Ownable {
      * @param _recipient Address of the recipient of the settlement.
      * @param _router Address of the router contract to execute the request.
      * @param _data Data received from messaging layer.
-     * @return success Boolean indicating if the operation was successful.
-     * @return result Result of the execution.
      * @dev SETTLEMENT FLAG: 2 (Multiple Settlements)
      */
     function executeWithSettlementMultiple(address _recipient, address _router, bytes calldata _data)
         external
+        payable
         onlyOwner
-        returns (bool success, bytes memory result)
     {
         //Bridge In Assets and Save Deposit Params
         SettlementMultipleParams memory sParams = BranchBridgeAgent(payable(msg.sender)).clearTokens(
@@ -137,22 +126,23 @@ contract BranchBridgeAgentExecutor is Ownable {
             _recipient
         );
 
-        // Execute Calldata if any
+        // Execute Calldata if there is any and code in destination router
         if (
-            _data.length - PARAMS_GAS_OUT
-                > PARAMS_START_SIGNED + PARAMS_TKN_START
-                    + (uint8(bytes1(_data[PARAMS_START_SIGNED])) * uint16(PARAMS_TKN_SET_SIZE))
+            _data.length
+                    > PARAMS_START_SIGNED + PARAMS_TKN_START
+                        + (uint8(bytes1(_data[PARAMS_START_SIGNED])) * uint16(PARAMS_TKN_SET_SIZE))
         ) {
             //Try to execute remote request
-            (success, result) = IRouter(_router).anyExecuteSettlementMultiple(
-                _data[
-                    PARAMS_END_SIGNED_OFFSET + (uint8(bytes1(_data[PARAMS_START_SIGNED])) * PARAMS_TKN_SET_SIZE):
-                        _data.length - PARAMS_GAS_OUT
-                ],
+            IRouter(_router).executeSettlementMultiple{value: msg.value}(
+                _data[PARAMS_END_SIGNED_OFFSET + (uint8(bytes1(_data[PARAMS_START_SIGNED])) * PARAMS_TKN_SET_SIZE):],
                 sParams
             );
-        } else {
-            success = true;
         }
     }
+
+    /*///////////////////////////////////////////////////////////////
+                        ERRORS
+    //////////////////////////////////////////////////////////////*/
+
+    error InvalidRouterNoCodeOnDestination();
 }

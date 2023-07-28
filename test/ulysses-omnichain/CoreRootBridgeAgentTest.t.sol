@@ -29,11 +29,13 @@ import {BranchBridgeAgentFactory} from "@omni/factories/BranchBridgeAgentFactory
 import {ArbitrumBranchBridgeAgentFactory} from "@omni/factories/ArbitrumBranchBridgeAgentFactory.sol";
 
 //UTILS
+import {GasParams} from "@omni/interfaces/IBranchBridgeAgent.sol";
 import {DepositParams, DepositMultipleParams} from "./mocks/MockRootBridgeAgent.t.sol";
 import {Deposit, DepositStatus, DepositMultipleInput, DepositInput} from "@omni/interfaces/IBranchBridgeAgent.sol";
 
 import {WETH9 as WETH} from "./mocks/WETH9.sol";
 import {Multicall2} from "./mocks/Multicall2.sol";
+
 interface IUniswapV3SwapCallback {
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) external;
 }
@@ -140,11 +142,11 @@ contract CoreRootBridgeAgentTest is Test {
 
     ArbitrumBranchBridgeAgentFactory localBranchBridgeAgentFactory;
 
-    uint24 rootChainId = uint24(42161);
+    uint16 rootChainId = uint16(42161);
 
-    uint24 avaxChainId = uint24(1088);
+    uint16 avaxChainId = uint16(1088);
 
-    uint24 ftmChainId = uint24(2040);
+    uint16 ftmChainId = uint16(2040);
 
     address wrappedNativeToken;
 
@@ -172,23 +174,21 @@ contract CoreRootBridgeAgentTest is Test {
 
     address ftmPortAddressM = address(0xABAC);
 
-    address localAnyCallAddress = address(0xCAFE);
+    address lzEndpointAddress = address(0xCAFE);
 
     address localAnyCongfig = address(0xCAFF);
-
-    address localAnyCallExecutorAddress = address(0xABCD);
 
     address owner = address(this);
 
     address dao = address(this);
 
-    mapping(uint24 => uint32) public chainNonce;
+    mapping(uint16 => uint32) public chainNonce;
 
     function setUp() public {
         //Mock calls
-        vm.mockCall(localAnyCallAddress, abi.encodeWithSignature("executor()"), abi.encode(localAnyCallExecutorAddress));
+        vm.mockCall(lzEndpointAddress, abi.encodeWithSignature("executor()"), abi.encode(lzEndpointAddress));
 
-        vm.mockCall(localAnyCallAddress, abi.encodeWithSignature("config()"), abi.encode(localAnyCongfig));
+        vm.mockCall(lzEndpointAddress, abi.encodeWithSignature("config()"), abi.encode(localAnyCongfig));
 
         //Deploy Root Utils
         wrappedNativeToken = address(new WETH());
@@ -201,7 +201,7 @@ contract CoreRootBridgeAgentTest is Test {
         bridgeAgentFactory = new RootBridgeAgentFactory(
             rootChainId,
             WETH9(wrappedNativeToken),
-            localAnyCallAddress,
+            lzEndpointAddress,
             address(rootPort),
             dao
         );
@@ -242,14 +242,13 @@ contract CoreRootBridgeAgentTest is Test {
 
         arbitrumMulticallRouter = new BaseBranchRouter();
 
-        arbitrumCoreRouter = new ArbitrumCoreBranchRouter(address(0), address(localPortAddress));
+        arbitrumCoreRouter = new ArbitrumCoreBranchRouter();
 
         localBranchBridgeAgentFactory = new ArbitrumBranchBridgeAgentFactory(
             rootChainId,
             address(bridgeAgentFactory),
             WETH9(wrappedNativeToken),
-            localAnyCallAddress,
-            localAnyCallExecutorAddress,
+            lzEndpointAddress,
             address(arbitrumCoreRouter),
             address(localPortAddress),
             owner
@@ -320,26 +319,21 @@ contract CoreRootBridgeAgentTest is Test {
         vm.mockCall(
             nonFungiblePositionManagerAddress,
             abi.encodeWithSignature(
-                "createAndInitializePoolIfNecessary(address,address,uint24,uint160)",
+                "createAndInitializePoolIfNecessary(address,address,uint16,uint160)",
                 0x1FD5ad9D40e1154a91F1132C245f0480cf3deC89,
                 wrappedNativeToken,
-                uint24(100),
+                uint16(100),
                 uint160(200)
             ),
             abi.encode(address((new MockPool(wrappedNativeToken,0x1FD5ad9D40e1154a91F1132C245f0480cf3deC89))))
         );
 
         RootPort(rootPort).addNewChain(
-            address(this),
-            1 ether,
             avaxCoreBridgeAgentAddress,
             avaxChainId,
             "Avalanche",
             "AVAX",
-            100,
-            50,
-            200,
-            nonFungiblePositionManagerAddress,
+            18,
             avaxLocalWrappedNativeTokenAddress,
             avaxUnderlyingWrappedNativeTokenAddress
         );
@@ -348,26 +342,21 @@ contract CoreRootBridgeAgentTest is Test {
         vm.mockCall(
             nonFungiblePositionManagerAddress,
             abi.encodeWithSignature(
-                "createAndInitializePoolIfNecessary(address,address,uint24,uint160)",
+                "createAndInitializePoolIfNecessary(address,address,uint16,uint160)",
                 0x1418E54090a03eA9da72C00B0B4f707181DcA8dd,
                 wrappedNativeToken,
-                uint24(100),
+                uint16(100),
                 uint160(200)
             ),
             abi.encode(address(new MockPool(wrappedNativeToken, 0x1418E54090a03eA9da72C00B0B4f707181DcA8dd)))
         );
 
         RootPort(rootPort).addNewChain(
-            address(this),
-            1 ether,
             ftmCoreBridgeAgentAddress,
             ftmChainId,
             "Fantom Opera",
             "FTM",
-            100,
-            50,
-            200,
-            nonFungiblePositionManagerAddress,
+            18,
             ftmLocalWrappedNativeTokenAddress,
             ftmUnderlyingWrappedNativeTokenAddress
         );
@@ -377,13 +366,14 @@ contract CoreRootBridgeAgentTest is Test {
             address(bridgeAgentFactory),
             address(rootPort),
             "Hermes Global hToken 1",
-            "hGT1"
+            "hGT1",
+            18
         );
 
         //Ensure there are gas tokens from each chain in the system.
         vm.startPrank(address(rootPort));
         ERC20hTokenRoot(0x1FD5ad9D40e1154a91F1132C245f0480cf3deC89).mint(address(rootPort), 1 ether, avaxChainId); // hToken addresses created upon chain addition
-        ERC20hTokenRoot(0x1418E54090a03eA9da72C00B0B4f707181DcA8dd).mint(address(rootPort), 1 ether, ftmChainId);  // hToken addresses created upon chain addition
+        ERC20hTokenRoot(0x1418E54090a03eA9da72C00B0B4f707181DcA8dd).mint(address(rootPort), 1 ether, ftmChainId); // hToken addresses created upon chain addition
         vm.stopPrank();
 
         wAvaxLocalhToken = new MockERC20("hAVAX-AVAX", "LOCAL hTOKEN FOR AVAX IN AVAX", 18);
@@ -397,6 +387,12 @@ contract CoreRootBridgeAgentTest is Test {
     address public newGlobalAddress;
 
     function testAddLocalToken() public {
+        //get some gas
+        vm.deal(address(this), 0.00015 ether);
+
+        //Gas Params
+        GasParams memory gasParams = GasParams(0.0001 ether, 0.00005 ether);
+
         //Encode Data
         bytes memory data =
             abi.encode(address(wAvaxUnderlyingNativeToken), address(wAvaxLocalhToken), "UnderLocal Coin", "UL");
@@ -405,13 +401,12 @@ contract CoreRootBridgeAgentTest is Test {
         bytes memory packedData = abi.encodePacked(bytes1(0x02), data);
 
         //Call Deposit function
-        encodeCallNoDeposit(
+        encodeSystemCall(
             payable(avaxCoreBridgeAgentAddress),
             payable(address(coreBridgeAgent)),
             chainNonce[avaxChainId]++,
             packedData,
-            0.00005 ether,
-            0,
+            gasParams,
             avaxChainId
         );
 
@@ -438,6 +433,9 @@ contract CoreRootBridgeAgentTest is Test {
         //Add once
         testAddLocalToken();
 
+        //Gas Params
+        GasParams memory gasParams = GasParams(0.0001 ether, 0.00005 ether);
+
         //Encode Data
         bytes memory data = abi.encode(address(wAvaxUnderlyingNativeToken), address(9), "UnderLocal Coin", "UL");
 
@@ -450,8 +448,7 @@ contract CoreRootBridgeAgentTest is Test {
             payable(address(coreBridgeAgent)),
             chainNonce[avaxChainId]++,
             packedData,
-            0.00005 ether,
-            0,
+            gasParams,
             avaxChainId
         );
 
@@ -462,6 +459,9 @@ contract CoreRootBridgeAgentTest is Test {
     }
 
     function testAddLocalTokenNotEnoughGas() public {
+        //Gas Params
+        GasParams memory gasParams = GasParams(0.0001 ether, 0.00005 ether);
+
         //Encode Data
         bytes memory data =
             abi.encode(address(wAvaxUnderlyingNativeToken), address(wAvaxLocalhToken), "UnderLocal Coin", "UL");
@@ -478,17 +478,19 @@ contract CoreRootBridgeAgentTest is Test {
             payable(address(coreBridgeAgent)),
             chainNonce[avaxChainId]++,
             packedData,
-            200,
-            0,
+            gasParams,
             avaxChainId
         );
     }
 
     function testAddLocalTokenFromArbitrum() public {
-        vm.deal(address(this), 0.00005 ether);
+        //Gas Params
+        GasParams memory gasParams = GasParams(0, 0);
 
-        arbitrumCoreRouter.addLocalToken(address(arbAssetToken));
+        //Perform Call
+        arbitrumCoreRouter.addLocalToken(address(arbAssetToken), gasParams);
 
+        //Get new address
         newGlobalAddress = RootPort(rootPort).getLocalTokenFromUnder(address(arbAssetToken), rootChainId);
 
         console2.log("New Global Token Address: ", newGlobalAddress);
@@ -514,6 +516,9 @@ contract CoreRootBridgeAgentTest is Test {
         //Add Local Token from Avax
         testAddLocalToken();
 
+        //Gas Params
+        GasParams memory gasParams = GasParams(0.0001 ether, 0.00005 ether);
+
         //Encode Call Data
         bytes memory data = abi.encode(ftmCoreBridgeAgentAddress, newGlobalAddress, ftmChainId, 0.0000025 ether);
 
@@ -526,8 +531,7 @@ contract CoreRootBridgeAgentTest is Test {
             payable(address(coreBridgeAgent)),
             chainNonce[ftmChainId]++,
             packedData,
-            0.0001 ether,
-            0.000005 ether,
+            gasParams,
             ftmChainId
         );
         //State change occurs in setLocalToken
@@ -536,6 +540,9 @@ contract CoreRootBridgeAgentTest is Test {
     function testAddGlobalTokenAlreadyAdded() public {
         //Add Local Token from Avax
         testAddGlobalToken();
+
+        //Gas Params
+        GasParams memory gasParams = GasParams(0.0001 ether, 0.00005 ether);
 
         //Save current
         address currentAddress = RootPort(rootPort).getLocalTokenFromGlobal(address(newGlobalAddress), ftmChainId);
@@ -552,8 +559,7 @@ contract CoreRootBridgeAgentTest is Test {
             payable(address(coreBridgeAgent)),
             chainNonce[ftmChainId]++,
             packedData,
-            0.0001 ether,
-            0.00005 ether,
+            gasParams,
             ftmChainId
         );
 
@@ -567,6 +573,9 @@ contract CoreRootBridgeAgentTest is Test {
         //Add Local Token from Avax
         testAddLocalToken();
 
+        //Gas Params
+        GasParams memory gasParams = GasParams(0.0001 ether, 0.00005 ether);
+
         //Encode Call Data
         bytes memory data = abi.encode(ftmCoreBridgeAgentAddress, newGlobalAddress, ftmChainId, 200);
 
@@ -579,8 +588,7 @@ contract CoreRootBridgeAgentTest is Test {
             payable(address(coreBridgeAgent)),
             chainNonce[ftmChainId]++,
             packedData,
-            0.0001 ether,
-            0.00005 ether,
+            gasParams,
             ftmChainId
         );
     }
@@ -590,6 +598,9 @@ contract CoreRootBridgeAgentTest is Test {
     function testSetLocalToken() public {
         //Add Local Token from Avax
         testAddGlobalToken();
+
+        //Gas Params
+        GasParams memory gasParams = GasParams(0.0001 ether, 0.00005 ether);
 
         //Encode Data
         bytes memory data = abi.encode(newGlobalAddress, newLocalToken, "UnderLocal Coin", "UL");
@@ -603,8 +614,7 @@ contract CoreRootBridgeAgentTest is Test {
             payable(address(coreBridgeAgent)),
             chainNonce[ftmChainId]++,
             packedData,
-            0.00001 ether,
-            0,
+            gasParams,
             ftmChainId
         );
 
@@ -633,8 +643,8 @@ contract CoreRootBridgeAgentTest is Test {
         //Add Local Token from Avax
         testSetLocalToken();
 
-        //Get some gas.
-        vm.deal(address(this), 1 ether);
+        //Gas Params
+        GasParams memory gasParams = GasParams(0.0001 ether, 0.00005 ether);
 
         //Prepare data
         address outputToken;
@@ -661,7 +671,7 @@ contract CoreRootBridgeAgentTest is Test {
             vm.stopPrank();
 
             //toChain
-            uint24 toChain = ftmChainId;
+            uint16 toChain = ftmChainId;
 
             //RLP Encode Calldata
             bytes memory data = abi.encode(calls, outputParams, toChain);
@@ -685,10 +695,9 @@ contract CoreRootBridgeAgentTest is Test {
                 100 ether,
                 0,
                 ftmChainId,
-                packedData,
-                0.0001 ether,
-                0.00005 ether
-            )
+                packedData
+            ),
+            gasParams
         );
 
         uint256 gasAfter = gasleft();
@@ -699,20 +708,14 @@ contract CoreRootBridgeAgentTest is Test {
 
     ////////////////////////////////////////////////// HELPERS /////////////////////////////////////////////////////////////////
 
-    function _encodeSystemCall(uint32, bytes memory _data, uint128 _rootExecGas, uint128 _remoteExecGas)
-        internal
-        returns (bytes memory inputCalldata)
-    {
+    function _encodeSystemCall(uint32, bytes memory _data) internal returns (bytes memory inputCalldata) {
         //Encode Data
-        inputCalldata = abi.encodePacked(bytes1(0x00), nonce++, _data, _rootExecGas, _remoteExecGas);
+        inputCalldata = abi.encodePacked(bytes1(0x00), nonce++, _data);
     }
 
-    function _encodeNoDeposit(uint32, bytes memory _data, uint128 _rootExecGas, uint128 _remoteExecGas)
-        internal
-        returns (bytes memory inputCalldata)
-    {
+    function _encodeNoDeposit(uint32, bytes memory _data) internal returns (bytes memory inputCalldata) {
         //Encode Data
-        inputCalldata = abi.encodePacked(bytes1(0x01), nonce++, _data, _rootExecGas, _remoteExecGas);
+        inputCalldata = abi.encodePacked(bytes1(0x01), nonce++, _data);
     }
 
     function _encodeNoDepositSigned(
@@ -723,7 +726,7 @@ contract CoreRootBridgeAgentTest is Test {
         uint128 _remoteExecGas
     ) internal returns (bytes memory inputCalldata) {
         //Encode Data
-        inputCalldata = abi.encodePacked(bytes1(0x04), _user, nonce++, _data, _rootExecGas, _remoteExecGas);
+        inputCalldata = abi.encodePacked(bytes1(0x04), _user, nonce++, _data);
     }
 
     function _encode(
@@ -732,15 +735,11 @@ contract CoreRootBridgeAgentTest is Test {
         address _token,
         uint256 _amount,
         uint256 _deposit,
-        uint24 _toChain,
-        bytes memory _data,
-        uint128 _rootExecGas,
-        uint128 _remoteExecGas
+        uint16 _toChain,
+        bytes memory _data
     ) internal pure returns (bytes memory inputCalldata) {
         //Encode Data
-        inputCalldata = abi.encodePacked(
-            bytes1(0x02), _nonce, _hToken, _token, _amount, _deposit, _toChain, _data, _rootExecGas, _remoteExecGas
-        );
+        inputCalldata = abi.encodePacked(bytes1(0x02), _nonce, _hToken, _token, _amount, _deposit, _toChain, _data);
     }
 
     function _encodeSigned(
@@ -750,25 +749,12 @@ contract CoreRootBridgeAgentTest is Test {
         address _token,
         uint256 _amount,
         uint256 _deposit,
-        uint24 _toChain,
-        bytes memory _data,
-        uint128 _rootExecGas,
-        uint128 _remoteExecGas
+        uint16 _toChain,
+        bytes memory _data
     ) internal pure returns (bytes memory inputCalldata) {
         //Encode Data
-        inputCalldata = abi.encodePacked(
-            bytes1(0x05),
-            _user,
-            _nonce,
-            _hToken,
-            _token,
-            _amount,
-            _deposit,
-            _toChain,
-            _data,
-            _rootExecGas,
-            _remoteExecGas
-        );
+        inputCalldata =
+            abi.encodePacked(bytes1(0x05), _user, _nonce, _hToken, _token, _amount, _deposit, _toChain, _data);
     }
 
     function _encodeMultiple(
@@ -777,24 +763,12 @@ contract CoreRootBridgeAgentTest is Test {
         address[] memory _tokens,
         uint256[] memory _amounts,
         uint256[] memory _deposits,
-        uint24 _toChain,
-        bytes memory _data,
-        uint128 _rootExecGas,
-        uint128 _remoteExecGas
+        uint16 _toChain,
+        bytes memory _data
     ) internal pure returns (bytes memory inputCalldata) {
         //Encode Data
         inputCalldata = abi.encodePacked(
-            bytes1(0x03),
-            uint8(_hTokens.length),
-            _nonce,
-            _hTokens,
-            _tokens,
-            _amounts,
-            _deposits,
-            _toChain,
-            _data,
-            _rootExecGas,
-            _remoteExecGas
+            bytes1(0x03), uint8(_hTokens.length), _nonce, _hTokens, _tokens, _amounts, _deposits, _toChain, _data
         );
     }
 
@@ -805,25 +779,12 @@ contract CoreRootBridgeAgentTest is Test {
         address[] memory _tokens,
         uint256[] memory _amounts,
         uint256[] memory _deposits,
-        uint24 _toChain,
-        bytes memory _data,
-        uint128 _rootExecGas,
-        uint128 _remoteExecGas
+        uint16 _toChain,
+        bytes memory _data
     ) internal pure returns (bytes memory inputCalldata) {
         //Encode Data
         inputCalldata = abi.encodePacked(
-            bytes1(0x06),
-            _user,
-            uint8(_hTokens.length),
-            _nonce,
-            _hTokens,
-            _tokens,
-            _amounts,
-            _deposits,
-            _toChain,
-            _data,
-            _rootExecGas,
-            _remoteExecGas
+            bytes1(0x06), _user, uint8(_hTokens.length), _nonce, _hTokens, _tokens, _amounts, _deposits, _toChain, _data
         );
     }
 
@@ -832,33 +793,22 @@ contract CoreRootBridgeAgentTest is Test {
         address payable _toBridgeAgent,
         uint32 _nonce,
         bytes memory _data,
-        uint128 _rootExecGas,
-        uint128 _remoteExecGas,
-        uint24 _fromChainId
+        GasParams memory _gasParams,
+        uint16 _fromChainId
     ) private {
-        // Mock anycall context
-        vm.mockCall(
-            localAnyCallExecutorAddress,
-            abi.encodeWithSignature("context()"),
-            abi.encode(_fromBridgeAgent, _fromChainId, 22)
-        );
+        //Get some gas
+        vm.deal(address(this), _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
         //Encode Data
-        bytes memory inputCalldata = abi.encodePacked(bytes1(0x00), _nonce, _data, _rootExecGas, _remoteExecGas);
-
-        vm.mockCall(
-            address(localAnyCongfig),
-            abi.encodeWithSignature(
-                "calcSrcFees(address,uint256,uint256)", address(0), _fromChainId, inputCalldata.length
-            ),
-            abi.encode(0)
-        );
+        bytes memory inputCalldata = abi.encodePacked(bytes1(0x00), _nonce, _data);
 
         // Prank into user account
-        vm.startPrank(localAnyCallExecutorAddress);
+        vm.startPrank(lzEndpointAddress);
 
-        //Call Deposit function
-        RootBridgeAgent(_toBridgeAgent).anyExecute(inputCalldata);
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+            _fromChainId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
+        );
 
         // Prank out of user account
         vm.stopPrank();
@@ -869,36 +819,21 @@ contract CoreRootBridgeAgentTest is Test {
         address payable _toBridgeAgent,
         uint32 _nonce,
         bytes memory _data,
-        uint128 _rootExecGas,
-        uint128 _remoteExecGas,
-        uint24 _fromChainId
+        GasParams memory _gasParams,
+        uint16 _fromChainId
     ) private {
-        // Mock anycall context
-        vm.mockCall(
-            localAnyCallExecutorAddress,
-            abi.encodeWithSignature("context()"),
-            abi.encode(_fromBridgeAgent, _fromChainId, 22)
-        );
-
+        //Get some gas
+        vm.deal(address(this), _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
         //Encode Data
-        bytes memory inputCalldata = abi.encodePacked(bytes1(0x01), _nonce, _data, _rootExecGas, _remoteExecGas);
-
-        vm.mockCall(
-            address(localAnyCongfig),
-            abi.encodeWithSignature(
-                "calcSrcFees(address,uint256,uint256)", address(0), _fromChainId, inputCalldata.length
-            ),
-            abi.encode(0)
-        );
+        bytes memory inputCalldata = abi.encodePacked(bytes1(0x01), _nonce, _data);
 
         // Prank into user account
-        vm.startPrank(localAnyCallExecutorAddress);
+        vm.startPrank(lzEndpointAddress);
 
-        //Get some gas.
-        // vm.deal(_user, 1 ether);
-
-        //Call Deposit function
-        RootBridgeAgent(_toBridgeAgent).anyExecute(inputCalldata);
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+            _fromChainId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
+        );
 
         // Prank out of user account
         vm.stopPrank();
@@ -912,40 +847,25 @@ contract CoreRootBridgeAgentTest is Test {
         address _token,
         uint256 _amount,
         uint256 _deposit,
-        uint24 _toChain,
+        uint16 _toChain,
         bytes memory _data,
-        uint128 _rootExecGas,
-        uint128 _remoteExecGas,
-        uint24 _fromChainId
+        GasParams memory _gasParams,
+        uint16 _fromChainId
     ) private {
-        // Mock anycall context
-        vm.mockCall(
-            localAnyCallExecutorAddress,
-            abi.encodeWithSignature("context()"),
-            abi.encode(_fromBridgeAgent, _fromChainId, 22)
-        );
+        //Get some gas
+        vm.deal(address(this), _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
         //Encode Data
-        bytes memory inputCalldata = abi.encodePacked(
-            bytes1(0x02), _nonce, _hToken, _token, _amount, _deposit, _toChain, _data, _rootExecGas, _remoteExecGas
-        );
-
-        vm.mockCall(
-            address(localAnyCongfig),
-            abi.encodeWithSignature(
-                "calcSrcFees(address,uint256,uint256)", address(0), _fromChainId, inputCalldata.length
-            ),
-            abi.encode(0)
-        );
+        bytes memory inputCalldata =
+            abi.encodePacked(bytes1(0x02), _nonce, _hToken, _token, _amount, _deposit, _toChain, _data);
 
         // Prank into user account
-        vm.startPrank(localAnyCallExecutorAddress);
+        vm.startPrank(lzEndpointAddress);
 
-        //Get some gas.
-        // vm.deal(_user, 1 ether);
-
-        //Call Deposit function
-        RootBridgeAgent(_toBridgeAgent).anyExecute(inputCalldata);
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+            _fromChainId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
+        );
 
         // Prank out of user account
         vm.stopPrank();
@@ -960,47 +880,26 @@ contract CoreRootBridgeAgentTest is Test {
         address[] memory _tokens,
         uint256[] memory _amounts,
         uint256[] memory _deposits,
-        uint24 _toChain,
+        uint16 _toChain,
         bytes memory _data,
-        uint128 _rootExecGas,
-        uint128 _remoteExecGas,
-        uint24 _fromChainId
+        GasParams memory _gasParams,
+        uint16 _fromChainId
     ) private {
-        // Mock anycall context
-        vm.mockCall(
-            localAnyCallExecutorAddress,
-            abi.encodeWithSignature("context()"),
-            abi.encode(_fromBridgeAgent, _fromChainId, 22)
-        );
+        //Get some gas
+        vm.deal(address(this), _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
         //Encode Data for cross-chain call.
         bytes memory inputCalldata = abi.encodePacked(
-            bytes1(0x03),
-            uint8(_hTokens.length),
-            _nonce,
-            _hTokens,
-            _tokens,
-            _amounts,
-            _deposits,
-            _toChain,
-            _data,
-            _rootExecGas,
-            _remoteExecGas
-        );
-
-        vm.mockCall(
-            address(localAnyCongfig),
-            abi.encodeWithSignature(
-                "calcSrcFees(address,uint256,uint256)", address(0), _fromChainId, inputCalldata.length
-            ),
-            abi.encode(0)
+            bytes1(0x03), uint8(_hTokens.length), _nonce, _hTokens, _tokens, _amounts, _deposits, _toChain, _data
         );
 
         // Prank into user account
-        vm.startPrank(localAnyCallExecutorAddress);
+        vm.startPrank(lzEndpointAddress);
 
-        //Call Deposit function
-        RootBridgeAgent(_toBridgeAgent).anyExecute(inputCalldata);
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+            _fromChainId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
+        );
 
         // Prank out of user account
         vm.stopPrank();
@@ -1009,27 +908,20 @@ contract CoreRootBridgeAgentTest is Test {
     function executeCall(
         address payable _fromBridgeAgent,
         address payable _toBridgeAgent,
-        uint24 _fromChainId,
-        bytes memory _data
+        uint16 _fromChainId,
+        bytes memory _data,
+        GasParams memory _gasParams
     ) private {
-        // Mock anycall context
-        vm.mockCall(
-            localAnyCallExecutorAddress,
-            abi.encodeWithSignature("context()"),
-            abi.encode(_fromBridgeAgent, _fromChainId, 22)
-        );
-
-        vm.mockCall(
-            address(localAnyCongfig),
-            abi.encodeWithSignature("calcSrcFees(address,uint256,uint256)", address(0), _fromChainId, _data.length),
-            abi.encode(0)
-        );
+        //Get some gas
+        vm.deal(address(this), _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
         // Prank into user account
-        vm.startPrank(localAnyCallExecutorAddress);
+        vm.startPrank(lzEndpointAddress);
 
-        //Call Deposit function
-        RootBridgeAgent(_toBridgeAgent).anyExecute(_data);
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+            _fromChainId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, _data
+        );
 
         // Prank out of user account
         vm.stopPrank();
@@ -1171,7 +1063,7 @@ contract CoreRootBridgeAgentTest is Test {
 
 // function testClearDeposit() public {
 //     vm.mockCall(
-//         localAnyCallExecutorAddress,
+//         lzEndpointAddress,
 //         abi.encodeWithSignature("context()"),
 //         abi.encode(avaxCoreBridgeAgentAddress, rootChainId, 22)
 //     );
@@ -1198,10 +1090,10 @@ contract CoreRootBridgeAgentTest is Test {
 //         depositParams.token,
 //         depositParams.amount,
 //         depositParams.deposit,
-//         depositParams.toChain,
+//
 //         bytes("testdata"),
-//         depositParams.depositedGas,
-//         depositParams.depositedGas / 2
+//
+//         executionGas / 2
 //     );
 
 //     vm.mockCall(
@@ -1216,7 +1108,7 @@ contract CoreRootBridgeAgentTest is Test {
 //     );
 
 //     // Call 'anyFallback'
-//     vm.prank(localAnyCallExecutorAddress);
+//     vm.prank(lzEndpointAddress);
 //     coreBridgeAgent.anyFallback(anyFallbackData);
 
 //     //Call redeemDeposit
@@ -1233,10 +1125,10 @@ contract CoreRootBridgeAgentTest is Test {
 //     address _user,
 //     uint256 _amount,
 //     uint256 _deposit,
-//     uint24 _toChain
+//     uint16 _toChain
 // ) public {
 //     vm.mockCall(
-//         localAnyCallExecutorAddress,
+//         lzEndpointAddress,
 //         abi.encodeWithSignature("context()"),
 //         abi.encode(avaxCoreBridgeAgentAddress, rootChainId, 22)
 //     );
@@ -1288,10 +1180,10 @@ contract CoreRootBridgeAgentTest is Test {
 //         depositParams.token,
 //         depositParams.amount,
 //         depositParams.deposit,
-//         depositParams.toChain,
+//
 //         bytes("testdata"),
-//         depositParams.depositedGas,
-//         depositParams.depositedGas / 2
+//
+//         executionGas / 2
 //     );
 
 //     vm.mockCall(
@@ -1306,7 +1198,7 @@ contract CoreRootBridgeAgentTest is Test {
 //     );
 
 //     // Call 'anyFallback'
-//     vm.prank(localAnyCallExecutorAddress);
+//     vm.prank(lzEndpointAddress);
 //     coreBridgeAgent.anyFallback(anyFallbackData);
 
 //     //Call redeemDeposit
@@ -1323,10 +1215,10 @@ contract CoreRootBridgeAgentTest is Test {
 //     address _user,
 //     uint256 _amount,
 //     uint256 _deposit,
-//     uint24 _toChain
+//     uint16 _toChain
 // ) public {
 //     vm.mockCall(
-//         localAnyCallExecutorAddress,
+//         lzEndpointAddress,
 //         abi.encodeWithSignature("context()"),
 //         abi.encode(avaxCoreBridgeAgentAddress, _toChain, 22)
 //     );
@@ -1360,8 +1252,8 @@ contract CoreRootBridgeAgentTest is Test {
 //     bytes memory clearDepositData = abi.encode(bytes1(uint8(1)), uint32(1));
 
 //     // Call 'clearDeposit'
-//     vm.prank(localAnyCallExecutorAddress);
-//     coreBridgeAgent.anyExecute(clearDepositData);
+//     vm.prank(lzEndpointAddress);
+//     coreBridgeAgent.execute(clearDepositData);
 
 //     // Check balances
 //     require(fuzzToken.balanceOf(_user) == _amount - _deposit);
@@ -1374,10 +1266,10 @@ contract CoreRootBridgeAgentTest is Test {
 //     address _recipient,
 //     uint256 _amount,
 //     uint256 _deposit,
-//     uint24 _toChain
+//     uint16 _toChain
 // ) public {
 //     vm.mockCall(
-//         localAnyCallExecutorAddress,
+//         lzEndpointAddress,
 //         abi.encodeWithSignature("context()"),
 //         abi.encode(avaxCoreBridgeAgentAddress, _toChain, 22)
 //     );
@@ -1440,12 +1332,12 @@ contract CoreRootBridgeAgentTest is Test {
 //         _amount,
 //         _deposit,
 //         bytes("payload"),
-//         uint24(300000)
+//         uint16(300000)
 //     );
 
 //     // Call 'clearToken'
-//     vm.prank(localAnyCallExecutorAddress);
-//     coreBridgeAgent.anyExecute(settlementData);
+//     vm.prank(lzEndpointAddress);
+//     coreBridgeAgent.execute(settlementData);
 
 //     require(fuzzToken.balanceOf(_recipient) == _amount - _deposit);
 //     require(underToken.balanceOf(_recipient) == _deposit);
@@ -1464,10 +1356,10 @@ contract CoreRootBridgeAgentTest is Test {
 //     uint256 _amount1,
 //     uint256 _deposit0,
 //     uint256 _deposit1,
-//     uint24 _toChain
+//     uint16 _toChain
 // ) public {
 //     vm.mockCall(
-//         localAnyCallExecutorAddress,
+//         lzEndpointAddress,
 //         abi.encodeWithSignature("context()"),
 //         abi.encode(avaxCoreBridgeAgentAddress, _toChain, 22)
 //     );
@@ -1567,8 +1459,8 @@ contract CoreRootBridgeAgentTest is Test {
 //     );
 
 //     // Call 'clearToken'
-//     vm.prank(localAnyCallExecutorAddress);
-//     coreBridgeAgent.anyExecute(settlementData);
+//     vm.prank(lzEndpointAddress);
+//     coreBridgeAgent.execute(settlementData);
 
 //     require(fuzzToken0.balanceOf(rootPort) == 0);
 //     require(fuzzToken1.balanceOf(rootPort) == 0);
@@ -1745,7 +1637,7 @@ contract CoreRootBridgeAgentTest is Test {
 //     address _token,
 //     uint256 _amount,
 //     uint256 _deposit,
-//     uint24 _toChain,
+//     uint16 _toChain,
 //     uint128 _rootExecGas
 // ) private {
 //     //Prepare deposit info
@@ -1795,7 +1687,7 @@ contract CoreRootBridgeAgentTest is Test {
 //     address[] memory _tokens,
 //     uint256[] memory _amounts,
 //     uint256[] memory _deposits,
-//     uint24 _toChain,
+//     uint16 _toChain,
 //     uint128 _rootExecGas
 // ) private {
 //     //Prepare deposit info
@@ -1844,17 +1736,17 @@ contract CoreRootBridgeAgentTest is Test {
 //     bytes memory _data,
 //     uint128 _rootExecGas,
 //     uint128 _remoteExecGas,
-//     uint24 _fromChainId
+//     uint16 _fromChainId
 // ) private {
 //     // Mock anycall context
 //     vm.mockCall(
-//         localAnyCallExecutorAddress,
+//         lzEndpointAddress,
 //         abi.encodeWithSignature("context()"),
 //         abi.encode(_fromBridgeAgent, _fromChainId, 22)
 //     );
 
 //     //Encode Data
-//     bytes memory inputCalldata = abi.encodePacked(bytes1(0x00), nonce++, _data, _rootExecGas, _remoteExecGas);
+//     bytes memory inputCalldata = abi.encodePacked(bytes1(0x00), nonce++, _data);
 
 //     vm.mockCall(
 //         address(localAnyCongfig),
@@ -1865,10 +1757,10 @@ contract CoreRootBridgeAgentTest is Test {
 //     );
 
 //     // Prank into user account
-//     vm.startPrank(localAnyCallExecutorAddress);
+//     vm.startPrank(lzEndpointAddress);
 
 //     //Call Deposit function
-//     RootBridgeAgent(_toBridgeAgent).anyExecute(inputCalldata);
+//     RootBridgeAgent(_toBridgeAgent).execute(inputCalldata);
 
 //     // Prank out of user account
 //     vm.stopPrank();
@@ -1881,17 +1773,17 @@ contract CoreRootBridgeAgentTest is Test {
 //     bytes memory _data,
 //     uint128 _rootExecGas,
 //     uint128 _remoteExecGas,
-//     uint24 _fromChainId
+//     uint16 _fromChainId
 // ) private {
 //     // Mock anycall context
 //     vm.mockCall(
-//         localAnyCallExecutorAddress,
+//         lzEndpointAddress,
 //         abi.encodeWithSignature("context()"),
 //         abi.encode(_fromBridgeAgent, _fromChainId, 22)
 //     );
 
 //     //Encode Data
-//     bytes memory inputCalldata = abi.encodePacked(bytes1(0x01), nonce++, _data, _rootExecGas, _remoteExecGas);
+//     bytes memory inputCalldata = abi.encodePacked(bytes1(0x01), nonce++, _data);
 //     console2.log(_remoteExecGas);
 //     console2.logBytes(inputCalldata);
 
@@ -1904,13 +1796,13 @@ contract CoreRootBridgeAgentTest is Test {
 //     );
 
 //     // Prank into user account
-//     vm.startPrank(localAnyCallExecutorAddress);
+//     vm.startPrank(lzEndpointAddress);
 
 //     //Get some gas.
 //     // vm.deal(_user, 1 ether);
 
 //     //Call Deposit function
-//     RootBridgeAgent(_toBridgeAgent).anyExecute(inputCalldata);
+//     RootBridgeAgent(_toBridgeAgent).execute(inputCalldata);
 
 //     // Prank out of user account
 //     vm.stopPrank();
@@ -1924,17 +1816,17 @@ contract CoreRootBridgeAgentTest is Test {
 //     bytes memory _data,
 //     uint128 _rootExecGas,
 //     uint128 _remoteExecGas,
-//     uint24 _fromChainId
+//     uint16 _fromChainId
 // ) private {
 //     // Mock anycall context
 //     vm.mockCall(
-//         localAnyCallExecutorAddress,
+//         lzEndpointAddress,
 //         abi.encodeWithSignature("context()"),
 //         abi.encode(_fromBridgeAgent, _fromChainId, 22)
 //     );
 
 //     //Encode Data
-//     bytes memory inputCalldata = abi.encodePacked(bytes1(0x04), _user, nonce++, _data, _rootExecGas, _remoteExecGas);
+//     bytes memory inputCalldata = abi.encodePacked(bytes1(0x04), _user, nonce++, _data);
 
 //     vm.mockCall(
 //         address(localAnyCongfig),
@@ -1945,10 +1837,10 @@ contract CoreRootBridgeAgentTest is Test {
 //     );
 
 //     // Prank into user account
-//     vm.startPrank(localAnyCallExecutorAddress);
+//     vm.startPrank(lzEndpointAddress);
 
 //     //Call Deposit function
-//     RootBridgeAgent(_toBridgeAgent).anyExecute(inputCalldata);
+//     RootBridgeAgent(_toBridgeAgent).execute(inputCalldata);
 
 //     // Prank out of user account
 //     vm.stopPrank();
@@ -1957,12 +1849,12 @@ contract CoreRootBridgeAgentTest is Test {
 // function encodeCallWithDeposit(
 //     address payable _fromBridgeAgent,
 //     address payable _toBridgeAgent,
-//     uint24 _fromChainId,
+//     uint16 _fromChainId,
 //     bytes memory _packedData
 // ) private {
 //     // Mock anycall context
 //     vm.mockCall(
-//         localAnyCallExecutorAddress,
+//         lzEndpointAddress,
 //         abi.encodeWithSignature("context()"),
 //         abi.encode(_fromBridgeAgent, _fromChainId, 22)
 //     );
@@ -1976,13 +1868,13 @@ contract CoreRootBridgeAgentTest is Test {
 //     );
 
 //     // Prank into user account
-//     vm.startPrank(localAnyCallExecutorAddress);
+//     vm.startPrank(lzEndpointAddress);
 
 //     //Get some gas.
 //     // vm.deal(_user, 1 ether);
 
 //     //Call Deposit function
-//     RootBridgeAgent(_toBridgeAgent).anyExecute(_packedData);
+//     RootBridgeAgent(_toBridgeAgent).execute(_packedData);
 
 //     // Prank out of user account
 //     vm.stopPrank();
@@ -1991,12 +1883,12 @@ contract CoreRootBridgeAgentTest is Test {
 // function encodeCallWithDepositMultiple(
 //     address payable _fromBridgeAgent,
 //     address payable _toBridgeAgent,
-//     uint24 _fromChainId,
+//     uint16 _fromChainId,
 //     bytes memory _packedData
 // ) private {
 //     // Mock anycall context
 //     vm.mockCall(
-//         localAnyCallExecutorAddress,
+//         lzEndpointAddress,
 //         abi.encodeWithSignature("context()"),
 //         abi.encode(_fromBridgeAgent, _fromChainId, 22)
 //     );
@@ -2010,10 +1902,10 @@ contract CoreRootBridgeAgentTest is Test {
 //     );
 
 //     // Prank into user account
-//     vm.startPrank(localAnyCallExecutorAddress);
+//     vm.startPrank(lzEndpointAddress);
 
 //     //Call Deposit function
-//     RootBridgeAgent(_toBridgeAgent).anyExecute(_packedData);
+//     RootBridgeAgent(_toBridgeAgent).execute(_packedData);
 
 //     // Prank out of user account
 //     vm.stopPrank();

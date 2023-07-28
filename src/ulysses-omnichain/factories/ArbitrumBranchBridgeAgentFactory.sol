@@ -12,7 +12,7 @@ import {ArbitrumBranchBridgeAgent, DeployArbitrumBranchBridgeAgent} from "../Arb
  * @title  Arbitrum Branch Bridge Agent Factory Contract
  * @author MaiaDAO
  * @notice Factory contract for allowing permissionless deployment of
- *         new Arbitrum Branch Bridge Agents which are in charge of 
+ *         new Arbitrum Branch Bridge Agents which are in charge of
  *         managing the deposit and withdrawal of assets between the
  *         branch chains and the omnichain environment.
  */
@@ -22,18 +22,16 @@ contract ArbitrumBranchBridgeAgentFactory is BranchBridgeAgentFactory {
      *  @param _rootChainId Local Chain Id.
      *  @param _rootBridgeAgentFactoryAddress Root Bridge Agent Factory Address.
      *  @param _wrappedNativeToken Local Wrapped Native Token.
-     *  @param _localAnyCallAddress Local Anycall Address.
-     *  @param _localAnyCallExecutorAddress Local Anyexec Address.
+     *  @param _lzEndpointAddress Local Layer Zero Endpoint for cross-chain communication.
      *  @param _localCoreBranchRouterAddress Local Core Branch Router Address.
      *  @param _localPortAddress Local Port Address.
      *  @param _owner Owner of the contract.
      */
     constructor(
-        uint256 _rootChainId,
+        uint16 _rootChainId,
         address _rootBridgeAgentFactoryAddress,
         WETH9 _wrappedNativeToken,
-        address _localAnyCallAddress,
-        address _localAnyCallExecutorAddress,
+        address _lzEndpointAddress,
         address _localCoreBranchRouterAddress,
         address _localPortAddress,
         address _owner
@@ -43,8 +41,7 @@ contract ArbitrumBranchBridgeAgentFactory is BranchBridgeAgentFactory {
             _rootChainId,
             _rootBridgeAgentFactoryAddress,
             _wrappedNativeToken,
-            _localAnyCallAddress,
-            _localAnyCallExecutorAddress,
+            _lzEndpointAddress,
             _localCoreBranchRouterAddress,
             _localPortAddress,
             _owner
@@ -57,8 +54,7 @@ contract ArbitrumBranchBridgeAgentFactory is BranchBridgeAgentFactory {
                 wrappedNativeToken,
                 rootChainId,
                 _coreRootBridgeAgent,
-                localAnyCallAddress,
-                localAnyCallExecutorAddress,
+                lzEndpointAddress,
                 localCoreBranchRouterAddress,
                 localPortAddress
             )
@@ -94,8 +90,7 @@ contract ArbitrumBranchBridgeAgentFactory is BranchBridgeAgentFactory {
                 wrappedNativeToken,
                 rootChainId,
                 _rootBridgeAgentAddress,
-                localAnyCallAddress,
-                localAnyCallExecutorAddress,
+                lzEndpointAddress,
                 _newBranchRouterAddress,
                 localPortAddress
             )

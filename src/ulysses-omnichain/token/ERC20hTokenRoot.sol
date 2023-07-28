@@ -34,14 +34,16 @@ contract ERC20hTokenRoot is ERC20, IERC20hTokenRoot {
      *     @param _rootPortAddress Address of the Root Port Contract.
      *     @param _name Name of the Token.
      *     @param _symbol Symbol of the Token.
+     *     @param _decimals Decimals of the Token.
      */
     constructor(
         uint256 _localChainId,
         address _factoryAddress,
         address _rootPortAddress,
         string memory _name,
-        string memory _symbol
-    ) ERC20(string(string.concat("Hermes ", _name)), string(string.concat("h-", _symbol)), 18) {
+        string memory _symbol,
+        uint8 _decimals
+    ) ERC20(string(string.concat(_name)), string(string.concat(_symbol)), _decimals) {
         require(_rootPortAddress != address(0), "Root Port Address cannot be 0");
         require(_factoryAddress != address(0), "Factory Address cannot be 0");
         localChainId = _localChainId;
