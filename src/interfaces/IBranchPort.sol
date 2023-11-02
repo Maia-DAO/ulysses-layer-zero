@@ -50,24 +50,24 @@ interface IBranchPort {
 
     /**
      * @notice Allows active Port Strategy addresses to withdraw assets.
-     *     @param _token token address.
-     *     @param _amount amount of tokens.
+     *  @param _token token address.
+     *  @param _amount amount of tokens.
      */
     function manage(address _token, uint256 _amount) external;
 
     /**
      * @notice allow approved address to repay borrowed reserves with reserves
-     *     @param _amount uint
-     *     @param _token address
-     *     @dev must be called by the port strategy itself
+     *  @param _amount uint
+     *  @param _token address
+     *  @dev must be called by the port strategy itself
      */
     function replenishReserves(address _token, uint256 _amount) external;
 
     /**
      * @notice allow approved address to repay borrowed reserves and replenish a given token's reserves
-     *     @param _strategy address
-     *     @param _token address
-     *     @dev can be called by anyone to ensure availability of service
+     *  @param _strategy address
+     *  @param _token address
+     *  @dev can be called by anyone to ensure availability of service
      */
     function replenishReserves(address _strategy, address _token) external;
 
@@ -151,60 +151,56 @@ interface IBranchPort {
     function addBridgeAgent(address _bridgeAgent) external;
 
     /**
-     * @notice Sets the core router address for the branch port.
-     *   @param _newCoreRouter address of the new core router
-     */
-    function setCoreRouter(address _newCoreRouter) external;
-
-    /**
-     * @notice Adds a new bridge agent factory address to the branch port.
+     * @notice Toggle a given bridge agent factory. If it's active, it will de-activate it and vice-versa.
      *   @param _bridgeAgentFactory address of the bridge agent factory to add to the Port
      */
-    function addBridgeAgentFactory(address _bridgeAgentFactory) external;
+    function toggleBridgeAgentFactory(address _bridgeAgentFactory) external;
 
     /**
-     * @notice Reverts the toggle on the given bridge agent factory. If it's active, it will de-activate it and vice-versa.
-     *   @param _newBridgeAgentFactory address of the bridge agent factory to add to the Port
-     */
-    function toggleBridgeAgentFactory(address _newBridgeAgentFactory) external;
-
-    /**
-     * @notice Reverts thfe toggle on the given bridge agent  If it's active, it will de-activate it and vice-versa.
-     *   @param _bridgeAgent address of the bridge agent to add to the Port
-     */
-    function toggleBridgeAgent(address _bridgeAgent) external;
-
-    /**
-     * @notice Adds a new strategy token.
+     * @notice Toggle a given strategy token. If it's active, it will de-activate it and vice-versa.
      * @param _token address of the token to add to the Strategy Tokens
+     * @param _minimumReservesRatio minimum reserves ratio for the token
+     * @dev Must be between 7000 and 10000 (70% and 100%). Can be any value if the token is being de-activated.
      */
-    function addStrategyToken(address _token, uint256 _minimumReservesRatio) external;
+    function toggleStrategyToken(address _token, uint256 _minimumReservesRatio) external;
 
     /**
-     * @notice Reverts the toggle on the given strategy token. If it's active, it will de-activate it and vice-versa.
+     * @notice Update an active strategy token's minimum reserves ratio. If it is not active, it will revert.
      * @param _token address of the token to add to the Strategy Tokens
+     * @param _minimumReservesRatio minimum reserves ratio for the token
+     * @dev Must be between 7000 and 10000 (70% and 100%). Can be any value if the token is being de-activated.
      */
-    function toggleStrategyToken(address _token) external;
+    function updateStrategyToken(address _token, uint256 _minimumReservesRatio) external;
 
     /**
-     * @notice Adds a new Port strategy to the given port
-     * @param _portStrategy address of the bridge agent factory to add to the Port
+     * @notice Add or Remove a Port Strategy.
+     * @param _portStrategy Address of the Port Strategy to be added for use in Branch strategies.
+     * @param _underlyingToken Address of the underlying token to be added for use in Branch strategies.
+     * @param _dailyManagementLimit Daily management limit of the given token for the Port Strategy.
+     * @param _reserveRatioManagementLimit Total reserves management limit of the given token for the Port Strategy.
+     * @dev Must be between 7000 and 10000 (70% and 100%). Can be any value if the token is being de-activated.
      */
-    function addPortStrategy(address _portStrategy, address _token, uint256 _dailyManagementLimit) external;
+    function togglePortStrategy(
+        address _portStrategy,
+        address _underlyingToken,
+        uint256 _dailyManagementLimit,
+        uint256 _reserveRatioManagementLimit
+    ) external;
 
     /**
-     * @notice Reverts the toggle on the given port strategy. If it's active, it will de-activate it and vice-versa.
-     * @param _portStrategy address of the bridge agent factory to add to the Port
+     * @notice Updates a Port Strategy.
+     * @param _portStrategy Address of the Port Strategy to be added for use in Branch strategies.
+     * @param _underlyingToken Address of the underlying token to be added for use in Branch strategies.
+     * @param _dailyManagementLimit Daily management limit of the given token for the Port Strategy.
+     * @param _reserveRatioManagementLimit Total reserves management limit of the given token for the Port Strategy.
+     * @dev Must be between 7000 and 10000 (70% and 100%). Can be any value if the token is being de-activated.
      */
-    function togglePortStrategy(address _portStrategy, address _token) external;
-
-    /**
-     * @notice Updates the daily management limit for the given port strategy.
-     * @param _portStrategy address of the bridge agent factory to add to the Port
-     * @param _token address of the token to update the limit for
-     * @param _dailyManagementLimit new daily management limit
-     */
-    function updatePortStrategy(address _portStrategy, address _token, uint256 _dailyManagementLimit) external;
+    function updatePortStrategy(
+        address _portStrategy,
+        address _underlyingToken,
+        uint256 _dailyManagementLimit,
+        uint256 _reserveRatioManagementLimit
+    ) external;
 
     /**
      * @notice Sets the core branch router and bridge agent for the branch port.
@@ -213,22 +209,32 @@ interface IBranchPort {
      */
     function setCoreBranchRouter(address _coreBranchRouter, address _coreBranchBridgeAgent) external;
 
+    /**
+     * @notice Allows governance to claim any native tokens accumulated from failed transactions.
+     *  @param _recipient address to transfer ETH to.
+     */
+    function sweep(address _recipient) external;
+
     /*///////////////////////////////////////////////////////////////
                             EVENTS
     //////////////////////////////////////////////////////////////*/
 
+    // TODO: Add Natspec documentation for events
+
     event DebtCreated(address indexed _strategy, address indexed _token, uint256 _amount);
     event DebtRepaid(address indexed _strategy, address indexed _token, uint256 _amount);
 
-    event StrategyTokenAdded(address indexed _token, uint256 indexed _minimumReservesRatio);
-    event StrategyTokenToggled(address indexed _token);
+    event StrategyTokenUpdated(address indexed _token, uint256 indexed _minimumReservesRatio);
 
     event PortStrategyAdded(
         address indexed _portStrategy, address indexed _token, uint256 indexed _dailyManagementLimit
     );
     event PortStrategyToggled(address indexed _portStrategy, address indexed _token);
     event PortStrategyUpdated(
-        address indexed _portStrategy, address indexed _token, uint256 indexed _dailyManagementLimit
+        address indexed _portStrategy,
+        address indexed _token,
+        uint256 indexed _dailyManagementLimit,
+        uint256 _reserveRatioManagementLimit
     );
 
     event BridgeAgentFactoryAdded(address indexed _bridgeAgentFactory);
@@ -242,15 +248,21 @@ interface IBranchPort {
                             ERRORS
     //////////////////////////////////////////////////////////////*/
 
+    // TODO: Add Natspec documentation for errors
+
     error AlreadyAddedBridgeAgent();
     error AlreadyAddedBridgeAgentFactory();
     error InvalidMinimumReservesRatio();
     error InvalidInputArrays();
     error InsufficientReserves();
+    error ExceedsReserveRatioManagementLimit();
     error UnrecognizedCore();
     error UnrecognizedBridgeAgent();
     error UnrecognizedBridgeAgentFactory();
     error UnrecognizedPortStrategy();
     error UnrecognizedStrategyToken();
     error NotEnoughDebtToRepay();
+
+    /// @notice Error emitted when an invalid underlying token address is provided.
+    error InvalidUnderlyingAddress();
 }

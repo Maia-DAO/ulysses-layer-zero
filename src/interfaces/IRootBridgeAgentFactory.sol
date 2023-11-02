@@ -14,4 +14,11 @@ interface IRootBridgeAgentFactory {
     //////////////////////////////////////////////////////////////*/
 
     function createBridgeAgent(address newRootRouterAddress) external returns (address newBridgeAgent);
+
+    /*///////////////////////////////////////////////////////////////
+                                EVENTS
+    //////////////////////////////////////////////////////////////*/
+
+    event BridgeAgentAdded(address indexed bridgeAgent, address indexed manager);
+
 }

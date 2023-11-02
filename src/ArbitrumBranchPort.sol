@@ -7,23 +7,25 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {IArbitrumBranchPort} from "./interfaces/IArbitrumBranchPort.sol";
 import {IRootPort} from "./interfaces/IRootPort.sol";
 
+import {AddressCodeSize} from "./lib/AddressCodeSize.sol";
+
 import {BranchPort} from "./BranchPort.sol";
 
 /// @title Arbitrum Branch Port Contract
 /// @author MaiaDAO
 contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
     using SafeTransferLib for address;
+    using AddressCodeSize for address;
 
     /*///////////////////////////////////////////////////////////////
                     ARBITRUM BRANCH PORT STATE
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Local Network Identifier.
-    uint16 public immutable localChainId;
+    uint16 public immutable override rootChainId;
 
-    /// @notice Address for Local Port Address
-    /// @dev where funds deposited from this chain are kept, managed and supplied to different Port Strategies.
-    address public immutable rootPortAddress;
+    /// @notice Address for Root Port Address
+    address public immutable override rootPortAddress;
 
     /*///////////////////////////////////////////////////////////////
                             CONSTRUCTOR
@@ -32,13 +34,13 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
     /**
      * @notice Constructor for Arbitrum Branch Port.
      * @param _owner owner of the contract.
-     * @param _localChainId arbitrum layer zero chain id.
+     * @param _rootChainId arbitrum layer zero chain id.
      * @param _rootPortAddress address of the Root Port.
      */
-    constructor(uint16 _localChainId, address _rootPortAddress, address _owner) BranchPort(_owner) {
+    constructor(uint16 _rootChainId, address _rootPortAddress, address _owner) BranchPort(_owner) {
         require(_rootPortAddress != address(0), "Root Port Address cannot be 0");
 
-        localChainId = _localChainId;
+        rootChainId = _rootChainId;
         rootPortAddress = _rootPortAddress;
     }
 
@@ -57,11 +59,13 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
         address _rootPortAddress = rootPortAddress;
 
         // Get global token address from root port
-        address _globalToken = IRootPort(_rootPortAddress).getLocalTokenFromUnderlying(_underlyingAddress, localChainId);
+        address _globalToken = IRootPort(_rootPortAddress).getLocalTokenFromUnderlying(_underlyingAddress, rootChainId);
 
         // Check if the global token exists
         if (_globalToken == address(0)) revert UnknownGlobalToken();
 
+        // Check if underlying address is a contract
+        if (_underlyingAddress.isEOA()) revert InvalidUnderlyingAddress();
         // Deposit Assets to Port
         _underlyingAddress.safeTransferFrom(_depositor, address(this), _deposit);
 
@@ -80,11 +84,11 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
         address _rootPortAddress = rootPortAddress;
 
         // Check if the global token exists
-        if (!IRootPort(_rootPortAddress).isGlobalToken(_globalAddress, localChainId)) revert UnknownGlobalToken();
+        if (!IRootPort(_rootPortAddress).isGlobalToken(_globalAddress, rootChainId)) revert UnknownGlobalToken();
 
         // Get the underlying token address from the root port
         address _underlyingAddress =
-            IRootPort(_rootPortAddress).getUnderlyingTokenFromLocal(_globalAddress, localChainId);
+            IRootPort(_rootPortAddress).getUnderlyingTokenFromLocal(_globalAddress, rootChainId);
 
         // Check if the underlying token exists
         if (_underlyingAddress == address(0)) revert UnknownUnderlyingToken();
@@ -123,16 +127,19 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
         uint256 _amount,
         uint256 _deposit
     ) internal override {
-        //Store Underlying Tokens
-        if (_deposit > 0) {
-            _underlyingAddress.safeTransferFrom(_depositor, address(this), _deposit);
-        }
-
-        //Burn hTokens if any are being used
+        // Burn hTokens if any are being used
         if (_amount - _deposit > 0) {
             unchecked {
                 IRootPort(rootPortAddress).bridgeToRootFromLocalBranch(_depositor, _localAddress, _amount - _deposit);
             }
+        }
+
+        // Store Underlying Tokens
+        if (_deposit > 0) {
+            // Check if underlying address is a contract
+            if (_underlyingAddress.isEOA()) revert InvalidUnderlyingAddress();
+
+            _underlyingAddress.safeTransferFrom(_depositor, address(this), _deposit);
         }
     }
 }

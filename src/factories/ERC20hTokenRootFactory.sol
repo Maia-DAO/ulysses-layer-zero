@@ -5,14 +5,11 @@ import {Ownable} from "solady/auth/Ownable.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-import {IERC20hTokenRootFactory, ERC20hTokenRoot} from "../interfaces/IERC20hTokenRootFactory.sol";
+import {IERC20hTokenRootFactory, ERC20hToken} from "../interfaces/IERC20hTokenRootFactory.sol";
 
 /// @title ERC20 hToken Root Factory Contract
 /// @author MaiaDAO
 contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
-    /// @notice Local Network Identifier.
-    uint16 public immutable localChainId;
-
     /// @notice Root Port Address.
     address public immutable rootPortAddress;
 
@@ -20,7 +17,7 @@ contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
     address public coreRootRouterAddress;
 
     /// @notice Array of all hTokens created.
-    ERC20hTokenRoot[] public hTokens;
+    ERC20hToken[] public hTokens;
 
     /*///////////////////////////////////////////////////////////////
                             CONSTRUCTOR
@@ -28,12 +25,10 @@ contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
 
     /**
      * @notice Constructor for ERC20 hToken Root Factory Contract
-     *     @param _localChainId Local Network Layer Zerio Identifier.
-     *     @param _rootPortAddress Root Port Address.
+     *  @param _rootPortAddress Root Port Address.
      */
-    constructor(uint16 _localChainId, address _rootPortAddress) {
+    constructor(address _rootPortAddress) {
         require(_rootPortAddress != address(0), "Root Port Address cannot be 0");
-        localChainId = _localChainId;
         rootPortAddress = _rootPortAddress;
         _initializeOwner(msg.sender);
     }
@@ -48,8 +43,9 @@ contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
      */
     function initialize(address _coreRouter) external onlyOwner {
         require(_coreRouter != address(0), "CoreRouter address cannot be 0");
-        coreRootRouterAddress = _coreRouter;
         renounceOwnership();
+
+        coreRootRouterAddress = _coreRouter;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -60,7 +56,7 @@ contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
      * @notice Function to get the array of hTokens.
      * @return Array of hTokens.
      */
-    function getHTokens() external view returns (ERC20hTokenRoot[] memory) {
+    function getHTokens() external view returns (ERC20hToken[] memory) {
         return hTokens;
     }
 
@@ -76,16 +72,15 @@ contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
     function createToken(string memory _name, string memory _symbol, uint8 _decimals)
         external
         requiresCoreRouterOrPort
-        returns (ERC20hTokenRoot newToken)
+        returns (ERC20hToken newToken)
     {
-        newToken = new ERC20hTokenRoot(
-            localChainId,
-            address(this),
+        newToken = new ERC20hToken(
             rootPortAddress,
             _name,
             _symbol,
             _decimals
         );
+
         hTokens.push(newToken);
     }
 

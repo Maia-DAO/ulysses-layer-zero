@@ -41,13 +41,13 @@ contract BranchBridgeAgentFactory is Ownable, IBranchBridgeAgentFactory {
 
     /**
      * @notice Constructor for Bridge Agent.
-     *     @param _localChainId Local Chain Layer Zero Id.
-     *     @param _rootChainId Root Chain Layer Zero Id.
-     *     @param _rootBridgeAgentFactoryAddress Root Bridge Agent Factory Address.
-     *     @param _lzEndpointAddress Layer Zero Endpoint for cross-chain communication.
-     *     @param _localCoreBranchRouterAddress Local Core Branch Router Address.
-     *     @param _localPortAddress Local Branch Port Address.
-     *     @param _owner Owner of the contract.
+     *  @param _localChainId Local Chain Layer Zero Id.
+     *  @param _rootChainId Root Chain Layer Zero Id.
+     *  @param _rootBridgeAgentFactoryAddress Root Bridge Agent Factory Address.
+     *  @param _lzEndpointAddress Layer Zero Endpoint for cross-chain communication.
+     *  @param _localCoreBranchRouterAddress Local Core Branch Router Address.
+     *  @param _localPortAddress Local Branch Port Address.
+     *  @param _owner Owner of the contract.
      */
     constructor(
         uint16 _localChainId,
@@ -73,6 +73,7 @@ contract BranchBridgeAgentFactory is Ownable, IBranchBridgeAgentFactory {
         lzEndpointAddress = _lzEndpointAddress;
         localCoreBranchRouterAddress = _localCoreBranchRouterAddress;
         localPortAddress = _localPortAddress;
+
         _initializeOwner(_owner);
     }
 
@@ -84,23 +85,15 @@ contract BranchBridgeAgentFactory is Ownable, IBranchBridgeAgentFactory {
      * @notice Function to initialize the contract.
      * @param _coreRootBridgeAgent Address of the Root Chain's Core Root Bridge Agent.
      */
-    function initialize(address _coreRootBridgeAgent) external virtual onlyOwner {
-        require(_coreRootBridgeAgent != address(0), "Core Root Bridge Agent cannot be 0");
+    function initialize(address _coreRootBridgeAgent) external onlyOwner {
+        // Check if the core root bridge agent address is valid
+        if (_coreRootBridgeAgent == address(0)) revert InvalidInputCannotBeZeroAddress();
 
-        address newCoreBridgeAgent = address(
-            DeployBranchBridgeAgent.deploy(
-                rootChainId,
-                localChainId,
-                _coreRootBridgeAgent,
-                lzEndpointAddress,
-                localCoreBranchRouterAddress,
-                localPortAddress
-            )
-        );
-
-        IPort(localPortAddress).addBridgeAgent(newCoreBridgeAgent);
-
+        // Renounce ownership
         renounceOwnership();
+
+        // Deploy the local bridge agent
+        _deployBridgeAgent(_coreRootBridgeAgent, localCoreBranchRouterAddress);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -116,15 +109,33 @@ contract BranchBridgeAgentFactory is Ownable, IBranchBridgeAgentFactory {
         address _newBranchRouterAddress,
         address _rootBridgeAgentAddress,
         address _rootBridgeAgentFactoryAddress
-    ) external virtual returns (address newBridgeAgent) {
-        require(
-            msg.sender == localCoreBranchRouterAddress, "Only the Core Branch Router can create a new Bridge Agent."
-        );
-        require(
-            _rootBridgeAgentFactoryAddress == rootBridgeAgentFactoryAddress,
-            "Root Bridge Agent Factory Address does not match."
-        );
+    ) external returns (address newBridgeAgent) {
+        // Check if the caller is the local core branch router
+        if (msg.sender != localCoreBranchRouterAddress) revert UnrecognizedCoreBranchRouter();
 
+        // Check if the root bridge agent factory address is valid
+        if (_rootBridgeAgentFactoryAddress != rootBridgeAgentFactoryAddress) revert InvalidInputFactoryMismatch();
+
+        // Deploy the new bridge agent
+        return _deployBridgeAgent(_rootBridgeAgentAddress, _newBranchRouterAddress);
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                BRIDGE AGENT FACTORY INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Internal function to deploy a new branch bridge agent.
+     * @param _rootBridgeAgentAddress Address of the root bridge agent to connect to.
+     * @param _newBranchRouterAddress Address of the new branch router.
+     * @return newBridgeAgent Address of the newly deployed bridge agent.
+     */
+    function _deployBridgeAgent(address _rootBridgeAgentAddress, address _newBranchRouterAddress)
+        internal
+        virtual
+        returns (address newBridgeAgent)
+    {
+        // Deploy the new bridge agent
         newBridgeAgent = address(
             DeployBranchBridgeAgent.deploy(
                 rootChainId,
@@ -136,6 +147,10 @@ contract BranchBridgeAgentFactory is Ownable, IBranchBridgeAgentFactory {
             )
         );
 
+        // Add the new bridge agent to the local Branch Port's state
         IPort(localPortAddress).addBridgeAgent(newBridgeAgent);
+
+        // Emit event
+        emit BridgeAgentAdded(newBridgeAgent);
     }
 }
