@@ -10,7 +10,6 @@ import {
 } from "@omni/interfaces/IRootBridgeAgent.sol";
 import {IRootRouter} from "@omni/interfaces/IRootRouter.sol";
 import {IRootPort as IPort} from "@omni/interfaces/IRootPort.sol";
-import {ERC20hTokenRoot as ERC20hToken} from "@omni/token/ERC20hTokenRoot.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
@@ -25,6 +24,16 @@ contract MockRootBridgeAgent is RootBridgeAgent {
     /*///////////////////////////////////////////////////////////////
                 TOKEN MANAGEMENT INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    // Offset in bytes from the start of a slot to the start of an address.
+    // Considering Ethereum addresses are 20 bytes and fit within the 32 bytes slot.
+    uint256 internal constant ADDRESS_END_OFFSET = 12;
+
+    // Offset in bytes to reach the amount parameter after hToken and token addresses in the token-related info.
+    uint256 internal constant PARAMS_AMT_OFFSET = 64;
+
+    // Offset in bytes to reach the deposit parameter after hToken, token, and amount in the token-related info.
+    uint256 internal constant PARAMS_DEPOSIT_OFFSET = 96;
 
     function bridgeInMultiple(address, bytes calldata _dParams, uint16)
         public
