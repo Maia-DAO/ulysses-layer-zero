@@ -5,18 +5,18 @@ import {Ownable} from "solady/auth/Ownable.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-import {WETH9} from "./interfaces/IWETH9.sol";
-
 import {IERC20hTokenRootFactory as IFactory} from "./interfaces/IERC20hTokenRootFactory.sol";
 import {IRootRouter} from "./interfaces/IRootRouter.sol";
-import {IRootBridgeAgent as IBridgeAgent, GasParams} from "./interfaces/IRootBridgeAgent.sol";
+import {
+    DepositParams,
+    DepositMultipleParams,
+    GasParams,
+    IRootBridgeAgent as IBridgeAgent
+} from "./interfaces/IRootBridgeAgent.sol";
 import {IRootPort as IPort} from "./interfaces/IRootPort.sol";
-import {IVirtualAccount, Call} from "./interfaces/IVirtualAccount.sol";
-
-import {DepositParams, DepositMultipleParams} from "./interfaces/IRootBridgeAgent.sol";
-import {ERC20hTokenRoot} from "./token/ERC20hTokenRoot.sol";
 
 /**
+ * 2
  * @title  Core Root Router Contract
  * @author MaiaDAO
  * @notice Core Root Router implementation for Root Environment deployment.
@@ -36,31 +36,53 @@ import {ERC20hTokenRoot} from "./token/ERC20hTokenRoot.sol";
  *
  */
 contract CoreRootRouter is IRootRouter, Ownable {
-    /// @notice Local Wrapped Native Token
-    WETH9 public immutable wrappedNativeToken;
+    /*///////////////////////////////////////////////////////////////
+                    CORE ROOT ROUTER STATE
+    //////////////////////////////////////////////////////////////*/
 
-    /// @notice Address for Local Port Address where funds deposited from this chain are kept, managed and supplied to different Port Strategies.
-    uint16 public immutable rootChainId;
+    /// @notice Boolean to indicate if the contract is in set up mode.
+    bool internal _setup;
 
-    /// @notice Address for Local Port Address where funds deposited from this chain are kept, managed and supplied to different Port Strategies.
+    /// @notice Root Chain Layer Zero Identifier.
+    uint256 public immutable rootChainId;
+
+    /// @notice Address for Local Port Address where funds deposited from this chain are kept
+    ///         managed and supplied to different Port Strategies.
     address public immutable rootPortAddress;
 
-    /// @notice Bridge Agent to maneg communcations and cross-chain assets.
+    /// @notice Bridge Agent to manage remote execution and cross-chain assets.
     address payable public bridgeAgentAddress;
 
+    /// @notice Bridge Agent Executor Address.
     address public bridgeAgentExecutorAddress;
 
-    /// @notice Uni V3 Factory Address
+    /// @notice ERC20 hToken Root Factory Address.
     address public hTokenFactoryAddress;
 
-    constructor(uint16 _rootChainId, address _wrappedNativeToken, address _rootPortAddress) {
+    /*///////////////////////////////////////////////////////////////
+                            CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Constructor for Core Root Router.
+     * @param _rootChainId layer zero root chain id.
+     * @param _rootPortAddress address of the Root Port.
+     */
+    constructor(uint256 _rootChainId, address _rootPortAddress) {
         rootChainId = _rootChainId;
-        wrappedNativeToken = WETH9(_wrappedNativeToken);
         rootPortAddress = _rootPortAddress;
+
         _initializeOwner(msg.sender);
+        _setup = true;
     }
 
+    /*///////////////////////////////////////////////////////////////
+                    INITIALIZATION FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
     function initialize(address _bridgeAgentAddress, address _hTokenFactory) external onlyOwner {
+        require(_setup, "Contract is already initialized");
+        _setup = false;
         bridgeAgentAddress = payable(_bridgeAgentAddress);
         bridgeAgentExecutorAddress = IBridgeAgent(_bridgeAgentAddress).bridgeAgentExecutorAddress();
         hTokenFactoryAddress = _hTokenFactory;
@@ -74,16 +96,16 @@ contract CoreRootRouter is IRootRouter, Ownable {
      * @notice Add a new Chain (Branch Bridge Agent and respective Router) to a Root Bridge Agent.
      * @param _branchBridgeAgentFactory Address of the branch Bridge Agent Factory.
      * @param _newBranchRouter Address of the new branch router.
-     * @param _gasReceiver Address of the excess gas receiver.
-     * @param _toChain Chain Id of the branch chain where the new Bridge Agent will be deployed.
+     * @param _refundee Address of the excess gas receiver.
+     * @param _dstChainId Chain Id of the branch chain where the new Bridge Agent will be deployed.
      * @param _gParams Gas parameters for remote execution.
      */
     function addBranchToBridgeAgent(
         address _rootBridgeAgent,
         address _branchBridgeAgentFactory,
         address _newBranchRouter,
-        address _gasReceiver,
-        uint16 _toChain,
+        address _refundee,
+        uint16 _dstChainId,
         GasParams[2] calldata _gParams
     ) external payable {
         // Check if msg.sender is the Bridge Agent Manager
@@ -91,83 +113,330 @@ contract CoreRootRouter is IRootRouter, Ownable {
             revert UnauthorizedCallerNotManager();
         }
 
-        //Check if valid chain
-        if (!IPort(rootPortAddress).isChainId(_toChain)) revert InvalidChainId();
+        // Check if valid chain
+        if (!IPort(rootPortAddress).isChainId(_dstChainId)) revert InvalidChainId();
 
-        //Check if chain already added to bridge agent
-        if (IBridgeAgent(_rootBridgeAgent).getBranchBridgeAgent(_toChain) != address(0)) revert InvalidChainId();
+        // Check if chain already added to bridge agent
+        if (IBridgeAgent(_rootBridgeAgent).getBranchBridgeAgent(_dstChainId) != address(0)) revert InvalidChainId();
 
-        //Check if Branch Bridge Agent is allowed by Root Bridge Agent
-        if (!IBridgeAgent(_rootBridgeAgent).isBranchBridgeAgentAllowed(_toChain)) revert UnauthorizedChainId();
+        // Check if Branch Bridge Agent is allowed by Root Bridge Agent
+        if (!IBridgeAgent(_rootBridgeAgent).isBranchBridgeAgentAllowed(_dstChainId)) revert UnauthorizedChainId();
 
-        //Root Bridge Agent Factory Address
-        address rootBridgeAgentFactory = IBridgeAgent(_rootBridgeAgent).factoryAddress();
-
-        //Encode CallData
-        bytes memory data = abi.encode(
-            _newBranchRouter, _branchBridgeAgentFactory, _rootBridgeAgent, rootBridgeAgentFactory, _gParams[1]
+        // Encode CallData
+        bytes memory params = abi.encode(
+            _newBranchRouter,
+            _branchBridgeAgentFactory,
+            _rootBridgeAgent,
+            IBridgeAgent(_rootBridgeAgent).factoryAddress(),
+            _refundee,
+            _gParams[1]
         );
 
-        //Pack funcId into data
-        bytes memory packedData = abi.encodePacked(bytes1(0x02), data);
+        // Pack funcId into data
+        bytes memory payload = abi.encodePacked(bytes1(0x02), params);
 
         //Add new global token to branch chain
-        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, _toChain, packedData, _gParams[0]);
-    }
-
-    /**
-     * @dev Internal function sync a Root Bridge Agent with a newly created BRanch Bridge Agent.
-     *   @param _newBranchBridgeAgent new branch bridge agent address
-     *   @param _rootBridgeAgent new branch bridge agent address
-     *   @param _fromChain branch chain id.
-     *
-     */
-    function _syncBranchBridgeAgent(address _newBranchBridgeAgent, address _rootBridgeAgent, uint16 _fromChain)
-        internal
-    {
-        IPort(rootPortAddress).syncBranchBridgeAgentWithRoot(_newBranchBridgeAgent, _rootBridgeAgent, _fromChain);
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(
+            payable(_refundee), _refundee, _dstChainId, payload, _gParams[0]
+        );
     }
 
     /*///////////////////////////////////////////////////////////////
-                        TOKEN MANAGEMENT FUNCTIONS
+                GOVERNANCE / ADMIN EXTERNAL FUNCTIONS
+    ///////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Add or Remove a Branch Bridge Agent Factory.
+     * @param _rootBridgeAgentFactory Address of the root Bridge Agent Factory.
+     * @param _branchBridgeAgentFactory Address of the branch Bridge Agent Factory.
+     * @param _refundee Receiver of any leftover execution gas upon reaching the destination network.
+     * @param _dstChainId Chain Id of the branch chain where the new Bridge Agent will be deployed.
+     * @param _gParams Gas parameters for remote execution.
+     */
+    function toggleBranchBridgeAgentFactory(
+        address _rootBridgeAgentFactory,
+        address _branchBridgeAgentFactory,
+        address _refundee,
+        uint16 _dstChainId,
+        GasParams calldata _gParams
+    ) external payable onlyOwner {
+        if (!IPort(rootPortAddress).isBridgeAgentFactory(_rootBridgeAgentFactory)) {
+            revert UnrecognizedBridgeAgentFactory();
+        }
+
+        // Encode CallData
+        bytes memory params = abi.encode(_branchBridgeAgentFactory);
+
+        // Pack funcId into data
+        bytes memory payload = abi.encodePacked(bytes1(0x03), params);
+
+        //Add new global token to branch chain
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(
+            payable(_refundee), _refundee, _dstChainId, payload, _gParams
+        );
+    }
+
+    /**
+     * @notice Remove a Branch Bridge Agent.
+     * @param _branchBridgeAgent Address of the Branch Bridge Agent to be updated.
+     * @param _refundee Receiver of any leftover execution gas upon reaching destination network.
+     * @param _dstChainId Chain Id of the branch chain where the new Bridge Agent will be deployed.
+     * @param _gParams Gas parameters for remote execution.
+     */
+    function removeBranchBridgeAgent(
+        address _branchBridgeAgent,
+        address _refundee,
+        uint16 _dstChainId,
+        GasParams calldata _gParams
+    ) external payable onlyOwner {
+        //Encode CallData
+        bytes memory params = abi.encode(_branchBridgeAgent);
+
+        // Pack funcId into data
+        bytes memory payload = abi.encodePacked(bytes1(0x04), params);
+
+        //Add new global token to branch chain
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(
+            payable(_refundee), _refundee, _dstChainId, payload, _gParams
+        );
+    }
+
+    /**
+     * @notice Add or Remove a Strategy Token.
+     * @param _underlyingToken Address of the underlying token to be added for use in Branch strategies.
+     * @param _minimumReservesRatio Minimum Branch Port reserves ratio for the underlying token.
+     * @param _refundee Receiver of any leftover execution gas upon reaching destination network.
+     * @param _dstChainId Chain Id of the branch chain where the new Bridge Agent will be deployed.
+     * @param _gParams Gas parameters for remote execution.
+     */
+    function manageStrategyToken(
+        address _underlyingToken,
+        uint256 _minimumReservesRatio,
+        address _refundee,
+        uint16 _dstChainId,
+        GasParams calldata _gParams
+    ) external payable onlyOwner {
+        // Encode CallData
+        bytes memory params = abi.encode(_underlyingToken, _minimumReservesRatio);
+
+        // Pack funcId into data
+        bytes memory payload = abi.encodePacked(bytes1(0x05), params);
+
+        //Add new global token to branch chain
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(
+            payable(_refundee), _refundee, _dstChainId, payload, _gParams
+        );
+    }
+
+    /**
+     * @notice Add, Remove or update a Port Strategy.
+     * @param _portStrategy Address of the Port Strategy to be added for use in Branch strategies.
+     * @param _underlyingToken Address of the underlying token to be added for use in Branch strategies.
+     * @param _dailyManagementLimit Daily management limit of the given token for the Port Strategy.
+     * @param _isUpdateDailyLimit Boolean to safely indicate if the Port Strategy is being updated and not deactivated.
+     * @param _refundee Receiver of any leftover execution gas upon reaching destination network.
+     * @param _dstChainId Chain Id of the branch chain where the new Bridge Agent will be deployed.
+     * @param _gParams Gas parameters for remote execution.
+     */
+    function managePortStrategy(
+        address _portStrategy,
+        address _underlyingToken,
+        uint256 _dailyManagementLimit,
+        bool _isUpdateDailyLimit,
+        address _refundee,
+        uint16 _dstChainId,
+        GasParams calldata _gParams
+    ) external payable onlyOwner {
+        // Encode CallData
+        bytes memory params = abi.encode(_portStrategy, _underlyingToken, _dailyManagementLimit, _isUpdateDailyLimit);
+
+        // Pack funcId into data
+        bytes memory payload = abi.encodePacked(bytes1(0x06), params);
+
+        //Add new global token to branch chain
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(
+            payable(_refundee), _refundee, _dstChainId, payload, _gParams
+        );
+    }
+
+    /**
+     * @notice Set the Core Branch Router and Bridge Agent.
+     * @param _refundee Receiver of any leftover execution gas upon reaching destination network.
+     * @param _coreBranchRouter Address of the Core Branch Router.
+     * @param _coreBranchBridgeAgent Address of the Core Branch Bridge Agent.
+     * @param _dstChainId Chain Id of the branch chain where the new Bridge Agent will be deployed.
+     * @param _gParams Gas parameters for remote execution.
+     */
+    function setCoreBranch(
+        address _refundee,
+        address _coreBranchRouter,
+        address _coreBranchBridgeAgent,
+        uint16 _dstChainId,
+        GasParams calldata _gParams
+    ) external payable {
+        // Check caller is root port
+        require(msg.sender == rootPortAddress, "Only root port can call");
+
+        // Encode CallData
+        bytes memory params = abi.encode(_coreBranchRouter, _coreBranchBridgeAgent);
+
+        // Pack funcId into data
+        bytes memory payload = abi.encodePacked(bytes1(0x07), params);
+
+        //Add new global token to branch chain
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(
+            payable(_refundee), _refundee, _dstChainId, payload, _gParams
+        );
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                        LAYERZERO FUNCTIONS
+    ///////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc IRootRouter
+    function executeResponse(bytes calldata _encodedData, uint16 _srcChainId)
+        external
+        payable
+        override
+        requiresExecutor
+    {
+        // Parse funcId
+        bytes1 funcId = _encodedData[0];
+
+        ///  FUNC ID: 2 (_addLocalToken)
+        if (funcId == 0x02) {
+            (address underlyingAddress, address localAddress, string memory name, string memory symbol, uint8 decimals)
+            = abi.decode(_encodedData[1:], (address, address, string, string, uint8));
+
+            _addLocalToken(underlyingAddress, localAddress, name, symbol, decimals, _srcChainId);
+
+            /// FUNC ID: 3 (_setLocalToken)
+        } else if (funcId == 0x03) {
+            (address globalAddress, address localAddress) = abi.decode(_encodedData[1:], (address, address));
+
+            _setLocalToken(globalAddress, localAddress, _srcChainId);
+
+            /// FUNC ID: 4 (_syncBranchBridgeAgent)
+        } else if (funcId == 0x04) {
+            (address newBranchBridgeAgent, address rootBridgeAgent) = abi.decode(_encodedData[1:], (address, address));
+
+            _syncBranchBridgeAgent(newBranchBridgeAgent, rootBridgeAgent, _srcChainId);
+
+            /// Unrecognized Function Selector
+        } else {
+            revert UnrecognizedFunctionId();
+        }
+    }
+
+    /// @inheritdoc IRootRouter
+    function execute(bytes calldata _encodedData, uint16) external payable override requiresExecutor {
+        // Parse funcId
+        bytes1 funcId = _encodedData[0];
+
+        /// FUNC ID: 1 (_addGlobalToken)
+        if (funcId == 0x01) {
+            (address refundee, address globalAddress, uint16 dstChainId, GasParams[2] memory gasParams) =
+                abi.decode(_encodedData[1:], (address, address, uint16, GasParams[2]));
+
+            _addGlobalToken(refundee, globalAddress, dstChainId, gasParams);
+
+            /// Unrecognized Function Selector
+        } else {
+            revert UnrecognizedFunctionId();
+        }
+    }
+
+    /// @inheritdoc IRootRouter
+    function executeDepositSingle(bytes memory, DepositParams memory, uint16)
+        external
+        payable
+        override
+        requiresExecutor
+    {
+        revert();
+    }
+
+    /// @inheritdoc IRootRouter
+    function executeDepositMultiple(bytes calldata, DepositMultipleParams memory, uint16)
+        external
+        payable
+        override
+        requiresExecutor
+    {
+        revert();
+    }
+
+    /// @inheritdoc IRootRouter
+    function executeSigned(bytes memory, address, uint16) external payable override requiresExecutor {
+        revert();
+    }
+
+    /// @inheritdoc IRootRouter
+    function executeSignedDepositSingle(bytes memory, DepositParams memory, address, uint16)
+        external
+        payable
+        override
+        requiresExecutor
+    {
+        revert();
+    }
+
+    /// @inheritdoc IRootRouter
+    function executeSignedDepositMultiple(bytes memory, DepositMultipleParams memory, address, uint16)
+        external
+        payable
+        override
+        requiresExecutor
+    {
+        revert();
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                    TOKEN MANAGEMENT INTERNAL FUNCTIONS
     ////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Internal function to add a global token to a specific chain. Must be called from a branch.
-     *   @param _gasReceiver Address of the excess gas receiver.
+     *   @param _refundee Address of the excess gas receiver.
      *   @param _globalAddress global token to be added.
-     *   @param _toChain chain to which the Global Token will be added.
+     *   @param _dstChainId chain to which the Global Token will be added.
      *   @param _gParams Gas parameters for remote execution.
      *
      */
-    function _addGlobalToken(address _gasReceiver, address _globalAddress, uint16 _toChain, GasParams memory _gParams)
-        internal
-    {
-        if (_toChain == rootChainId) revert InvalidChainId();
+    function _addGlobalToken(
+        address _refundee,
+        address _globalAddress,
+        uint16 _dstChainId,
+        GasParams[2] memory _gParams
+    ) internal {
+        if (_dstChainId == rootChainId) revert InvalidChainId();
 
         if (!IPort(rootPortAddress).isGlobalAddress(_globalAddress)) {
             revert UnrecognizedGlobalToken();
         }
 
-        //Verify that it does not exist
-        if (IPort(rootPortAddress).isGlobalToken(_globalAddress, _toChain)) {
+        // Verify that it does not exist
+        if (IPort(rootPortAddress).isGlobalToken(_globalAddress, _dstChainId)) {
             revert TokenAlreadyAdded();
         }
 
-        //Encode CallData
-        bytes memory data = abi.encode(
+        // Encode CallData
+        bytes memory params = abi.encode(
             _globalAddress,
             ERC20(_globalAddress).name(),
             ERC20(_globalAddress).symbol(),
             ERC20(_globalAddress).decimals(),
-            _gParams
+            _refundee,
+            _gParams[1]
         );
 
-        //Pack funcId into data
-        bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
+        // Pack funcId into data
+        bytes memory payload = abi.encodePacked(bytes1(0x01), params);
 
         //Add new global token to branch chain
-        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, _toChain, packedData, _gParams);
+        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(
+            payable(_refundee), _refundee, _dstChainId, payload, _gParams[0]
+        );
     }
 
     /**
@@ -177,7 +446,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
      *   @param _name the token's name.
      *   @param _symbol the token's symbol.
      *   @param _decimals the token's decimals.
-     *   @param _fromChain the token's origin chain Id.
+     *   @param _srcChainId the token's origin chain Id.
      *
      */
     function _addLocalToken(
@@ -186,21 +455,19 @@ contract CoreRootRouter is IRootRouter, Ownable {
         string memory _name,
         string memory _symbol,
         uint8 _decimals,
-        uint16 _fromChain
+        uint16 _srcChainId
     ) internal {
-        // Verify if underlying address is already known by branch or root chain
-        if (
-            IPort(rootPortAddress).isGlobalAddress(_underlyingAddress)
-                || IPort(rootPortAddress).isLocalToken(_underlyingAddress, _fromChain)
-                || IPort(rootPortAddress).isUnderlyingToken(_underlyingAddress, _fromChain)
-        ) revert TokenAlreadyAdded();
+        // Verify if the underlying address is already known by the branch or root chain
+        if (IPort(rootPortAddress).isGlobalAddress(_underlyingAddress)) revert TokenAlreadyAdded();
+        if (IPort(rootPortAddress).isLocalToken(_underlyingAddress, _srcChainId)) revert TokenAlreadyAdded();
+        if (IPort(rootPortAddress).isUnderlyingToken(_underlyingAddress, _srcChainId)) revert TokenAlreadyAdded();
 
-        //Create new global token
+        //Create a new global token
         address newToken = address(IFactory(hTokenFactoryAddress).createToken(_name, _symbol, _decimals));
 
-        //Update Registry
+        // Update Registry
         IPort(rootPortAddress).setAddresses(
-            newToken, (_fromChain == rootChainId) ? newToken : _localAddress, _underlyingAddress, _fromChain
+            newToken, (_srcChainId == rootChainId) ? newToken : _localAddress, _underlyingAddress, _srcChainId
         );
     }
 
@@ -208,248 +475,46 @@ contract CoreRootRouter is IRootRouter, Ownable {
      * @notice Internal function to set the local token on a specific chain for a global token.
      *   @param _globalAddress global token to be updated.
      *   @param _localAddress local token to be added.
-     *   @param _toChain local token's chain.
+     *   @param _dstChainId local token's chain.
      *
      */
-    function _setLocalToken(address _globalAddress, address _localAddress, uint16 _toChain) internal {
-        // Verify if token already added
-        if (IPort(rootPortAddress).isLocalToken(_localAddress, _toChain)) revert TokenAlreadyAdded();
+    function _setLocalToken(address _globalAddress, address _localAddress, uint16 _dstChainId) internal {
+        // Verify if the token already added
+        if (IPort(rootPortAddress).isLocalToken(_localAddress, _dstChainId)) revert TokenAlreadyAdded();
 
-        // Set global token's new branch chain address
-        IPort(rootPortAddress).setLocalAddress(_globalAddress, _localAddress, _toChain);
+        // Set the global token's new branch chain address
+        IPort(rootPortAddress).setLocalAddress(_globalAddress, _localAddress, _dstChainId);
     }
 
     /*///////////////////////////////////////////////////////////////
-                    GOVERNANCE / ADMIN FUNCTIONS
-    ///////////////////////////////////////////////////////////////*/
+                BRIDGE AGENT MANAGEMENT INTERNAL FUNCTIONS
+    ////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Add or Remove a Branch Bridge Agent Factory.
-     * @param _rootBridgeAgentFactory Address of the root Bridge Agent Factory.
-     * @param _branchBridgeAgentFactory Address of the branch Bridge Agent Factory.
-     * @param _gasReceiver Receiver of any leftover execution gas upon reaching destination network.
-     * @param _toChain Chain Id of the branch chain where the new Bridge Agent will be deployed.
-     * @param _gParams Gas parameters for remote execution.
+     * @dev Internal function sync a Root Bridge Agent with a newly created BRanch Bridge Agent.
+     *   @param _newBranchBridgeAgent new branch bridge agent address
+     *   @param _rootBridgeAgent new branch bridge agent address
+     *   @param _srcChainId branch chain id.
+     *
      */
-    function toggleBranchBridgeAgentFactory(
-        address _rootBridgeAgentFactory,
-        address _branchBridgeAgentFactory,
-        address _gasReceiver,
-        uint16 _toChain,
-        GasParams calldata _gParams
-    ) external payable onlyOwner {
-        if (!IPort(rootPortAddress).isBridgeAgentFactory(_rootBridgeAgentFactory)) {
-            revert UnrecognizedBridgeAgentFactory();
-        }
-
-        //Encode CallData
-        bytes memory data = abi.encode(_branchBridgeAgentFactory);
-
-        //Pack funcId into data
-        bytes memory packedData = abi.encodePacked(bytes1(0x03), data);
-
-        //Add new global token to branch chain
-        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, _toChain, packedData, _gParams);
-    }
-
-    /**
-     * @notice Remove a Branch Bridge Agent.
-     * @param _branchBridgeAgent Address of the Branch Bridge Agent to be updated.
-     * @param _gasReceiver Receiver of any leftover execution gas upon reaching destination network.
-     * @param _toChain Chain Id of the branch chain where the new Bridge Agent will be deployed.
-     * @param _gParams Gas parameters for remote execution.
-     */
-    function removeBranchBridgeAgent(
-        address _branchBridgeAgent,
-        address _gasReceiver,
-        uint16 _toChain,
-        GasParams calldata _gParams
-    ) external payable onlyOwner {
-        //Encode CallData
-        bytes memory data = abi.encode(_branchBridgeAgent);
-
-        //Pack funcId into data
-        bytes memory packedData = abi.encodePacked(bytes1(0x04), data);
-
-        //Add new global token to branch chain
-        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, _toChain, packedData, _gParams);
-    }
-
-    /**
-     * @notice Add or Remove a Strategy Token.
-     * @param _underlyingToken Address of the underlying token to be added for use in Branch strategies.
-     * @param _minimumReservesRatio Minimum Branch Port reserves ratio for the underlying token.
-     * @param _gasReceiver Receiver of any leftover execution gas upon reaching destination network.
-     * @param _toChain Chain Id of the branch chain where the new Bridge Agent will be deployed.
-     * @param _gParams Gas parameters for remote execution.
-     */
-    function manageStrategyToken(
-        address _underlyingToken,
-        uint256 _minimumReservesRatio,
-        address _gasReceiver,
-        uint16 _toChain,
-        GasParams calldata _gParams
-    ) external payable onlyOwner {
-        //Encode CallData
-        bytes memory data = abi.encode(_underlyingToken, _minimumReservesRatio);
-
-        //Pack funcId into data
-        bytes memory packedData = abi.encodePacked(bytes1(0x05), data);
-
-        //Add new global token to branch chain
-        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, _toChain, packedData, _gParams);
-    }
-
-    /**
-     * @notice Add, Remove or update a Port Strategy.
-     * @param _portStrategy Address of the Port Strategy to be added for use in Branch strategies.
-     * @param _underlyingToken Address of the underlying token to be added for use in Branch strategies.
-     * @param _dailyManagementLimit Daily management limit of the given token for the Port Strategy.
-     * @param _isUpdateDailyLimit Boolean to safely indicate if the Port Strategy is being updated and not deactivated.
-     * @param _gasReceiver Receiver of any leftover execution gas upon reaching destination network.
-     * @param _toChain Chain Id of the branch chain where the new Bridge Agent will be deployed.
-     * @param _gParams Gas parameters for remote execution.
-     */
-    function managePortStrategy(
-        address _portStrategy,
-        address _underlyingToken,
-        uint256 _dailyManagementLimit,
-        bool _isUpdateDailyLimit,
-        address _gasReceiver,
-        uint16 _toChain,
-        GasParams calldata _gParams
-    ) external payable onlyOwner {
-        //Encode CallData
-        bytes memory data = abi.encode(_portStrategy, _underlyingToken, _dailyManagementLimit, _isUpdateDailyLimit);
-
-        //Pack funcId into data
-        bytes memory packedData = abi.encodePacked(bytes1(0x06), data);
-
-        //Add new global token to branch chain
-        IBridgeAgent(bridgeAgentAddress).callOut{value: msg.value}(_gasReceiver, _toChain, packedData, _gParams);
+    function _syncBranchBridgeAgent(address _newBranchBridgeAgent, address _rootBridgeAgent, uint256 _srcChainId)
+        internal
+    {
+        IPort(rootPortAddress).syncBranchBridgeAgentWithRoot(_newBranchBridgeAgent, _rootBridgeAgent, _srcChainId);
     }
 
     /*///////////////////////////////////////////////////////////////
-                        ANYCALL FUNCTIONS
+                             MODIFIERS
     ///////////////////////////////////////////////////////////////*/
-
-    /// @inheritdoc IRootRouter
-    function executeResponse(bytes1 _funcId, bytes calldata _encodedData, uint16 _fromChainId)
-        external
-        payable
-        override
-        requiresExecutor
-    {
-        ///  FUNC ID: 2 (_addLocalToken)
-        if (_funcId == 0x02) {
-            (address underlyingAddress, address localAddress, string memory name, string memory symbol, uint8 decimals)
-            = abi.decode(_encodedData, (address, address, string, string, uint8));
-
-            _addLocalToken(underlyingAddress, localAddress, name, symbol, decimals, _fromChainId);
-
-            /// FUNC ID: 3 (_setLocalToken)
-        } else if (_funcId == 0x03) {
-            (address globalAddress, address localAddress) = abi.decode(_encodedData, (address, address));
-
-            _setLocalToken(globalAddress, localAddress, _fromChainId);
-
-            /// FUNC ID: 4 (_syncBranchBridgeAgent)
-        } else if (_funcId == 0x04) {
-            (address newBranchBridgeAgent, address rootBridgeAgent) = abi.decode(_encodedData, (address, address));
-
-            _syncBranchBridgeAgent(newBranchBridgeAgent, rootBridgeAgent, _fromChainId);
-
-            /// Unrecognized Function Selector
-        } else {
-            revert UnrecognizedFunctionId();
-        }
-    }
-
-    /// @inheritdoc IRootRouter
-    function execute(bytes1 _funcId, bytes calldata _encodedData, uint16) external payable override requiresExecutor {
-        /// FUNC ID: 1 (_addGlobalToken)
-        if (_funcId == 0x01) {
-            (address gasReceiver, address globalAddress, uint16 toChain, GasParams memory gasParams) =
-                abi.decode(_encodedData, (address, address, uint16, GasParams));
-
-            _addGlobalToken(gasReceiver, globalAddress, toChain, gasParams);
-
-            /// Unrecognized Function Selector
-        } else {
-            revert UnrecognizedFunctionId();
-        }
-    }
-
-    /// @inheritdoc IRootRouter
-    function executeDepositSingle(bytes1, bytes memory, DepositParams memory, uint16)
-        external
-        payable
-        override
-        requiresExecutor
-    {
-        revert();
-    }
-
-    /// @inheritdoc IRootRouter
-    function executeDepositMultiple(bytes1, bytes calldata, DepositMultipleParams memory, uint16)
-        external
-        payable
-        requiresExecutor
-    {
-        revert();
-    }
-
-    /// @inheritdoc IRootRouter
-    function executeSigned(bytes1, bytes memory, address, uint16) external payable override requiresExecutor {
-        revert();
-    }
-
-    /// @inheritdoc IRootRouter
-    function executeSignedDepositSingle(bytes1, bytes memory, DepositParams memory, address, uint16)
-        external
-        payable
-        override
-        requiresExecutor
-    {
-        revert();
-    }
-
-    /// @inheritdoc IRootRouter
-    function executeSignedDepositMultiple(bytes1, bytes memory, DepositMultipleParams memory, address, uint16)
-        external
-        payable
-        requiresExecutor
-    {
-        revert();
-    }
-
-    /*///////////////////////////////////////////////////////////////
-                            MODIFIERS
-    ///////////////////////////////////////////////////////////////*/
-
-    uint256 internal _unlocked = 1;
-
-    /// @notice Modifier for a simple re-entrancy check.
-    modifier lock() {
-        require(_unlocked == 1);
-        _unlocked = 2;
-        _;
-        _unlocked = 1;
-    }
 
     /// @notice Modifier verifies the caller is the Bridge Agent Executor.
     modifier requiresExecutor() {
-        _requiresExecutor();
+        if (msg.sender != bridgeAgentExecutorAddress) revert UnrecognizedBridgeAgentExecutor();
         _;
     }
 
-    /// @notice Internal function verifies the caller is the Bridge Agent Executor. Reuse to reduce contract bytesize
-    function _requiresExecutor() internal view {
-        if (msg.sender != bridgeAgentExecutorAddress) revert UnrecognizedBridgeAgentExecutor();
-    }
-
     /*///////////////////////////////////////////////////////////////
-                                ERROR
+                                ERRORS
     ///////////////////////////////////////////////////////////////*/
 
     error InvalidChainId();

@@ -1,44 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-
-import {ERC20} from "solmate/tokens/ERC20.sol";
-
 import {ExcessivelySafeCall} from "lib/ExcessivelySafeCall.sol";
 
-import {WETH9} from "./interfaces/IWETH9.sol";
-
-import {ILayerZeroEndpoint} from "./interfaces/ILayerZeroEndpoint.sol";
-
-import {AnycallFlags} from "./lib/AnycallFlags.sol";
-import {IAnycallProxy} from "./interfaces/IAnycallProxy.sol";
-import {IAnycallConfig} from "./interfaces/IAnycallConfig.sol";
-import {IAnycallExecutor} from "./interfaces/IAnycallExecutor.sol";
-import {ILayerZeroReceiver, IBranchBridgeAgent} from "./interfaces/IBranchBridgeAgent.sol";
-import {IBranchRouter as IRouter} from "./interfaces/IBranchRouter.sol";
 import {IBranchPort as IPort} from "./interfaces/IBranchPort.sol";
 
-import {ERC20hTokenBranch as ERC20hToken} from "./token/ERC20hTokenBranch.sol";
-import {BranchBridgeAgentExecutor, DeployBranchBridgeAgentExecutor} from "./BranchBridgeAgentExecutor.sol";
+import {BridgeAgentConstants} from "./interfaces/BridgeAgentConstants.sol";
 import {
-    RootPath,
-    GasParams,
     Deposit,
-    DepositStatus,
     DepositInput,
     DepositMultipleInput,
-    DepositParams,
-    DepositMultipleParams,
-    SettlementParams,
+    GasParams,
+    IBranchBridgeAgent,
+    ILayerZeroReceiver,
     SettlementMultipleParams
 } from "./interfaces/IBranchBridgeAgent.sol";
+import {ILayerZeroEndpoint} from "./interfaces/ILayerZeroEndpoint.sol";
+
+import {BranchBridgeAgentExecutor, DeployBranchBridgeAgentExecutor} from "./BranchBridgeAgentExecutor.sol";
 
 /// @title Library for Branch Bridge Agent Deployment
 library DeployBranchBridgeAgent {
     function deploy(
-        WETH9 _wrappedNativeToken,
         uint16 _rootChainId,
         uint16 _localChainId,
         address _rootBridgeAgentAddress,
@@ -47,7 +30,6 @@ library DeployBranchBridgeAgent {
         address _localPortAddress
     ) external returns (BranchBridgeAgent) {
         return new BranchBridgeAgent(
-            _wrappedNativeToken,
             _rootChainId,
             _localChainId,
             _rootBridgeAgentAddress,
@@ -59,83 +41,80 @@ library DeployBranchBridgeAgent {
 }
 
 /// @title Branch Bridge Agent Contract
-contract BranchBridgeAgent is IBranchBridgeAgent {
-    using SafeTransferLib for address;
-    using SafeCastLib for uint256;
+/// @author MaiaDAO
+contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
     using ExcessivelySafeCall for address;
-
-    /*///////////////////////////////////////////////////////////////
-                            ENCODING CONSTS
-    //////////////////////////////////////////////////////////////*/
-
-    /// AnyExec Decode Consts
-
-    uint8 internal constant PARAMS_START = 1;
-
-    uint8 internal constant PARAMS_START_SIGNED = 21;
-
-    uint8 internal constant PARAMS_ENTRY_SIZE = 32;
-
-    /// ClearTokens Decode Consts
-
-    uint8 internal constant PARAMS_TKN_START = 5;
-
-    uint8 internal constant PARAMS_AMT_OFFSET = 64;
-
-    uint8 internal constant PARAMS_DEPOSIT_OFFSET = 96;
 
     /*///////////////////////////////////////////////////////////////
                          BRIDGE AGENT STATE
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Chain Id for Root Chain where liqudity is virtualized(e.g. 4).
+    /// @notice Chain Id for Root Chain where liquidity is virtualized(e.g. 4).
     uint16 public immutable rootChainId;
 
     /// @notice Chain Id for Local Chain.
     uint16 public immutable localChainId;
 
-    /// @notice Address for Local Wrapped Native Token.
-    WETH9 public immutable wrappedNativeToken;
-
-    /// @notice Address for Bridge Agent who processes requests submitted for the Root Router Address where cross-chain requests are executed in the Root Chain.
+    /// @notice Address for Bridge Agent who processes requests submitted for the Root Router Address
+    ///         where cross-chain requests are executed in the Root Chain.
     address public immutable rootBridgeAgentAddress;
 
-    RootPath private rootBridgeAgentPath;
+    /// @notice Layer Zero messaging layer path for Root Bridge Agent Address where cross-chain requests
+    ///         are sent to the Root Chain Router.
+    bytes private rootBridgeAgentPath;
 
-    /// @notice Address for Local AnycallV7 Proxy Address where cross-chain requests are sent to the Root Chain Router.
+    /// @notice Local Layerzero Endpoint Address where cross-chain requests are sent to the Root Chain Router.
     address public immutable lzEndpointAddress;
 
     /// @notice Address for Local Router used for custom actions for different hApps.
     address public immutable localRouterAddress;
 
-    /// @notice Address for Local Port Address where funds deposited from this chain are kept, managed and supplied to different Port Strategies.
+    /// @notice Address for Local Port Address
+    ///         where funds deposited from this chain are kept, managed and supplied to different Port Strategies.
     address public immutable localPortAddress;
 
-    address public bridgeAgentExecutorAddress;
+    /// @notice Address for Bridge Agent Executor used for executing cross-chain requests.
+    address public immutable bridgeAgentExecutorAddress;
 
     /*///////////////////////////////////////////////////////////////
                             DEPOSITS STATE
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Deposit nonce used for identifying transaction.
+    /// @notice Deposit nonce used for identifying the transaction.
     uint32 public depositNonce;
 
     /// @notice Mapping from Pending deposits hash to Deposit Struct.
-    mapping(uint32 => Deposit) public getDeposit;
+    mapping(uint256 depositNonce => Deposit depositInfo) public getDeposit;
 
     /*///////////////////////////////////////////////////////////////
-                            EXECUTOR STATE
+                        SETTLEMENT EXECUTION STATE
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice If true, bridge agent has already served a request with this nonce from  a given chain. Chain -> Nonce -> Bool
-    mapping(uint32 => bool) public executionHistory;
+    /// @notice If true, the bridge agent has already served a request with this nonce from a given chain.
+    mapping(uint256 settlementNonce => uint256 state) public executionState;
+
+    /*///////////////////////////////////////////////////////////////
+                           REENTRANCY STATE
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Re-entrancy lock modifier state.
+    uint256 internal _unlocked = 1;
 
     /*///////////////////////////////////////////////////////////////
                              CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Constructor for Branch Bridge Agent.
+     * @param _rootChainId Chain Id for Root Chain where liquidity is virtualized and assets are managed.
+     * @param _localChainId Chain Id for Local Chain.
+     * @param _rootBridgeAgentAddress Address for Bridge Agent who processes requests sent to and from the Root Chain.
+     * @param _lzEndpointAddress Local Layerzero Endpoint Address where cross-chain requests are sent to the Root Chain Router.
+     * @param _localRouterAddress Address for Local Router used for custom actions for different Omnichain dApps.
+     * @param _localPortAddress Address for Local Port Address where funds deposited from this chain are kept, managed
+     *                          and supplied to different Port Strategies.
+     */
     constructor(
-        WETH9 _wrappedNativeToken,
         uint16 _rootChainId,
         uint16 _localChainId,
         address _rootBridgeAgentAddress,
@@ -144,11 +123,13 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
         address _localPortAddress
     ) {
         require(_rootBridgeAgentAddress != address(0), "Root Bridge Agent Address cannot be the zero address.");
-        require(_lzEndpointAddress != address(0), "AnyCall Address cannot be the zero address.");
+        require(
+            _lzEndpointAddress != address(0) || _rootChainId == _localChainId,
+            "Layerzero Endpoint Address cannot be the zero address."
+        );
         require(_localRouterAddress != address(0), "Local Router Address cannot be the zero address.");
         require(_localPortAddress != address(0), "Local Port Address cannot be the zero address.");
 
-        wrappedNativeToken = _wrappedNativeToken;
         localChainId = _localChainId;
         rootChainId = _rootChainId;
         rootBridgeAgentAddress = _rootBridgeAgentAddress;
@@ -158,56 +139,70 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
         bridgeAgentExecutorAddress = DeployBranchBridgeAgentExecutor.deploy();
         depositNonce = 1;
 
-        rootBridgeAgentPath = RootPath({rootPathAsBytes: abi.encodePacked(_rootBridgeAgentAddress, address(this))});
+        rootBridgeAgentPath = abi.encodePacked(_rootBridgeAgentAddress, address(this));
     }
+
+    /*///////////////////////////////////////////////////////////////
+                        FALLBACK FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    receive() external payable {}
 
     /*///////////////////////////////////////////////////////////////
                         VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchBridgeAgent
-    function getDepositEntry(uint32 _depositNonce) external view returns (Deposit memory) {
+    function getDepositEntry(uint32 _depositNonce) external view override returns (Deposit memory) {
         return getDeposit[_depositNonce];
     }
 
-    function getFeeEstimate(bytes calldata _payload, uint256 _gasLimit, uint256 _remoteBranchExecutionGas)
+    /// @inheritdoc IBranchBridgeAgent
+    function getFeeEstimate(uint256 _gasLimit, uint256 _remoteBranchExecutionGas, bytes calldata _payload)
         external
         view
         returns (uint256 _fee)
     {
         (_fee,) = ILayerZeroEndpoint(lzEndpointAddress).estimateFees(
-            rootChainId, address(this), _payload, false, _getAdapterParams(_gasLimit, _remoteBranchExecutionGas)
+            rootChainId,
+            address(this),
+            _payload,
+            false,
+            abi.encodePacked(uint16(2), _gasLimit, _remoteBranchExecutionGas, rootBridgeAgentAddress)
         );
     }
 
     /*///////////////////////////////////////////////////////////////
-                        USER EXTERNAL FUNCTIONS
+                    USER / BRANCH ROUTER EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchBridgeAgent
     function callOutSystem(address payable _refundee, bytes calldata _params, GasParams calldata _gParams)
         external
         payable
+        override
         lock
+        requiresRouter
     {
         //Encode Data for cross-chain call.
-        bytes memory packedData = abi.encodePacked(bytes1(0x00), depositNonce++, _params);
+        bytes memory payload = abi.encodePacked(bytes1(0x00), depositNonce++, _params);
 
         //Perform Call
-        _performCall(_refundee, packedData, _getAdapterParams(_gParams.gasLimit, _gParams.remoteBranchExecutionGas));
+        _performCall(_refundee, payload, _gParams);
     }
 
     /// @inheritdoc IBranchBridgeAgent
     function callOut(address payable _refundee, bytes calldata _params, GasParams calldata _gParams)
         external
         payable
+        override
         lock
     {
         //Encode Data for cross-chain call.
-        bytes memory packedData = abi.encodePacked(bytes1(0x01), depositNonce++, _params);
+        bytes memory payload = abi.encodePacked(bytes1(0x01), depositNonce++, _params);
 
         //Perform Call
-        _performCall(_refundee, packedData, _getAdapterParams(_gParams.gasLimit, _gParams.remoteBranchExecutionGas));
+        _performCall(_refundee, payload, _gParams);
     }
 
     /// @inheritdoc IBranchBridgeAgent
@@ -216,22 +211,20 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
         bytes calldata _params,
         DepositInput memory _dParams,
         GasParams calldata _gParams
-    ) external payable lock {
+    ) external payable override lock {
+        //Cache Deposit Nonce
+        uint32 _depositNonce = depositNonce;
+
         //Encode Data for cross-chain call.
-        bytes memory packedData = abi.encodePacked(
-            bytes1(0x02), depositNonce, _dParams.hToken, _dParams.token, _dParams.amount, _dParams.deposit, _params
+        bytes memory payload = abi.encodePacked(
+            bytes1(0x02), _depositNonce, _dParams.hToken, _dParams.token, _dParams.amount, _dParams.deposit, _params
         );
 
         //Create Deposit and Send Cross-Chain request
-        _depositAndCall(
-            _refundee,
-            packedData,
-            _dParams.hToken,
-            _dParams.token,
-            _dParams.amount,
-            _dParams.deposit,
-            _getAdapterParams(_gParams.gasLimit, _gParams.remoteBranchExecutionGas)
-        );
+        _createDeposit(_depositNonce, _refundee, _dParams.hToken, _dParams.token, _dParams.amount, _dParams.deposit);
+
+        //Perform Call
+        _performCall(_refundee, payload, _gParams);
     }
 
     /// @inheritdoc IBranchBridgeAgent
@@ -240,12 +233,15 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
         bytes calldata _params,
         DepositMultipleInput memory _dParams,
         GasParams calldata _gParams
-    ) external payable lock {
+    ) external payable override lock {
+        //Cache Deposit Nonce
+        uint32 _depositNonce = depositNonce;
+
         //Encode Data for cross-chain call.
-        bytes memory packedData = abi.encodePacked(
+        bytes memory payload = abi.encodePacked(
             bytes1(0x03),
             uint8(_dParams.hTokens.length),
-            depositNonce,
+            _depositNonce,
             _dParams.hTokens,
             _dParams.tokens,
             _dParams.amounts,
@@ -254,28 +250,26 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
         );
 
         //Create Deposit and Send Cross-Chain request
-        _depositAndCallMultiple(
-            _refundee,
-            packedData,
-            _dParams.hTokens,
-            _dParams.tokens,
-            _dParams.amounts,
-            _dParams.deposits,
-            _getAdapterParams(_gParams.gasLimit, _gParams.remoteBranchExecutionGas)
+        _createDepositMultiple(
+            _depositNonce, _refundee, _dParams.hTokens, _dParams.tokens, _dParams.amounts, _dParams.deposits
         );
+
+        //Perform Call
+        _performCall(_refundee, payload, _gParams);
     }
 
     /// @inheritdoc IBranchBridgeAgent
     function callOutSigned(address payable _refundee, bytes calldata _params, GasParams calldata _gParams)
         external
         payable
+        override
         lock
     {
         //Encode Data for cross-chain call.
-        bytes memory packedData = abi.encodePacked(bytes1(0x04), msg.sender, depositNonce, _params);
+        bytes memory payload = abi.encodePacked(bytes1(0x04), msg.sender, depositNonce++, _params);
 
         //Perform Signed Call without deposit
-        _performCall(_refundee, packedData, _getAdapterParams(_gParams.gasLimit, _gParams.remoteBranchExecutionGas));
+        _performCall(_refundee, payload, _gParams);
     }
 
     /// @inheritdoc IBranchBridgeAgent
@@ -283,13 +277,17 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
         address payable _refundee,
         bytes calldata _params,
         DepositInput memory _dParams,
-        GasParams calldata _gParams
-    ) external payable lock {
+        GasParams calldata _gParams,
+        bool _hasFallbackToggled
+    ) external payable override lock {
+        //Cache Deposit Nonce
+        uint32 _depositNonce = depositNonce;
+
         //Encode Data for cross-chain call.
-        bytes memory packedData = abi.encodePacked(
-            bytes1(0x05),
+        bytes memory payload = abi.encodePacked(
+            _hasFallbackToggled ? bytes1(0x85) : bytes1(0x05),
             msg.sender,
-            depositNonce,
+            _depositNonce,
             _dParams.hToken,
             _dParams.token,
             _dParams.amount,
@@ -298,15 +296,10 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
         );
 
         //Create Deposit and Send Cross-Chain request
-        _depositAndCall(
-            _refundee,
-            packedData,
-            _dParams.hToken,
-            _dParams.token,
-            _dParams.amount,
-            _dParams.deposit,
-            _getAdapterParams(_gParams.gasLimit, _gParams.remoteBranchExecutionGas)
-        );
+        _createDeposit(_depositNonce, _refundee, _dParams.hToken, _dParams.token, _dParams.amount, _dParams.deposit);
+
+        //Perform Call
+        _performCall(_refundee, payload, _gParams);
     }
 
     /// @inheritdoc IBranchBridgeAgent
@@ -314,14 +307,18 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
         address payable _refundee,
         bytes calldata _params,
         DepositMultipleInput memory _dParams,
-        GasParams calldata _gParams
-    ) external payable lock {
-        //Encode Data for cross-chain call.
-        bytes memory packedData = abi.encodePacked(
-            bytes1(0x06),
+        GasParams calldata _gParams,
+        bool _hasFallbackToggled
+    ) external payable override lock {
+        // Cache Deposit Nonce
+        uint32 _depositNonce = depositNonce;
+
+        // Encode Data for cross-chain call.
+        bytes memory payload = abi.encodePacked(
+            _hasFallbackToggled ? bytes1(0x86) : bytes1(0x06),
             msg.sender,
             uint8(_dParams.hTokens.length),
-            depositNonce,
+            _depositNonce,
             _dParams.hTokens,
             _dParams.tokens,
             _dParams.amounts,
@@ -329,144 +326,155 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
             _params
         );
 
-        //Create Deposit and Send Cross-Chain request
-        _depositAndCallMultiple(
-            _refundee,
-            packedData,
-            _dParams.hTokens,
-            _dParams.tokens,
-            _dParams.amounts,
-            _dParams.deposits,
-            _getAdapterParams(_gParams.gasLimit, _gParams.remoteBranchExecutionGas)
+        // Create a Deposit and Send Cross-Chain request
+        _createDepositMultiple(
+            _depositNonce, _refundee, _dParams.hTokens, _dParams.tokens, _dParams.amounts, _dParams.deposits
         );
+
+        //Perform Call
+        _performCall(_refundee, payload, _gParams);
     }
+
+    /*///////////////////////////////////////////////////////////////
+                    DEPOSIT EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchBridgeAgent
     function retryDeposit(
         bool _isSigned,
         uint32 _depositNonce,
-        address payable _refundee,
         bytes calldata _params,
-        GasParams calldata _gParams
-    ) external payable lock {
+        GasParams calldata _gParams,
+        bool _hasFallbackToggled
+    ) external payable override lock {
+        // Get Settlement Reference
+        Deposit storage deposit = getDeposit[_depositNonce];
+
         //Check if deposit belongs to message sender
+        if (deposit.owner != msg.sender) revert NotDepositOwner();
+
+        //Encode Data for cross-chain call.
+        bytes memory payload;
+
+        if (uint8(deposit.hTokens.length) == 1) {
+            if (_isSigned) {
+                //Pack new Data
+                payload = abi.encodePacked(
+                    _hasFallbackToggled ? bytes1(0x85) : bytes1(0x05),
+                    msg.sender,
+                    _depositNonce,
+                    deposit.hTokens[0],
+                    deposit.tokens[0],
+                    deposit.amounts[0],
+                    deposit.deposits[0],
+                    _params
+                );
+            } else {
+                payload = abi.encodePacked(
+                    bytes1(0x02),
+                    _depositNonce,
+                    deposit.hTokens[0],
+                    deposit.tokens[0],
+                    deposit.amounts[0],
+                    deposit.deposits[0],
+                    _params
+                );
+            }
+        } else if (uint8(deposit.hTokens.length) > 1) {
+            if (_isSigned) {
+                //Pack new Data
+                payload = abi.encodePacked(
+                    _hasFallbackToggled ? bytes1(0x86) : bytes1(0x06),
+                    msg.sender,
+                    uint8(deposit.hTokens.length),
+                    _depositNonce,
+                    deposit.hTokens,
+                    deposit.tokens,
+                    deposit.amounts,
+                    deposit.deposits,
+                    _params
+                );
+            } else {
+                payload = abi.encodePacked(
+                    bytes1(0x03),
+                    uint8(deposit.hTokens.length),
+                    _depositNonce,
+                    deposit.hTokens,
+                    deposit.tokens,
+                    deposit.amounts,
+                    deposit.deposits,
+                    _params
+                );
+            }
+        }
+
+        // Check if payload is empty
+        if (payload.length == 0) revert DepositRetryUnavailableUseCallout();
+
+        // Ensure success Status
+        deposit.status = STATUS_SUCCESS;
+
+        // Perform Call
+        _performCall(payable(msg.sender), payload, _gParams);
+    }
+
+    /// @inheritdoc IBranchBridgeAgent
+    function retrieveDeposit(uint32 _depositNonce, GasParams calldata _gParams) external payable override lock {
+        // Check if the deposit belongs to the message sender
         if (getDeposit[_depositNonce].owner != msg.sender) revert NotDepositOwner();
 
         //Encode Data for cross-chain call.
-        bytes memory packedData;
-
-        if (uint8(getDeposit[_depositNonce].hTokens.length) == 1) {
-            if (_isSigned) {
-                packedData = abi.encodePacked(
-                    bytes1(0x05),
-                    msg.sender,
-                    _depositNonce,
-                    getDeposit[_depositNonce].hTokens[0],
-                    getDeposit[_depositNonce].tokens[0],
-                    getDeposit[_depositNonce].amounts[0],
-                    getDeposit[_depositNonce].deposits[0],
-                    _params
-                );
-            } else {
-                packedData = abi.encodePacked(
-                    bytes1(0x02),
-                    _depositNonce,
-                    getDeposit[_depositNonce].hTokens[0],
-                    getDeposit[_depositNonce].tokens[0],
-                    getDeposit[_depositNonce].amounts[0],
-                    getDeposit[_depositNonce].deposits[0],
-                    _params
-                );
-            }
-        } else if (uint8(getDeposit[_depositNonce].hTokens.length) > 1) {
-            //Nonce
-            uint32 nonce = _depositNonce;
-
-            if (_isSigned) {
-                packedData = abi.encodePacked(
-                    bytes1(0x06),
-                    msg.sender,
-                    uint8(getDeposit[_depositNonce].hTokens.length),
-                    nonce,
-                    getDeposit[nonce].hTokens,
-                    getDeposit[nonce].tokens,
-                    getDeposit[nonce].amounts,
-                    getDeposit[nonce].deposits,
-                    _params
-                );
-            } else {
-                packedData = abi.encodePacked(
-                    bytes1(0x03),
-                    uint8(getDeposit[nonce].hTokens.length),
-                    _depositNonce,
-                    getDeposit[nonce].hTokens,
-                    getDeposit[nonce].tokens,
-                    getDeposit[nonce].amounts,
-                    getDeposit[nonce].deposits,
-                    _params
-                );
-            }
-        }
-
-        //Ensure success Status
-        getDeposit[_depositNonce].status = DepositStatus.Success;
-
-        //Perform Call
-        _performCall(_refundee, packedData, _getAdapterParams(_gParams.gasLimit, _gParams.remoteBranchExecutionGas));
-    }
-
-    /// @inheritdoc IBranchBridgeAgent
-    function retrySettlement(uint32 _settlementNonce, address payable _refundee, GasParams calldata _gParams)
-        external
-        payable
-        lock
-    {
-        //Encode Data for cross-chain call.
-        bytes memory packedData = abi.encodePacked(bytes1(0x07), depositNonce++, _settlementNonce);
-        //Update State and Perform Call
-        _sendRetrieveOrRetry(
-            _refundee, packedData, _getAdapterParams(_gParams.gasLimit, _gParams.remoteBranchExecutionGas)
-        );
-    }
-
-    /// @inheritdoc IBranchBridgeAgent
-    function retrieveDeposit(uint32 _depositNonce, address payable _refundee, GasParams calldata _gParams)
-        external
-        payable
-        lock
-    {
-        //Encode Data for cross-chain call.
-        bytes memory packedData = abi.encodePacked(bytes1(0x08), _depositNonce);
+        bytes memory payload = abi.encodePacked(bytes1(0x08), msg.sender, _depositNonce);
 
         //Update State and Perform Call
-        _sendRetrieveOrRetry(
-            _refundee, packedData, _getAdapterParams(_gParams.gasLimit, _gParams.remoteBranchExecutionGas)
-        );
-    }
-
-    /**
-     * @notice Internal function to send a cross-chain call through LayerZero Messaging Layer retrieving or retrying a deposit.
-     *  @param _refundee Address to refund gas to.
-     *  @param _data Encoded data to be sent to the root router.
-     *  @param _lzAdapterParams LayerZero gas information. (_gasLimit + _remoteBranchExecutionGas)
-     */
-    function _sendRetrieveOrRetry(address payable _refundee, bytes memory _data, bytes memory _lzAdapterParams)
-        internal
-    {
-        //Perform Call
-        _performCall(_refundee, _data, _lzAdapterParams);
+        _performCall(payable(msg.sender), payload, _gParams);
     }
 
     /// @inheritdoc IBranchBridgeAgent
-    function redeemDeposit(uint32 _depositNonce) external lock {
-        //Get storage reference
+    function redeemDeposit(uint32 _depositNonce) external override lock {
+        // Get storage reference
         Deposit storage deposit = getDeposit[_depositNonce];
 
-        //Check Deposit
-        if (deposit.status != DepositStatus.Failed || deposit.owner == address(0)) {
-            revert DepositRedeemUnavailable();
+        // Check Deposit
+        if (deposit.status == STATUS_SUCCESS) revert DepositRedeemUnavailable();
+        if (deposit.owner == address(0)) revert DepositRedeemUnavailable();
+        if (deposit.owner != msg.sender) revert NotDepositOwner();
+
+        // Zero out owner
+        deposit.owner = address(0);
+
+        // Transfer token to depositor / user
+        for (uint256 i = 0; i < deposit.tokens.length;) {
+            _clearToken(msg.sender, deposit.hTokens[i], deposit.tokens[i], deposit.amounts[i], deposit.deposits[i]);
+
+            unchecked {
+                ++i;
+            }
         }
-        _redeemDeposit(_depositNonce);
+
+        // Delete Failed Deposit Token Info
+        delete getDeposit[_depositNonce];
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                    SETTLEMENT EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc IBranchBridgeAgent
+    function retrySettlement(
+        uint32 _settlementNonce,
+        bytes calldata _params,
+        GasParams[2] calldata _gParams,
+        bool _hasFallbackToggled
+    ) external payable virtual override lock {
+        // Encode Retry Settlement Params
+        bytes memory params = abi.encode(_settlementNonce, msg.sender, _params, _gParams[1]);
+
+        // Prepare payload for cross-chain call.
+        bytes memory payload = abi.encodePacked(_hasFallbackToggled ? bytes1(0x87) : bytes1(0x07), params);
+
+        // Perform Call
+        _performCall(payable(msg.sender), payload, _gParams[0]);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -476,6 +484,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
     /// @inheritdoc IBranchBridgeAgent
     function clearToken(address _recipient, address _hToken, address _token, uint256 _amount, uint256 _deposit)
         external
+        override
         requiresAgentExecutor
     {
         _clearToken(_recipient, _hToken, _token, _amount, _deposit);
@@ -484,76 +493,305 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
     /// @inheritdoc IBranchBridgeAgent
     function clearTokens(bytes calldata _sParams, address _recipient)
         external
+        override
         requiresAgentExecutor
         returns (SettlementMultipleParams memory)
     {
-        //Parse Params
+        // Parse Tokens Length
         uint8 numOfAssets = uint8(bytes1(_sParams[0]));
+
+        // Parse Nonce
         uint32 nonce = uint32(bytes4(_sParams[PARAMS_START:PARAMS_TKN_START]));
 
+        // Initialize Arrays
         address[] memory _hTokens = new address[](numOfAssets);
         address[] memory _tokens = new address[](numOfAssets);
         uint256[] memory _amounts = new uint256[](numOfAssets);
         uint256[] memory _deposits = new uint256[](numOfAssets);
 
-        //Transfer token to recipient
+        // Transfer the token to the recipient
         for (uint256 i = 0; i < numOfAssets;) {
-            //Parse Params
+            // Cache common offset
+            uint256 currentIterationOffset = PARAMS_START + i;
+
+            // Parse Params
             _hTokens[i] = address(
                 uint160(
                     bytes20(
                         bytes32(
                             _sParams[
-                                PARAMS_TKN_START + (PARAMS_ENTRY_SIZE * i) + 12:
-                                    PARAMS_TKN_START + (PARAMS_ENTRY_SIZE * (PARAMS_START + i))
+                                PARAMS_TKN_START + (PARAMS_ENTRY_SIZE * i) + ADDRESS_END_OFFSET:
+                                    PARAMS_TKN_START + (PARAMS_ENTRY_SIZE * currentIterationOffset)
                             ]
                         )
                     )
                 )
             );
+
             _tokens[i] = address(
                 uint160(
                     bytes20(
-                        _sParams[
-                            PARAMS_TKN_START + PARAMS_ENTRY_SIZE * uint16(i + numOfAssets) + 12:
-                                PARAMS_TKN_START + PARAMS_ENTRY_SIZE * uint16(PARAMS_START + i + numOfAssets)
-                        ]
+                        bytes32(
+                            _sParams[
+                                PARAMS_TKN_START + PARAMS_ENTRY_SIZE * (i + numOfAssets) + ADDRESS_END_OFFSET:
+                                    PARAMS_TKN_START + PARAMS_ENTRY_SIZE * (currentIterationOffset + numOfAssets)
+                            ]
+                        )
                     )
                 )
             );
+
             _amounts[i] = uint256(
                 bytes32(
                     _sParams[
-                        PARAMS_TKN_START + PARAMS_AMT_OFFSET * uint16(numOfAssets) + (PARAMS_ENTRY_SIZE * uint16(i)):
-                            PARAMS_TKN_START + PARAMS_AMT_OFFSET * uint16(numOfAssets)
-                                + PARAMS_ENTRY_SIZE * uint16(PARAMS_START + i)
+                        PARAMS_TKN_START + PARAMS_AMT_OFFSET * numOfAssets + PARAMS_ENTRY_SIZE * i:
+                            PARAMS_TKN_START + PARAMS_AMT_OFFSET * numOfAssets + PARAMS_ENTRY_SIZE * currentIterationOffset
                     ]
                 )
             );
+
             _deposits[i] = uint256(
                 bytes32(
                     _sParams[
-                        PARAMS_TKN_START + PARAMS_DEPOSIT_OFFSET * uint16(numOfAssets) + (PARAMS_ENTRY_SIZE * uint16(i)):
-                            PARAMS_TKN_START + PARAMS_DEPOSIT_OFFSET * uint16(numOfAssets)
-                                + PARAMS_ENTRY_SIZE * uint16(PARAMS_START + i)
+                        PARAMS_TKN_START + PARAMS_DEPOSIT_OFFSET * numOfAssets + PARAMS_ENTRY_SIZE * i:
+                            PARAMS_TKN_START + PARAMS_DEPOSIT_OFFSET * numOfAssets
+                                + PARAMS_ENTRY_SIZE * currentIterationOffset
                     ]
                 )
             );
-            //Clear Tokens to destination
-            if (_amounts[i] - _deposits[i] > 0) {
-                IPort(localPortAddress).bridgeIn(_recipient, _hTokens[i], _amounts[i] - _deposits[i]);
-            }
-
-            if (_deposits[i] > 0) {
-                IPort(localPortAddress).withdraw(_recipient, _tokens[i], _deposits[i]);
-            }
 
             unchecked {
                 ++i;
             }
         }
 
+        IPort(localPortAddress).bridgeInMultiple(_recipient, _hTokens, _tokens, _amounts, _deposits);
+
         return SettlementMultipleParams(numOfAssets, _recipient, nonce, _hTokens, _tokens, _amounts, _deposits);
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                    LAYER ZERO EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc ILayerZeroReceiver
+    function lzReceive(uint16, bytes calldata _srcAddress, uint64, bytes calldata _payload) public override {
+        address(this).excessivelySafeCall(
+            gasleft(),
+            150,
+            abi.encodeWithSelector(this.lzReceiveNonBlocking.selector, msg.sender, _srcAddress, _payload)
+        );
+    }
+
+    /// @inheritdoc IBranchBridgeAgent
+    function lzReceiveNonBlocking(address _endpoint, bytes calldata _srcAddress, bytes calldata _payload)
+        public
+        override
+        requiresEndpoint(_endpoint, _srcAddress)
+    {
+        //Save Action Flag
+        bytes1 flag = _payload[0] & 0x7F;
+
+        // Save settlement nonce
+        uint32 nonce;
+
+        // DEPOSIT FLAG: 0 (No settlement)
+        if (flag == 0x00) {
+            // Get Settlement Nonce
+            nonce = uint32(bytes4(_payload[PARAMS_START_SIGNED:PARAMS_TKN_START_SIGNED]));
+
+            //Check if tx has already been executed
+            if (executionState[nonce] != STATUS_READY) revert AlreadyExecutedTransaction();
+
+            //Try to execute the remote request
+            //Flag 0 - BranchBridgeAgentExecutor(bridgeAgentExecutorAddress).executeNoSettlement(localRouterAddress, _payload)
+            _execute(
+                nonce,
+                abi.encodeWithSelector(
+                    BranchBridgeAgentExecutor.executeNoSettlement.selector, localRouterAddress, _payload
+                )
+            );
+
+            // DEPOSIT FLAG: 1 (Single Asset Settlement)
+        } else if (flag == 0x01) {
+            // Parse recipient
+            address payable recipient = payable(address(uint160(bytes20(_payload[PARAMS_START:PARAMS_START_SIGNED]))));
+
+            // Parse Settlement Nonce
+            nonce = uint32(bytes4(_payload[PARAMS_START_SIGNED:PARAMS_TKN_START_SIGNED]));
+
+            //Check if tx has already been executed
+            if (executionState[nonce] != STATUS_READY) revert AlreadyExecutedTransaction();
+
+            //Try to execute the remote request
+            //Flag 1 - BranchBridgeAgentExecutor(bridgeAgentExecutorAddress).executeWithSettlement(recipient, localRouterAddress, _payload)
+            _execute(
+                _payload[0] == 0x81,
+                nonce,
+                recipient,
+                abi.encodeWithSelector(
+                    BranchBridgeAgentExecutor.executeWithSettlement.selector, recipient, localRouterAddress, _payload
+                )
+            );
+
+            // DEPOSIT FLAG: 2 (Multiple Settlement)
+        } else if (flag == 0x02) {
+            // Parse recipient
+            address payable recipient = payable(address(uint160(bytes20(_payload[PARAMS_START:PARAMS_START_SIGNED]))));
+
+            // Parse deposit nonce
+            nonce = uint32(bytes4(_payload[22:26]));
+
+            //Check if tx has already been executed
+            if (executionState[nonce] != STATUS_READY) revert AlreadyExecutedTransaction();
+
+            //Try to execute remote request
+            // Flag 2 - BranchBridgeAgentExecutor(bridgeAgentExecutorAddress).executeWithSettlementMultiple(recipient, localRouterAddress, _payload)
+            _execute(
+                _payload[0] == 0x82,
+                nonce,
+                recipient,
+                abi.encodeWithSelector(
+                    BranchBridgeAgentExecutor.executeWithSettlementMultiple.selector,
+                    recipient,
+                    localRouterAddress,
+                    _payload
+                )
+            );
+
+            //DEPOSIT FLAG: 3 (Retrieve Settlement)
+        } else if (flag == 0x03) {
+            // Parse recipient
+            address payable recipient = payable(address(uint160(bytes20(_payload[PARAMS_START:PARAMS_START_SIGNED]))));
+
+            //Get nonce
+            nonce = uint32(bytes4(_payload[PARAMS_START_SIGNED:PARAMS_TKN_START_SIGNED]));
+
+            //Check if settlement is in retrieve mode
+            if (executionState[nonce] == STATUS_DONE) {
+                revert AlreadyExecutedTransaction();
+            } else {
+                //Set settlement to retrieve mode, if not already set.
+                if (executionState[nonce] == STATUS_READY) executionState[nonce] = STATUS_RETRIEVE;
+                //Trigger fallback/Retry failed fallback
+                _performFallbackCall(recipient, nonce);
+            }
+
+            //DEPOSIT FLAG: 4 (Fallback)
+        } else if (flag == 0x04) {
+            //Get nonce
+            nonce = uint32(bytes4(_payload[PARAMS_START:PARAMS_TKN_START]));
+
+            // Reopen Deposit for redemption
+            getDeposit[nonce].status = STATUS_FAILED;
+
+            // Emit Fallback Event
+            emit LogFallback(nonce);
+
+            // Return to prevent unnecessary logic/emits
+            return;
+
+            //Unrecognized Function Selector
+        } else {
+            revert UnknownFlag();
+        }
+
+        // Emit Execution Event
+        emit LogExecute(nonce);
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                    SETTLEMENT EXECUTION INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Internal function requests execution from Branch Bridge Agent Executor Contract.
+     *   @param _settlementNonce Identifier for nonce being executed.
+     *   @param _calldata Calldata to be executed by the Branch Bridge Agent Executor Contract.
+     */
+    function _execute(uint256 _settlementNonce, bytes memory _calldata) private {
+        //Update tx state as executed
+        executionState[_settlementNonce] = STATUS_DONE;
+
+        //Try to execute the remote request
+        (bool success,) = bridgeAgentExecutorAddress.call{value: address(this).balance}(_calldata);
+
+        //  No fallback is requested revert allowing for settlement retry.
+        if (!success) revert ExecutionFailure();
+    }
+
+    /**
+     * @notice Internal function requests execution from Branch Bridge Agent Executor Contract.
+     *   @param _hasFallbackToggled if true, fallback on execution failure is toggled on.
+     *   @param _settlementNonce Identifier for nonce being executed.
+     *   @param _refundee address to refund gas to in case of fallback being triggered.
+     *   @param _calldata Calldata to be executed by the Branch Bridge Agent Executor Contract.
+     */
+    function _execute(bool _hasFallbackToggled, uint32 _settlementNonce, address _refundee, bytes memory _calldata)
+        private
+    {
+        //Update tx state as executed
+        executionState[_settlementNonce] = STATUS_DONE;
+
+        //Try to execute the remote request
+        (bool success,) = bridgeAgentExecutorAddress.call{value: address(this).balance}(_calldata);
+
+        //Update tx state if execution failed
+        if (!success) {
+            //Read the fallback flag and perform the fallback call if necessary. If not, allow for retrying deposit.
+            if (_hasFallbackToggled) {
+                // Update tx state as retrieve only
+                executionState[_settlementNonce] = STATUS_RETRIEVE;
+
+                // Perform fallback call
+                _performFallbackCall(payable(_refundee), _settlementNonce);
+            } else {
+                // If no fallback is requested revert allowing for settlement retry.
+                revert ExecutionFailure();
+            }
+        }
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                    LAYER ZERO INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Internal function performs the call to LayerZero messaging layer Endpoint for cross-chain messaging.
+     *   @param _refundee address to refund excess gas to.
+     *   @param _payload params for root bridge agent execution.
+     *   @param _gParams LayerZero gas information. (_gasLimit,_remoteBranchExecutionGas,_nativeTokenRecipientOnDstChain)
+     */
+    function _performCall(address payable _refundee, bytes memory _payload, GasParams calldata _gParams)
+        internal
+        virtual
+    {
+        //Sends message to LayerZero messaging layer
+        ILayerZeroEndpoint(lzEndpointAddress).send{value: msg.value}(
+            rootChainId,
+            rootBridgeAgentPath,
+            _payload,
+            payable(_refundee),
+            address(0),
+            abi.encodePacked(uint16(2), _gParams.gasLimit, _gParams.remoteBranchExecutionGas, rootBridgeAgentAddress)
+        );
+    }
+
+    /**
+     * @notice Internal function performs the call to Layerzero Endpoint Contract for cross-chain messaging.
+     *   @param _refundee address to refund gas to.
+     *   @param _settlementNonce root settlement nonce to fallback.
+     */
+    function _performFallbackCall(address payable _refundee, uint32 _settlementNonce) internal virtual {
+        //Sends message to LayerZero messaging layer
+        ILayerZeroEndpoint(lzEndpointAddress).send{value: address(this).balance}(
+            rootChainId,
+            rootBridgeAgentPath,
+            abi.encodePacked(bytes1(0x09), _settlementNonce),
+            _refundee,
+            address(0),
+            ""
+        );
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -561,118 +799,92 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Internal function to move assets from branch chain to root omnichain environment. Naive assets are deposited and hTokens are bridgedOut.
+     * @notice Internal function to move assets from branch chain to root omnichain environment.
+     *         Naive assets are deposited and hTokens are bridgedOut.
+     *   @param _depositNonce Identifier for user deposit.
      *   @param _refundee address to return excess gas deposited in `msg.value` to.
-     *   @param _data data to be sent to cross-chain messaging layer.
      *   @param _hToken Local Input hToken Address.
-     *   @param _token Native / Underlying Token Address.
+     *   @param _token Native/Underlying Token Address.
      *   @param _amount Amount of Local hTokens deposited for trade.
      *   @param _deposit Amount of native tokens deposited for trade.
-     *   @param _lzAdapterParams LayerZero gas information. (_gasLimit + _remoteBranchExecutionGas)
      *
      */
-    function _depositAndCall(
+    function _createDeposit(
+        uint32 _depositNonce,
         address payable _refundee,
-        bytes memory _data,
         address _hToken,
         address _token,
         uint256 _amount,
-        uint256 _deposit,
-        bytes memory _lzAdapterParams
+        uint256 _deposit
     ) internal {
-        //Deposit / Lock Tokens into Port
+        // Update Deposit Nonce
+        depositNonce = _depositNonce + 1;
+
+        // Deposit / Lock Tokens into Port
         IPort(localPortAddress).bridgeOut(msg.sender, _hToken, _token, _amount, _deposit);
 
-        // Cast to dynamic memory array
-        address[] memory hTokens = new address[](1);
-        hTokens[0] = _hToken;
-        address[] memory tokens = new address[](1);
-        tokens[0] = _token;
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = _amount;
-        uint256[] memory deposits = new uint256[](1);
-        deposits[0] = _deposit;
+        // Cast to Dynamic
+        address[] memory addressArray = new address[](1);
+        uint256[] memory uintArray = new uint256[](1);
 
-        // Update State
-        getDeposit[depositNonce++] = Deposit({
-            owner: _refundee,
-            hTokens: hTokens,
-            tokens: tokens,
-            amounts: amounts,
-            deposits: deposits,
-            status: DepositStatus.Success
-        });
+        // Save deposit to storage
+        Deposit storage deposit = getDeposit[_depositNonce];
+        deposit.owner = _refundee;
 
-        //Perform Call
-        _performCall(_refundee, _data, _lzAdapterParams);
+        addressArray[0] = _hToken;
+        deposit.hTokens = addressArray;
+
+        addressArray[0] = _token;
+        deposit.tokens = addressArray;
+
+        uintArray[0] = _amount;
+        deposit.amounts = uintArray;
+
+        uintArray[0] = _deposit;
+        deposit.deposits = uintArray;
+
+        deposit.status = STATUS_SUCCESS;
     }
 
     /**
-     * @dev Internal function to move assets from branch chain to root omnichain environment. Naive assets are deposited and hTokens are bridgedOut.
+     * @dev Internal function to move assets from branch chain to root omnichain environment.
+     *      Naive assets are deposited and hTokens are bridgedOut.
+     *   @param _depositNonce Identifier for user deposit.
      *   @param _refundee address to return excess gas deposited in `msg.value` to.
-     *   @param _data data to be sent to cross-chain messaging layer.
      *   @param _hTokens Local Input hToken Address.
-     *   @param _tokens Native / Underlying Token Address.
+     *   @param _tokens Native/Underlying Token Address.
      *   @param _amounts Amount of Local hTokens deposited for trade.
      *   @param _deposits  Amount of native tokens deposited for trade.
-     *   @param _lzAdapterParams LayerZero gas information. (_gasLimit + _remoteBranchExecutionGas)
      *
      */
-    function _depositAndCallMultiple(
+    function _createDepositMultiple(
+        uint32 _depositNonce,
         address payable _refundee,
-        bytes memory _data,
         address[] memory _hTokens,
         address[] memory _tokens,
         uint256[] memory _amounts,
-        uint256[] memory _deposits,
-        bytes memory _lzAdapterParams
+        uint256[] memory _deposits
     ) internal {
-        //Validate Input
-        if (
-            _hTokens.length != _tokens.length || _tokens.length != _amounts.length
-                || _amounts.length != _deposits.length
-        ) revert InvalidInput();
+        // Validate Input
+        if (_hTokens.length > MAX_TOKENS_LENGTH) revert InvalidInput();
+        if (_hTokens.length != _tokens.length) revert InvalidInput();
+        if (_tokens.length != _amounts.length) revert InvalidInput();
+        if (_amounts.length != _deposits.length) revert InvalidInput();
 
-        //Deposit / Lock Tokens into Port
+        // Update Deposit Nonce
+        depositNonce = _depositNonce + 1;
+
+        // Deposit / Lock Tokens into Port
         IPort(localPortAddress).bridgeOutMultiple(msg.sender, _hTokens, _tokens, _amounts, _deposits);
 
         // Update State
-        getDeposit[depositNonce++] = Deposit({
-            owner: _refundee,
-            hTokens: _hTokens,
-            tokens: _tokens,
-            amounts: _amounts,
-            deposits: _deposits,
-            status: DepositStatus.Success
-        });
-
-        //Perform Call
-        _performCall(_refundee, _data, _lzAdapterParams);
-    }
-
-    /**
-     * @dev External function to clear / refund a user's failed deposit.
-     *    @param _depositNonce Identifier for user deposit.
-     *
-     */
-    function _redeemDeposit(uint32 _depositNonce) internal {
-        //Get Deposit
         Deposit storage deposit = getDeposit[_depositNonce];
-
-        //Save Deposit Tokens Length
-        uint256 depositTokensLength = deposit.tokens.length;
-
-        //Transfer token to depositor / user
-        for (uint256 i = 0; i < depositTokensLength;) {
-            _clearToken(deposit.owner, deposit.hTokens[i], deposit.tokens[i], deposit.amounts[i], deposit.deposits[i]);
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        //Delete Failed Deposit Token Info
-        delete getDeposit[_depositNonce];
+        deposit.owner = _refundee;
+        deposit.hTokens = _hTokens;
+        deposit.tokens = _tokens;
+        deposit.amounts = _amounts;
+        deposit.deposits = _deposits;
+        deposit.status = STATUS_SUCCESS;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -682,17 +894,19 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
     /**
      * @notice Function to request balance clearance from a Port to a given user.
      *     @param _recipient token receiver.
-     *     @param _hToken  local hToken addresse to clear balance for.
-     *     @param _token  native / underlying token addresse to clear balance for.
+     *     @param _hToken  local hToken address to clear balance for.
+     *     @param _token  native/underlying token address to clear balance for.
      *     @param _amount amounts of hToken to clear balance for.
-     *     @param _deposit amount of native / underlying tokens to clear balance for.
+     *     @param _deposit amount of native/underlying tokens to clear balance for.
      *
      */
     function _clearToken(address _recipient, address _hToken, address _token, uint256 _amount, uint256 _deposit)
         internal
     {
         if (_amount - _deposit > 0) {
-            IPort(localPortAddress).bridgeIn(_recipient, _hToken, _amount - _deposit);
+            unchecked {
+                IPort(localPortAddress).bridgeIn(_recipient, _hToken, _amount - _deposit);
+            }
         }
 
         if (_deposit > 0) {
@@ -700,217 +914,9 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
         }
     }
 
-    /**
-     * @notice Function to clear / refund a user's failed deposit. Called upon fallback in cross-chain messaging.
-     *    @param _depositNonce Identifier for user deposit.
-     *
-     */
-    function _clearDeposit(uint32 _depositNonce) internal {
-        //Update and return Deposit
-        getDeposit[_depositNonce].status = DepositStatus.Failed;
-    }
-
-    /*///////////////////////////////////////////////////////////////
-                    LAYER ZERO EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    /// @inheritdoc ILayerZeroReceiver
-    function lzReceive(uint16, bytes calldata _srcAddress, uint64, bytes calldata _payload) public {
-        address(this).excessivelySafeCall(
-            gasleft(),
-            150,
-            abi.encodeWithSelector(this.lzReceiveNonBlocking.selector, msg.sender, _srcAddress, _payload)
-        );
-    }
-
-    function lzReceiveNonBlocking(address _endpoint, bytes calldata _srcAddress, bytes calldata _payload)
-        public
-        requiresEndpoint(_endpoint, _srcAddress)
-    {
-        //Save Recipient
-        address payable recipient = payable(address(uint160(bytes20(_payload[PARAMS_START:PARAMS_START_SIGNED]))));
-
-        //Save Action Flag
-        bytes1 flag = _payload[0];
-
-        //DEPOSIT FLAG: 0 (No settlement)
-        if (flag == 0x00) {
-            //Get Settlement Nonce
-            uint32 nonce = uint32(bytes4(_payload[PARAMS_START_SIGNED:25]));
-
-            //Check if tx has already been executed
-            if (executionHistory[nonce]) {
-                revert AlreadyExecutedTransaction();
-            }
-
-            try BranchBridgeAgentExecutor(bridgeAgentExecutorAddress).executeNoSettlement{value: address(this).balance}(
-                localRouterAddress, _payload
-            ) {} catch (bytes memory) {
-                _performFallbackCall(recipient, _payload);
-            }
-
-            //Update tx state as executed
-            executionHistory[nonce] = true;
-
-            //DEPOSIT FLAG: 1 (Single Asset Settlement)
-        } else if (flag == 0x01) {
-            //Get Settlement Nonce
-            uint32 nonce = uint32(bytes4(_payload[PARAMS_START_SIGNED:25]));
-
-            //Check if tx has already been executed
-            if (executionHistory[nonce]) {
-                revert AlreadyExecutedTransaction();
-            }
-
-            //Try to execute remote request
-            try BranchBridgeAgentExecutor(bridgeAgentExecutorAddress).executeWithSettlement{
-                value: address(this).balance
-            }(recipient, localRouterAddress, _payload) {} catch (bytes memory) {
-                _performFallbackCall(recipient, _payload);
-            }
-
-            //Update tx state as executed
-            executionHistory[nonce] = true;
-
-            //DEPOSIT FLAG: 2 (Multiple Settlement)
-        } else if (flag == 0x02) {
-            //Get deposit nonce
-            uint32 nonce = uint32(bytes4(_payload[22:26]));
-
-            //Check if tx has already been executed
-            if (executionHistory[nonce]) {
-                revert AlreadyExecutedTransaction();
-            }
-
-            //Try to execute remote request
-            try BranchBridgeAgentExecutor(bridgeAgentExecutorAddress).executeWithSettlementMultiple{
-                value: address(this).balance
-            }(recipient, localRouterAddress, _payload) {} catch (bytes memory) {
-                _performFallbackCall(recipient, _payload);
-            }
-
-            //Update tx state as executed
-            executionHistory[nonce] = true;
-
-            //DEPOSIT FLAG: 3 (Fallback)
-        } else if (flag == 0x03) {
-            //Reopen Deposit
-            _fallback(_payload);
-
-            //Unrecognized Function Selector
-        } else {
-            revert UnknownFlag();
-        }
-
-        emit LogCallin(flag, _payload, rootChainId);
-    }
-
-    /*///////////////////////////////////////////////////////////////
-                    LAYER ZERO INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    function _getAdapterParams(uint256 _gasLimit, uint256 _remoteBranchExecutionGas)
-        internal
-        view
-        returns (bytes memory)
-    {
-        return abi.encodePacked(uint16(2), _gasLimit, _remoteBranchExecutionGas, rootBridgeAgentAddress);
-    }
-
-    /**
-     * @notice Internal function performs call to LayerZero messaging layer Endpoint for cross-chain messaging.
-     *   @param _refundee address to refund gas to.
-     *   @param _calldata params for root bridge agent execution.
-     *   @param _lzAdapterParams LayerZero gas information. (_gasLimit + _remoteBranchExecutionGas)
-     */
-    function _performCall(address payable _refundee, bytes memory _calldata, bytes memory _lzAdapterParams)
-        internal
-        virtual
-    {
-        //Sends message to LayerZero messaging layer
-        ILayerZeroEndpoint(lzEndpointAddress).send{value: msg.value}(
-            rootChainId, rootBridgeAgentPath.rootPathAsBytes, _calldata, _refundee, address(0), _lzAdapterParams
-        );
-    }
-
-    /**
-     * @notice Internal function performs call to AnycallProxy Contract for cross-chain messaging.
-     *   @param _refundee address to refund gas to.
-     *   @param _calldata params for root bridge agent execution.
-     */
-    function _performFallbackCall(address payable _refundee, bytes calldata _calldata) internal {
-        //Sends message to LayerZero messaging layer
-        ILayerZeroEndpoint(lzEndpointAddress).send{value: address(this).balance}(
-            rootChainId,
-            rootBridgeAgentPath.rootPathAsBytes,
-            abi.encodePacked(bytes1(0x09), _calldata),
-            _refundee,
-            address(0),
-            ""
-        );
-    }
-
-    function _fallback(bytes calldata _payload) internal {
-        //Save Flag
-        bytes1 flag = _payload[0];
-
-        //Save memory for Deposit Nonce
-        uint32 _depositNonce;
-
-        /// DEPOSIT FLAG: 0, 1, 2, 8
-        if ((flag == 0x00) || (flag == 0x01) || (flag == 0x02) || (flag == 0x08)) {
-            //Check nonce calldata slice.
-            _depositNonce = uint32(bytes4(_payload[PARAMS_START:PARAMS_TKN_START]));
-
-            //Make tokens available to depositor.
-            _clearDeposit(_depositNonce);
-
-            emit LogCalloutFail(flag, _payload, rootChainId);
-
-            /// DEPOSIT FLAG: 3
-        } else if (flag == 0x03) {
-            _depositNonce = uint32(bytes4(_payload[PARAMS_START + PARAMS_START:PARAMS_TKN_START + PARAMS_START]));
-
-            //Make tokens available to depositor.
-            _clearDeposit(_depositNonce);
-
-            emit LogCalloutFail(flag, _payload, rootChainId);
-
-            /// DEPOSIT FLAG: 4, 5
-        } else if ((flag == 0x04) || (flag == 0x05)) {
-            //Save nonce
-            _depositNonce = uint32(bytes4(_payload[PARAMS_START_SIGNED:PARAMS_START_SIGNED + PARAMS_TKN_START]));
-
-            //Make tokens available to depositor.
-            _clearDeposit(_depositNonce);
-
-            emit LogCalloutFail(flag, _payload, rootChainId);
-
-            /// DEPOSIT FLAG: 6
-        } else if (flag == 0x06) {
-            //Save nonce
-            _depositNonce = uint32(
-                bytes4(
-                    _payload[PARAMS_START_SIGNED + PARAMS_START:PARAMS_START_SIGNED + PARAMS_TKN_START + PARAMS_START]
-                )
-            );
-
-            //Make tokens available to depositor.
-            _clearDeposit(_depositNonce);
-
-            emit LogCalloutFail(flag, _payload, rootChainId);
-
-            //Unrecognized Function Selector
-        } else {
-            revert UnknownFlag();
-        }
-    }
-
     /*///////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
-
-    uint256 internal _unlocked = 1;
 
     /// @notice Modifier for a simple re-entrancy check.
     modifier lock() {
@@ -920,29 +926,27 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
         _unlocked = 1;
     }
 
-    /// @notice Modifier verifies the caller is the Anycall Executor or Local Branch Bridge Agent.
+    /// @notice Modifier verifies the caller is the Layerzero Enpoint or Local Branch Bridge Agent.
     modifier requiresEndpoint(address _endpoint, bytes calldata _srcAddress) {
         _requiresEndpoint(_endpoint, _srcAddress);
         _;
     }
 
-    /// @notice Verifies the caller is the Anycall Executor. Internal function used in modifier to reduce contract bytesize.
+    /// @notice Internal function for caller verification. To be overwritten in `ArbitrumBranchBridgeAgent'.
     function _requiresEndpoint(address _endpoint, bytes calldata _srcAddress) internal view virtual {
         //Verify Endpoint
-        if (msg.sender != address(this) || _endpoint != lzEndpointAddress) revert LayerZeroUnauthorizedEndpoint();
+        if (msg.sender != address(this)) revert LayerZeroUnauthorizedEndpoint();
+        if (_endpoint != lzEndpointAddress) revert LayerZeroUnauthorizedEndpoint();
+
         //Verify Remote Caller
+        if (_srcAddress.length != 40) revert LayerZeroUnauthorizedCaller();
         if (rootBridgeAgentAddress != address(uint160(bytes20(_srcAddress[20:])))) revert LayerZeroUnauthorizedCaller();
     }
 
     /// @notice Modifier that verifies caller is Branch Bridge Agent's Router.
     modifier requiresRouter() {
-        _requiresRouter();
-        _;
-    }
-
-    /// @notice Internal function that verifies caller is Branch Bridge Agent's Router. Reuse to reduce contract bytesize.
-    function _requiresRouter() internal view {
         if (msg.sender != localRouterAddress) revert UnrecognizedRouter();
+        _;
     }
 
     /// @notice Modifier that verifies caller is the Bridge Agent Executor.
@@ -950,6 +954,4 @@ contract BranchBridgeAgent is IBranchBridgeAgent {
         if (msg.sender != bridgeAgentExecutorAddress) revert UnrecognizedBridgeAgentExecutor();
         _;
     }
-
-    fallback() external payable {}
 }

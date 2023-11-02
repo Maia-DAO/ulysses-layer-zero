@@ -6,56 +6,21 @@ import {console2} from "forge-std/console2.sol";
 import {RootBridgeAgent} from "@omni/RootBridgeAgent.sol";
 
 import {
-    DepositParams,
-    DepositMultipleParams,
-    Settlement,
-    SettlementParams,
-    SettlementMultipleParams
+    DepositParams, DepositMultipleParams, Settlement, SettlementParams
 } from "@omni/interfaces/IRootBridgeAgent.sol";
 import {IRootRouter} from "@omni/interfaces/IRootRouter.sol";
 import {IRootPort as IPort} from "@omni/interfaces/IRootPort.sol";
 import {ERC20hTokenRoot as ERC20hToken} from "@omni/token/ERC20hTokenRoot.sol";
-import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import {WETH9} from "@omni/interfaces/IWETH9.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
 contract MockRootBridgeAgent is RootBridgeAgent {
     constructor(
-        WETH9 _wrappedNativeToken,
         uint16 _localChainId,
-        address _daoAddress,
         address _lzEndpointAddress,
         address _localPortAddress,
         address _localRouterAddress
-    )
-        RootBridgeAgent(
-            _wrappedNativeToken,
-            _localChainId,
-            _daoAddress,
-            _lzEndpointAddress,
-            _localPortAddress,
-            _localRouterAddress
-        )
-    {}
-
-    /*///////////////////////////////////////////////////////////////
-                            ENCODING CONSTS
-    //////////////////////////////////////////////////////////////*/
-
-    /// AnyExec Consts
-
-    // uint8 internal constant PARAMS_END_OFFSET = 9;
-    uint8 internal constant PARAMS_END_OFFSET = 6;
-
-    // uint8 internal constant PARAMS_END_SIGNED_OFFSET = 29;
-    uint8 internal constant PARAMS_END_SIGNED_OFFSET = 26;
-
-    uint8 internal constant PARAMS_ENTRY_SIZE = 32;
-
-    uint8 internal constant PARAMS_TKN_SET_SIZE = 104;
-
-    uint8 internal constant PARAMS_TKN_SET_SIZE_MULTIPLE = 128;
+    ) RootBridgeAgent(_localChainId, _lzEndpointAddress, _localPortAddress, _localRouterAddress) {}
 
     /*///////////////////////////////////////////////////////////////
                 TOKEN MANAGEMENT INTERNAL FUNCTIONS
@@ -69,7 +34,7 @@ contract MockRootBridgeAgent is RootBridgeAgent {
         // Parse Parameters
         uint8 numOfAssets = uint8(bytes1(_dParams[0]));
         uint32 nonce = uint32(bytes4(_dParams[PARAMS_START:5]));
-        // uint24 toChain = uint24(bytes3(_dParams[_dParams.length - 3:_dParams.length]));
+        // uint24 dstChainId = uint24(bytes3(_dParams[_dParams.length - 3:_dParams.length]));
 
         address[] memory hTokens = new address[](numOfAssets);
         address[] memory tokens = new address[](numOfAssets);
@@ -81,7 +46,7 @@ contract MockRootBridgeAgent is RootBridgeAgent {
             console2.log("1");
             console2.log(PARAMS_TKN_START + (PARAMS_ENTRY_SIZE * i) + 12);
             console2.log(PARAMS_TKN_START + (PARAMS_ENTRY_SIZE * (PARAMS_START + i)));
-            //Parse Params
+            // Parse Params
             hTokens[i] = address(
                 uint160(
                     bytes20(

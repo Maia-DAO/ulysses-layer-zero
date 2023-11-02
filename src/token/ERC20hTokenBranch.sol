@@ -8,6 +8,7 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20hTokenBranch} from "../interfaces/IERC20hTokenBranch.sol";
 
 /// @title ERC20 hToken Branch Contract
+/// @author MaiaDAO
 contract ERC20hTokenBranch is ERC20, Ownable, IERC20hTokenBranch {
     constructor(
         string memory chainName,
@@ -31,7 +32,7 @@ contract ERC20hTokenBranch is ERC20, Ownable, IERC20hTokenBranch {
     }
 
     /// @inheritdoc IERC20hTokenBranch
-    function burn(uint256 value) public override onlyOwner {
-        _burn(msg.sender, value);
+    function burn(uint256 amount) public override onlyOwner {
+        _burn(msg.sender, amount);
     }
 }

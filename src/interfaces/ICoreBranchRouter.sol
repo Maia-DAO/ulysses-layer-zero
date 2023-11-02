@@ -32,10 +32,10 @@ interface ICoreBranchRouter {
     /**
      * @notice Function to deploy/add a token already present in the global environment to a branch chain.
      * @param _globalAddress the address of the global virtualized token.
-     * @param _toChain the chain to which the token will be added.
+     * @param _dstChainId the chain to which the token will be added.
      * @param _gasParams Gas parameters for remote execution.
      */
-    function addGlobalToken(address _globalAddress, uint256 _toChain, GasParams[3] calldata _gasParams)
+    function addGlobalToken(address _globalAddress, uint256 _dstChainId, GasParams[3] calldata _gasParams)
         external
         payable;
 
@@ -45,4 +45,11 @@ interface ICoreBranchRouter {
      * @param _gasParams Gas parameters for remote execution.
      */
     function addLocalToken(address _underlyingAddress, GasParams calldata _gasParams) external payable;
+
+    /*///////////////////////////////////////////////////////////////
+                                ERRORS
+    //////////////////////////////////////////////////////////////*/
+
+    error UnrecognizedBridgeAgent();
+    error UnrecognizedBridgeAgentFactory();
 }

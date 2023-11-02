@@ -1,94 +1,63 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-
-import {ERC20} from "solmate/tokens/ERC20.sol";
-
-import {WETH9} from "./interfaces/IWETH9.sol";
-
-import {ILayerZeroEndpoint} from "./interfaces/ILayerZeroEndpoint.sol";
-
-import {AnycallFlags} from "./lib/AnycallFlags.sol";
-import {IAnycallProxy} from "./interfaces/IAnycallProxy.sol";
-import {IAnycallConfig} from "./interfaces/IAnycallConfig.sol";
-import {IAnycallExecutor} from "./interfaces/IAnycallExecutor.sol";
-
-import {ERC20hTokenBranch as ERC20hToken} from "./token/ERC20hTokenBranch.sol";
-import {IBranchRouter as IRouter} from "./interfaces/IBranchRouter.sol";
 import {IArbitrumBranchPort as IArbPort} from "./interfaces/IArbitrumBranchPort.sol";
 import {IRootBridgeAgent} from "./interfaces/IRootBridgeAgent.sol";
-
-import {
-    IBranchBridgeAgent,
-    ILayerZeroReceiver,
-    Deposit,
-    DepositStatus,
-    DepositInput,
-    DepositMultipleInput,
-    DepositParams,
-    DepositMultipleParams,
-    SettlementParams,
-    SettlementMultipleParams
-} from "./interfaces/IBranchBridgeAgent.sol";
+import {GasParams, IBranchBridgeAgent} from "./interfaces/IBranchBridgeAgent.sol";
 
 import {BranchBridgeAgent} from "./BranchBridgeAgent.sol";
-import {BranchBridgeAgentExecutor, DeployBranchBridgeAgentExecutor} from "./BranchBridgeAgentExecutor.sol";
 
 library DeployArbitrumBranchBridgeAgent {
-    function deploy(
-        WETH9 _wrappedNativeToken,
-        uint16 _localChainId,
-        address _daoAddress,
-        address _lzEndpointAddress,
-        address _localPortAddress,
-        address _localRouterAddress
-    ) external returns (ArbitrumBranchBridgeAgent) {
+    function deploy(uint16 _localChainId, address _daoAddress, address _localRouterAddress, address _localPortAddress)
+        external
+        returns (ArbitrumBranchBridgeAgent)
+    {
         return new ArbitrumBranchBridgeAgent(
-            _wrappedNativeToken,
             _localChainId,
             _daoAddress,
-            _lzEndpointAddress,
-            _localPortAddress,
-            _localRouterAddress
+            _localRouterAddress,
+            _localPortAddress
         );
     }
 }
 
 /**
- * @title  Manages bridging transactions between root and Arbitrum branch
+ * @title  Arbitrum Branch Bridge Agent Contract.
  * @author MaiaDAO
  * @notice This contract is used for interfacing with Users/Routers acting as a middleman
- *         to access Anycall cross-chain messaging and Port communication for asset management
+ *         to access LayerZero cross-chain messaging and Port communication for asset management
  *         connecting Arbitrum Branch Chain contracts and the root omnichain environment.
- * @dev    Execution gas from remote interactions is managed by `RootBridgeAgent` contract.
  */
 contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
-    using SafeTransferLib for address;
-    using SafeTransferLib for ERC20;
+    /*///////////////////////////////////////////////////////////////
+                            CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Constructor for Arbitrum Branch Bridge Agent.
+     *  @param _localChainId Local Chain Layer Zero Id.
+     *  @param _rootBridgeAgentAddress Root Bridge Agent Address.
+     *  @param _localRouterAddress Local Core Branch Router Address.
+     *  @param _localPortAddress Local Branch Port Address.
+     */
     constructor(
-        WETH9 _wrappedNativeToken,
         uint16 _localChainId,
         address _rootBridgeAgentAddress,
-        address _lzEndpointAddress,
         address _localRouterAddress,
         address _localPortAddress
     )
         BranchBridgeAgent(
-            _wrappedNativeToken,
             _localChainId,
             _localChainId,
             _rootBridgeAgentAddress,
-            _lzEndpointAddress,
+            address(0),
             _localRouterAddress,
             _localPortAddress
         )
     {}
 
     /*///////////////////////////////////////////////////////////////
-                    LOCAL USER EXTERNAL FUNCTIONS
+                        USER EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /**
@@ -112,28 +81,49 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
     }
 
     /*///////////////////////////////////////////////////////////////
-                            INTERNAL FUNCTIONS
+                    SETTLEMENT EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc IBranchBridgeAgent
+    /// @dev This functionality should be accessed from Root environment
+    function retrySettlement(uint32, bytes calldata, GasParams[2] calldata, bool) external payable override lock {}
+
+    /*///////////////////////////////////////////////////////////////
+                    LAYER ZERO INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Internal function performs call to LayerZero messaging layer Endpoint for cross-chain messaging.
+     * @notice Internal function performs the call to LayerZero messaging layer Endpoint for cross-chain messaging.
      *   @param _calldata params for root bridge agent execution.
      */
-    function _performCall(address payable, bytes memory _calldata, bytes memory) internal override {
-        //Send Gas to Root Bridge Agent
-        rootBridgeAgentAddress.call{value: msg.value}("");
-        //Execute locally
-        IRootBridgeAgent(rootBridgeAgentAddress).lzReceive(rootChainId, "", 0, _calldata);
+    function _performCall(address payable, bytes memory _calldata, GasParams calldata) internal override {
+        // Cache Root Bridge Agent Address
+        address _rootBridgeAgentAddress = rootBridgeAgentAddress;
+        // Send Gas to Root Bridge Agent
+        _rootBridgeAgentAddress.call{value: msg.value}("");
+        // Execute locally
+        IRootBridgeAgent(_rootBridgeAgentAddress).lzReceive(rootChainId, "", 0, _calldata);
     }
 
-    /// @notice Verifies the caller is the Root Bridge Agent. Internal function used in modifier to reduce contract bytesize.
-    function _requiresEndpoint(address _endpoint, bytes calldata) internal view override {
-        if (_endpoint != rootBridgeAgentAddress) revert LayerZeroUnauthorizedEndpoint();
+    /**
+     * @notice Internal function performs the call to Layerzero Endpoint Contract for cross-chain messaging.
+     *   @param _settlementNonce root settlement nonce to fallback.
+     */
+    function _performFallbackCall(address payable, uint32 _settlementNonce) internal override {
+        //Sends message to Root Bridge Agent
+        IRootBridgeAgent(rootBridgeAgentAddress).lzReceive(
+            rootChainId, "", 0, abi.encodePacked(bytes1(0x09), _settlementNonce)
+        );
     }
 
     /*///////////////////////////////////////////////////////////////
-                            ERRORS
+                        MODIFIER INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    error GasErrorOrRepeatedTx();
+    /// @notice Verifies the caller is the Root Bridge Agent.
+    /// @dev Internal function used in modifier to reduce contract bytesize.
+    function _requiresEndpoint(address _endpoint, bytes calldata) internal view override {
+        if (msg.sender != address(this)) revert LayerZeroUnauthorizedEndpoint();
+        if (_endpoint != rootBridgeAgentAddress) revert LayerZeroUnauthorizedEndpoint();
+    }
 }

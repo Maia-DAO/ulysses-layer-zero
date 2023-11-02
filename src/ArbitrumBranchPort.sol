@@ -2,32 +2,37 @@
 
 pragma solidity ^0.8.0;
 
-import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
-import {ERC20} from "solmate/tokens/ERC20.sol";
-
-import {IArbitrumBranchPort, IBranchPort} from "./interfaces/IArbitrumBranchPort.sol";
+import {IArbitrumBranchPort} from "./interfaces/IArbitrumBranchPort.sol";
 import {IRootPort} from "./interfaces/IRootPort.sol";
 
-import {ArbitrumBranchBridgeAgent} from "./ArbitrumBranchBridgeAgent.sol";
 import {BranchPort} from "./BranchPort.sol";
-import {ERC20hTokenBranch} from "./token/ERC20hTokenBranch.sol";
 
 /// @title Arbitrum Branch Port Contract
+/// @author MaiaDAO
 contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
     using SafeTransferLib for address;
 
-    /// @notice Local Network Identifier.
-    uint16 public localChainId;
+    /*///////////////////////////////////////////////////////////////
+                    ARBITRUM BRANCH PORT STATE
+    //////////////////////////////////////////////////////////////*/
 
-    /// @notice Address for Local Port Address where funds deposited from this chain are kept, managed and supplied to different Port Strategies.
-    address public rootPortAddress;
+    /// @notice Local Network Identifier.
+    uint16 public immutable localChainId;
+
+    /// @notice Address for Local Port Address
+    /// @dev where funds deposited from this chain are kept, managed and supplied to different Port Strategies.
+    address public immutable rootPortAddress;
+
+    /*///////////////////////////////////////////////////////////////
+                            CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Constructor for Arbitrum Branch Port.
      * @param _owner owner of the contract.
-     * @param _localChainId local chain id.
+     * @param _localChainId arbitrum layer zero chain id.
      * @param _rootPortAddress address of the Root Port.
      */
     constructor(uint16 _localChainId, address _rootPortAddress, address _owner) BranchPort(_owner) {
@@ -44,100 +49,89 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
     ///@inheritdoc IArbitrumBranchPort
     function depositToPort(address _depositor, address _recipient, address _underlyingAddress, uint256 _deposit)
         external
+        override
+        lock
         requiresBridgeAgent
     {
-        address globalToken = IRootPort(rootPortAddress).getLocalTokenFromUnder(_underlyingAddress, localChainId);
-        if (globalToken == address(0)) revert UnknownUnderlyingToken();
+        // Save root port address to memory
+        address _rootPortAddress = rootPortAddress;
 
+        // Get global token address from root port
+        address _globalToken = IRootPort(_rootPortAddress).getLocalTokenFromUnderlying(_underlyingAddress, localChainId);
+
+        // Check if the global token exists
+        if (_globalToken == address(0)) revert UnknownGlobalToken();
+
+        // Deposit Assets to Port
         _underlyingAddress.safeTransferFrom(_depositor, address(this), _deposit);
 
-        IRootPort(rootPortAddress).mintToLocalBranch(_recipient, globalToken, _deposit);
+        // Request Minting of Global Token
+        IRootPort(_rootPortAddress).mintToLocalBranch(_recipient, _globalToken, _deposit);
     }
 
     ///@inheritdoc IArbitrumBranchPort
     function withdrawFromPort(address _depositor, address _recipient, address _globalAddress, uint256 _amount)
         external
+        override
+        lock
         requiresBridgeAgent
     {
-        if (!IRootPort(rootPortAddress).isGlobalToken(_globalAddress, localChainId)) {
-            revert UnknownToken();
-        }
+        // Save root port address to memory
+        address _rootPortAddress = rootPortAddress;
 
-        address underlyingAddress = IRootPort(rootPortAddress).getUnderlyingTokenFromLocal(_globalAddress, localChainId);
+        // Check if the global token exists
+        if (!IRootPort(_rootPortAddress).isGlobalToken(_globalAddress, localChainId)) revert UnknownGlobalToken();
 
-        if (underlyingAddress == address(0)) revert UnknownUnderlyingToken();
+        // Get the underlying token address from the root port
+        address _underlyingAddress =
+            IRootPort(_rootPortAddress).getUnderlyingTokenFromLocal(_globalAddress, localChainId);
 
-        IRootPort(rootPortAddress).burnFromLocalBranch(_depositor, _globalAddress, _amount);
+        // Check if the underlying token exists
+        if (_underlyingAddress == address(0)) revert UnknownUnderlyingToken();
 
-        underlyingAddress.safeTransfer(_recipient, _amount);
+        IRootPort(_rootPortAddress).burnFromLocalBranch(_depositor, _globalAddress, _amount);
+
+        _underlyingAddress.safeTransfer(_recipient, _amount);
     }
 
-    /// @inheritdoc IBranchPort
-    function bridgeIn(address _recipient, address _localAddress, uint256 _amount)
-        external
-        override(IBranchPort, BranchPort)
-        requiresBridgeAgent
-    {
+    /*///////////////////////////////////////////////////////////////
+                        INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Internal function to bridge in assets from the Root Chain.
+     * @param _recipient recipient of the bridged assets.
+     * @param _localAddress address of the local token.
+     * @param _amount amount of the bridged assets.
+     */
+    function _bridgeIn(address _recipient, address _localAddress, uint256 _amount) internal override {
         IRootPort(rootPortAddress).bridgeToLocalBranchFromRoot(_recipient, _localAddress, _amount);
     }
 
-    /// @inheritdoc IBranchPort
-    function bridgeInMultiple(address _recipient, address[] memory _localAddresses, uint256[] memory _amounts)
-        external
-        override(IBranchPort, BranchPort)
-        requiresBridgeAgent
-    {
-        for (uint256 i = 0; i < _localAddresses.length;) {
-            IRootPort(rootPortAddress).bridgeToLocalBranchFromRoot(_recipient, _localAddresses[i], _amounts[i]);
-
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    /// @inheritdoc IBranchPort
-    function bridgeOut(
+    /**
+     * @notice Internal function to bridge out assets to the Root Chain.
+     * @param _depositor depositor of the bridged assets.
+     * @param _localAddress address of the local token.
+     * @param _underlyingAddress address of the underlying token.
+     * @param _amount amount of the bridged assets.
+     * @param _deposit amount of the underlying assets to be deposited.
+     */
+    function _bridgeOut(
         address _depositor,
         address _localAddress,
         address _underlyingAddress,
         uint256 _amount,
         uint256 _deposit
-    ) external override(IBranchPort, BranchPort) requiresBridgeAgent {
-        //Burn hTokens if any are being used
-        if (_amount - _deposit > 0) {
-            IRootPort(rootPortAddress).bridgeToRootFromLocalBranch(_depositor, _localAddress, _amount - _deposit);
-        }
-
+    ) internal override {
         //Store Underlying Tokens
         if (_deposit > 0) {
             _underlyingAddress.safeTransferFrom(_depositor, address(this), _deposit);
         }
-    }
 
-    /// @inheritdoc IBranchPort
-    function bridgeOutMultiple(
-        address _depositor,
-        address[] memory _localAddresses,
-        address[] memory _underlyingAddresses,
-        uint256[] memory _amounts,
-        uint256[] memory _deposits
-    ) external override(IBranchPort, BranchPort) requiresBridgeAgent {
-        for (uint256 i = 0; i < _localAddresses.length;) {
-            //Burn hTokens if any are being used
-            if (_amounts[i] - _deposits[i] > 0) {
-                IRootPort(rootPortAddress).bridgeToRootFromLocalBranch(
-                    _depositor, _localAddresses[i], _amounts[i] - _deposits[i]
-                );
-            }
-
-            //Store Underlying Tokens
-            if (_deposits[i] > 0) {
-                _underlyingAddresses[i].safeTransferFrom(_depositor, address(this), _deposits[i]);
-            }
-
+        //Burn hTokens if any are being used
+        if (_amount - _deposit > 0) {
             unchecked {
-                ++i;
+                IRootPort(rootPortAddress).bridgeToRootFromLocalBranch(_depositor, _localAddress, _amount - _deposit);
             }
         }
     }

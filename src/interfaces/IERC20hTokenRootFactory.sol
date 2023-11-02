@@ -14,6 +14,7 @@ interface IERC20hTokenRootFactory {
     /*///////////////////////////////////////////////////////////////
                             hTOKEN FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
     /**
      * @notice Function to create a new hToken.
      * @param _name Name of the Token.
@@ -28,5 +29,5 @@ interface IERC20hTokenRootFactory {
                                 ERRORS
     //////////////////////////////////////////////////////////////*/
 
-    error UnrecognizedCoreRouter();
+    error UnrecognizedCoreRouterOrPort();
 }

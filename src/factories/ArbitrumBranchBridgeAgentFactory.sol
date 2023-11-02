@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {WETH9} from "../interfaces/IWETH9.sol";
-
 import {IArbitrumBranchPort as IPort} from "../interfaces/IArbitrumBranchPort.sol";
 
-import {BranchBridgeAgentFactory} from "./BranchBridgeAgentFactory.sol";
 import {ArbitrumBranchBridgeAgent, DeployArbitrumBranchBridgeAgent} from "../ArbitrumBranchBridgeAgent.sol";
+import {BranchBridgeAgentFactory} from "./BranchBridgeAgentFactory.sol";
 
 /**
  * @title  Arbitrum Branch Bridge Agent Factory Contract
@@ -17,21 +15,21 @@ import {ArbitrumBranchBridgeAgent, DeployArbitrumBranchBridgeAgent} from "../Arb
  *         branch chains and the omnichain environment.
  */
 contract ArbitrumBranchBridgeAgentFactory is BranchBridgeAgentFactory {
+    /*///////////////////////////////////////////////////////////////
+                             CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
+
     /**
-     * @notice Constructor for Bridge Agent.
-     *  @param _rootChainId Local Chain Id.
+     * @notice Constructor for Bridge Agent Factory Contract.
+     *  @param _rootChainId Root Chain Layer Zero Id.
      *  @param _rootBridgeAgentFactoryAddress Root Bridge Agent Factory Address.
-     *  @param _wrappedNativeToken Local Wrapped Native Token.
-     *  @param _lzEndpointAddress Local Layer Zero Endpoint for cross-chain communication.
      *  @param _localCoreBranchRouterAddress Local Core Branch Router Address.
-     *  @param _localPortAddress Local Port Address.
+     *  @param _localPortAddress Local Branch Port Address.
      *  @param _owner Owner of the contract.
      */
     constructor(
         uint16 _rootChainId,
         address _rootBridgeAgentFactoryAddress,
-        WETH9 _wrappedNativeToken,
-        address _lzEndpointAddress,
         address _localCoreBranchRouterAddress,
         address _localPortAddress,
         address _owner
@@ -40,37 +38,43 @@ contract ArbitrumBranchBridgeAgentFactory is BranchBridgeAgentFactory {
             _rootChainId,
             _rootChainId,
             _rootBridgeAgentFactoryAddress,
-            _wrappedNativeToken,
-            _lzEndpointAddress,
+            address(0),
             _localCoreBranchRouterAddress,
             _localPortAddress,
             _owner
         )
     {}
 
+    /*///////////////////////////////////////////////////////////////
+                             INITIALIZER
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Initializes the Bridge Agent Factory Contract.
+     * @param _coreRootBridgeAgent Address of the Core Root Bridge Agent.
+     */
     function initialize(address _coreRootBridgeAgent) external override onlyOwner {
+        require(_coreRootBridgeAgent != address(0), "Core Root Bridge Agent Address cannot be 0");
+
         address newCoreBridgeAgent = address(
             DeployArbitrumBranchBridgeAgent.deploy(
-                wrappedNativeToken,
-                rootChainId,
-                _coreRootBridgeAgent,
-                lzEndpointAddress,
-                localCoreBranchRouterAddress,
-                localPortAddress
+                rootChainId, _coreRootBridgeAgent, localCoreBranchRouterAddress, localPortAddress
             )
         );
 
         IPort(localPortAddress).addBridgeAgent(newCoreBridgeAgent);
+
+        renounceOwnership();
     }
 
     /*///////////////////////////////////////////////////////////////
-                        BRIDGE AGENT FUNCTIONS
+                BRIDGE AGENT FACTORY EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Creates a new bridge agent for a branch chain.
      * @param _newBranchRouterAddress Address of the new branch router.
-     * @param _rootBridgeAgentAddress Address of the root bridge agent.
+     * @param _rootBridgeAgentAddress Address of the root bridge agent to connect to.
      */
     function createBridgeAgent(
         address _newBranchRouterAddress,
@@ -87,12 +91,7 @@ contract ArbitrumBranchBridgeAgentFactory is BranchBridgeAgentFactory {
 
         newBridgeAgent = address(
             DeployArbitrumBranchBridgeAgent.deploy(
-                wrappedNativeToken,
-                rootChainId,
-                _rootBridgeAgentAddress,
-                lzEndpointAddress,
-                _newBranchRouterAddress,
-                localPortAddress
+                rootChainId, _rootBridgeAgentAddress, _newBranchRouterAddress, localPortAddress
             )
         );
 

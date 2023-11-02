@@ -1,7 +1,6 @@
 // // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
@@ -9,11 +8,10 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20hTokenRootFactory, ERC20hTokenRoot} from "../interfaces/IERC20hTokenRootFactory.sol";
 
 /// @title ERC20 hToken Root Factory Contract
+/// @author MaiaDAO
 contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
-    using SafeTransferLib for address;
-
     /// @notice Local Network Identifier.
-    uint256 public immutable localChainId;
+    uint16 public immutable localChainId;
 
     /// @notice Root Port Address.
     address public immutable rootPortAddress;
@@ -21,22 +19,33 @@ contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
     /// @notice Root Core Router Address, in charge of the addition of new tokens to the system.
     address public coreRootRouterAddress;
 
+    /// @notice Array of all hTokens created.
     ERC20hTokenRoot[] public hTokens;
 
-    uint256 public hTokensLenght;
+    /*///////////////////////////////////////////////////////////////
+                            CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Constructor for ERC20 hToken Contract
-     *     @param _localChainId Local Network Identifier.
-     *     @param _rootPortAddress Root Port Address
+     * @notice Constructor for ERC20 hToken Root Factory Contract
+     *     @param _localChainId Local Network Layer Zerio Identifier.
+     *     @param _rootPortAddress Root Port Address.
      */
-    constructor(uint256 _localChainId, address _rootPortAddress) {
+    constructor(uint16 _localChainId, address _rootPortAddress) {
         require(_rootPortAddress != address(0), "Root Port Address cannot be 0");
         localChainId = _localChainId;
         rootPortAddress = _rootPortAddress;
         _initializeOwner(msg.sender);
     }
 
+    /*///////////////////////////////////////////////////////////////
+                            INITIALIZER
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Function to initialize the contract.
+     * @param _coreRouter Address of the Root Chain's Core Router.
+     */
     function initialize(address _coreRouter) external onlyOwner {
         require(_coreRouter != address(0), "CoreRouter address cannot be 0");
         coreRootRouterAddress = _coreRouter;
@@ -44,7 +53,19 @@ contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
     }
 
     /*///////////////////////////////////////////////////////////////
-                            hTOKEN FUNCTIONS
+                            VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Function to get the array of hTokens.
+     * @return Array of hTokens.
+     */
+    function getHTokens() external view returns (ERC20hTokenRoot[] memory) {
+        return hTokens;
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                    hTOKEN FACTORY EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     /**
      * @notice Function to create a new hToken.
@@ -54,7 +75,7 @@ contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
      */
     function createToken(string memory _name, string memory _symbol, uint8 _decimals)
         external
-        requiresCoreRouter
+        requiresCoreRouterOrPort
         returns (ERC20hTokenRoot newToken)
     {
         newToken = new ERC20hTokenRoot(
@@ -66,16 +87,17 @@ contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
             _decimals
         );
         hTokens.push(newToken);
-        hTokensLenght++;
     }
 
     /*///////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
     /// @notice Modifier that verifies msg sender is the RootInterface Contract from Root Chain.
-    modifier requiresCoreRouter() {
-        if (msg.sender != coreRootRouterAddress && msg.sender != rootPortAddress) {
-            revert UnrecognizedCoreRouter();
+    modifier requiresCoreRouterOrPort() {
+        if (msg.sender != coreRootRouterAddress) {
+            if (msg.sender != rootPortAddress) {
+                revert UnrecognizedCoreRouterOrPort();
+            }
         }
         _;
     }

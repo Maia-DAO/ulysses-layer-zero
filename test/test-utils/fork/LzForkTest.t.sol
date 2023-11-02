@@ -78,10 +78,10 @@ abstract contract LzForkTest is Test {
     }
 
     // Packet data emitted from a given chain
-    mapping(uint16 fromChain => Packet[] outgoingPackets) public packetsFromChain;
+    mapping(uint16 srcChainId => Packet[] outgoingPackets) public packetsFromChain;
 
     // Packet data emitted to a given chain
-    mapping(uint16 toChain => Packet[] incomingPackets) public packetsToChain;
+    mapping(uint16 dstChainId => Packet[] incomingPackets) public packetsToChain;
 
     // Packet execution status
     mapping(bytes32 packetHash => ExecutionStatus status) public packetExecutionStatus;
@@ -129,7 +129,7 @@ abstract contract LzForkTest is Test {
     /////////////////////////////////
 
     /// @notice setUpDefaultLzChains sets up the default fork chains for testing.
-    function setUpDefaultLzChains() internal {
+    function setUpDefaultLzChains() internal virtual {
         // Access variables from .env file via vm.envString("varname")
         // Change RPCs using your .env file
         // Override setUp() if you don't want to set up Default Layer Zero Chains
@@ -143,7 +143,8 @@ abstract contract LzForkTest is Test {
 
         addChain(
             ForkChain(43114, 106, 0x3c2269811836af69497E5F486A85D7316753cf62),
-            string.concat(vm.envString("AVAX_RPC_URL"), vm.envString("INFURA_API_KEY"))
+            string.concat(vm.envString("AVAX_RPC_URL"), vm.envString("INFURA_API_KEY")),
+            35265612
         );
 
         // addChain(
@@ -153,7 +154,8 @@ abstract contract LzForkTest is Test {
 
         addChain(
             ForkChain(42161, 110, 0x3c2269811836af69497E5F486A85D7316753cf62),
-            string.concat(vm.envString("ARBITRUM_RPC_URL"), vm.envString("INFURA_API_KEY"))
+            string.concat(vm.envString("ARBITRUM_RPC_URL"), vm.envString("INFURA_API_KEY")),
+            131673916
         );
 
         // addChain(
@@ -168,7 +170,9 @@ abstract contract LzForkTest is Test {
 
         // addChain(ForkChain(56, 102, 0x3c2269811836af69497E5F486A85D7316753cf62), vm.envString("BNB_RPC_URL"));
 
-        addChain(ForkChain(250, 112, 0xb6319cC6c8c27A8F5dAF0dD3DF91EA35C4720dd7), vm.envString("FANTOM_RPC_URL"));
+        addChain(
+            ForkChain(250, 112, 0xb6319cC6c8c27A8F5dAF0dD3DF91EA35C4720dd7), vm.envString("FANTOM_RPC_URL"), 68247546
+        );
 
         // addChain(ForkChain(53935, 115, 0x9740FF91F1985D8d2B71494aE1A2f723bb3Ed9E4), (vm.envString("DFK_RPC_URL")));
 
@@ -235,7 +239,7 @@ abstract contract LzForkTest is Test {
     /// @param blockNumber the block number to fork at.
     function addChain(ForkChain memory newChain, string memory chainURL, uint256 blockNumber) public {
         //Verify Addition
-        if (bytes(chainURL).length > 0) return;
+        if (bytes(chainURL).length == 0) return;
         //Create Fork Chain
         uint256 forkChainId = vm.createFork(chainURL, blockNumber);
         //Save new lzChainId
@@ -255,20 +259,18 @@ abstract contract LzForkTest is Test {
     /// @notice switchToChain switches the current chain to the given chain, executing pending Lz packets and updating Lz packets state.
     /// @param chainId the chain to switch to.
     function switchToChain(uint256 chainId) public {
-        console2.log("Switching to chain", chainId);
         vm.selectFork(forkChainIds[chainIdToLzChainId[chainId]]);
-        console2.log("Selected fork", forkChainIds[chainIdToLzChainId[chainId]]);
-        updatePackets("", updateAll);
-        console2.log("Updated Packets", chainIdToLzChainId[chainId]);
-        executePackets(chainId.toUint16());
-        console2.log("Executed packets on chain", chainId);
+        vm.pauseGasMetering();
+        updatePackets();
+        vm.resumeGasMetering();
+        executePackets(chainIdToLzChainId[chainId]);
     }
 
     /// @notice switchToChainWithoutExecutePending switches the current chain to the given chain without executing pending packets.
     /// @param chainId the chain to switch to.
     function switchToChainWithoutExecutePending(uint256 chainId) public {
         vm.selectFork(forkChainIds[chainIdToLzChainId[chainId]]);
-        updatePackets("", updateAll);
+        updatePackets();
     }
 
     /// @notice switchToChainWithoutPacketUpdate switches the current chain to the given chain without updating layer zero packets.
@@ -292,7 +294,8 @@ abstract contract LzForkTest is Test {
     /// @param lzChainId the chain to switch to.
     function switchToLzChain(uint16 lzChainId) public {
         vm.selectFork(forkChainIds[lzChainId]);
-        updatePackets("", updateAll);
+        updatePackets();
+        vm.resumeGasMetering();
         executePackets(lzChainId);
     }
 
@@ -300,7 +303,7 @@ abstract contract LzForkTest is Test {
     /// @param lzChainId the chain to switch to.
     function switchToLzChainWithoutExecutePending(uint16 lzChainId) public {
         vm.selectFork(forkChainIds[lzChainId]);
-        updatePackets("", updateAll);
+        updatePackets();
     }
 
     /// @notice switchToLzChainWithoutPacketUpdate switches the current chain to the given chain without updating layer zero packets.
@@ -321,12 +324,7 @@ abstract contract LzForkTest is Test {
     /////////////////////////////////
 
     /// @notice updatePackets updates Lz packets
-    /// @param data the data to be passed to the skipPacket function
-    /// @param skipPacket the function to be executed upon skipping a packet
-    function updatePackets(
-        bytes memory data,
-        function(bytes memory, Packet memory) internal pure returns (bool) skipPacket
-    ) internal {
+    function updatePackets() public {
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
         console2.log("Events caugth:", entries.length);
@@ -334,6 +332,8 @@ abstract contract LzForkTest is Test {
         for (uint256 i = 0; i < entries.length; i++) {
             // Look for 'RelayerParams' events
             if (entries[i].topics[0] == RELAYER_PARAMS_EVENT_HASH) {
+                console2.log("Current entry", i);
+
                 //// 1. Decode Adapter Params
 
                 // Adapter Params Vars
@@ -345,12 +345,19 @@ abstract contract LzForkTest is Test {
 
                 relayerParams = RelayerParams(adapterParams, outboundProofType);
 
+                console2.log("RelayerParams event found", adapterParams.length);
+
                 //// 2. Increment to next event 'Packet'
                 i += 2;
+
+                console2.log("Found a Packet!");
 
                 //// 3. Decode new packet instance
                 (Packet memory packet, uint16 originLzChainId, uint16 destinationLzChainId) =
                     decodePacket(entries[i].data);
+
+                console2.log("Packet Payload:");
+                console2.logBytes(packet.payload);
 
                 //// 4. Get packet hash
                 bytes32 packetHash = encodePacket(packet);
@@ -359,6 +366,7 @@ abstract contract LzForkTest is Test {
                 if (packetExecutionStatus[packetHash] != ExecutionStatus.None) {
                     continue;
                 }
+
                 //// 6. Update Packet storage
 
                 // Update Packet Execution Status
@@ -369,10 +377,11 @@ abstract contract LzForkTest is Test {
 
                 // Update Incoming Packets
                 packetsToChain[destinationLzChainId].push(packet);
-                console2.log("Packet added to chain", destinationLzChainId);
 
                 // Attach Packet to Adapter Params
                 packetAdapterParams[packetHash] = AdapterParams(relayerAdapterParamsVersion, relayerParams);
+
+                console2.log("Added new Packet to storage");
             }
         }
     }
@@ -396,11 +405,6 @@ abstract contract LzForkTest is Test {
         return abi.decode(data, (uint16)) == packet.destinationLzChainId;
     }
 
-    /// @notice updatePackets updates the packets for all layer zero chains. NOTE: CURRENTLY ONLY EVM COMPATIBLE CHAINS ALLOWED DUE TO ADDRESS SIZE LIMITATIONS.
-    function updateAllPackets() public {
-        updatePackets("", updateAll);
-    }
-
     /////////////////////////////////
     //      Execute Lz Packets     //
     /////////////////////////////////
@@ -409,13 +413,9 @@ abstract contract LzForkTest is Test {
     function executePackets(uint16 lzChainId) public {
         // Get incoming packets
         Packet[] storage incoming = packetsToChain[lzChainId];
-        console2.log("Packets:", incoming.length);
-            console2.log(lzChainId);
 
         // Read packets
         for (uint256 i = 0; i < incoming.length; i++) {
-            console2.log("Packet:", i);
-            console2.log("Packet:", incoming[i].originLzChainId);
             // Get packet
             Packet memory packet = incoming[i];
 
@@ -447,7 +447,7 @@ abstract contract LzForkTest is Test {
         }
 
         // Get Receiving Endpoint in destination chain
-        address receivingEndpoint = forkChains[packet.originLzChainId].lzEndpoint;
+        address receivingEndpoint = forkChains[packet.destinationLzChainId].lzEndpoint;
 
         //Get Application Config for destination User Application
         address receivingLibrary = ILayerZeroEndpoint(receivingEndpoint).getReceiveLibraryAddress(packet.destinationUA);
@@ -459,6 +459,7 @@ abstract contract LzForkTest is Test {
         uint256 gasLimit = handleAdapterParams(adapterParams);
 
         // Acquire gas, Prank into Library and Mock LayerZeroEndpoint.receivePayload call
+        vm.deal(receivingLibrary, gasLimit * tx.gasprice);
         vm.prank(receivingLibrary);
         ILayerZeroEndpoint(receivingEndpoint).receivePayload(
             packet.originLzChainId,
@@ -477,46 +478,50 @@ abstract contract LzForkTest is Test {
     function handleAdapterParams(AdapterParams memory params) internal returns (uint256 gasLimit) {
         // Save adapter params to memory
         bytes memory adapterParams = params.relayerParams.adapterParams;
-        console2.log("Adapter Params:", adapterParams.length);
-        console2.logBytes(adapterParams);
 
         // Check if adapter params are empty
         if (adapterParams.length > 0) {
             // Get adapter Params Version
-            uint256 version;
+            uint16 version;
             assembly ("memory-safe") {
                 // Load 32 bytes from encodedPacket + mask out remaining 32 - 2 = 30 bytes
-                version := shr(240, and(mload(adapterParams), 0xffff000000000000000000000000000000000000000000000000000000000000))
+                version := shr(240, mload(add(adapterParams, 32)))
             }
-        console2.log("Version:", version);
+
+            console2.log("Send Library Version: ", version);
+
             // Serve request according to relayerVersion
             if (version == 1) {
                 assembly ("memory-safe") {
                     // Load 32 bytes from adapterParams offsetting the first 2 bytes
-                    gasLimit := mload(add(adapterParams, 2))
+                    gasLimit := mload(add(adapterParams, 34))
                 }
+                console2.log("Gas Limit: ", gasLimit);
             } else if (version == 2) {
                 uint256 nativeForDst;
                 address addressOnDst;
                 assembly ("memory-safe") {
                     // Load 32 bytes from adapterParams offsetting the first 2 bytes
-                    gasLimit := mload(add(adapterParams, 2))
+                    gasLimit := mload(add(adapterParams, 34))
 
                     // Load 32 bytes from adapterParams offsetting the first 34 bytes
-                    nativeForDst := mload(add(adapterParams, 34))
+                    nativeForDst := mload(add(adapterParams, 66))
 
                     // Load 32 bytes from adapterParams + mask out remaining 32 - 20 = 12 bytes offsetting the first 66 bytes
                     addressOnDst :=
-                        shr(96, and(
-                            mload(add(adapterParams, 66)),
-                            0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-                        ))
+                        and(
+                            mload(add(adapterParams, 86)),
+                            0x000000000000000000000000ffffffffffffffffffffffffffffffffffffffff
+                        )
                 }
                 // Send gas airdrop
-                deal(address(this), nativeForDst);
-                addressOnDst.call{value: nativeForDst}("");
+                console2.log("Gas Limit: ", gasLimit);
+                console2.log("Native Receiver on Destination: ", addressOnDst);
+                console2.log("Native Amount for Destination: ", nativeForDst);
 
-                console2.log("Gas Limit:", gasLimit);
+                console2.log("Sending native token airdrop...");
+                deal(address(this), nativeForDst * tx.gasprice);
+                addressOnDst.call{value: nativeForDst * tx.gasprice}("");
             }
         } else {
             gasLimit = 200_000;
@@ -528,7 +533,7 @@ abstract contract LzForkTest is Test {
     /////////////////////////////////
 
     /// @notice encodePacket creates a 32 byte long keccak256 hash of Packet
-    function encodePacket(Packet memory packet) public returns (bytes32) {
+    function encodePacket(Packet memory packet) public pure returns (bytes32) {
         return keccak256(abi.encode(packet));
     }
 
@@ -541,70 +546,78 @@ abstract contract LzForkTest is Test {
         address destinationUA,
         bytes memory payload,
         bytes memory data
-    ) public returns (bytes32) {
+    ) public pure returns (bytes32) {
         return
             encodePacket(Packet(nonce, originLzChainId, originUA, destinationLzChainId, destinationUA, payload, data));
     }
 
     /// @notice decodePacket decodes the encoded packet into a Packet struct
+    /// @dev Packet is encodePacked as follows:
+    ///       _____________________________________________________________________________________
+    ///      | nonce | originLzChainId | originUA | destinationLzChainId | destinationUA | payload |
+    ///      |_______|_________________|__________|______________________|_______________|_________|
+    ///      |  8    |        2        |    20    |           2          |      20       |   var   |
+    ///      |_______|_________________|__________|______________________|_______________|_________|
     function decodePacket(bytes memory encodedPacket)
         internal
-        returns (
-            // pure
-            Packet memory packet,
-            uint16 originLzChainId,
-            uint16 destinationLzChainId
-        )
+        pure
+        returns (Packet memory packet, uint16 originLzChainId, uint16 destinationLzChainId)
     {
+        //Auxiliary Decoding Vars
+        uint256 offset;
+
         // Packet Vars
         uint64 nonce;
         address originUA;
         address destinationUA;
 
-        assembly ("memory-safe") {         
-            // Load first 32 bytes from encodedPacket + mask out remaining 32 - 8 = 24 bytes
-            nonce :=
-                shr(192, and(mload(add(encodedPacket, 96)), 0xffffffffffffffff000000000000000000000000000000000000000000000000))
+        encodedPacket = abi.decode(encodedPacket, (bytes));
 
-            // Load 32 bytes from encodedPacket + mask out remaining 32 - 2 = 30 bytes
+        assembly ("memory-safe") {
+            // Read memory offset
+            offset := add(mload(encodedPacket), 32)
+            if gt(offset, 63) { offset := 32 }
+
+            // Ignore first 64 bytes of word and byte length. Load first 32 bytes from encodedPacket + mask out remaining 32 - 8 = 24 bytes
+            nonce := shr(192, mload(add(encodedPacket, offset)))
+
+            // Ignore first 64 bytes of word and byte length. Load 32 bytes from encodedPacket + mask out remaining 32 - 2 = 30 bytes
             originLzChainId :=
                 shr(
-                    240,
-                    and(mload(add(add(encodedPacket, 96), 8)), 0xffff000000000000000000000000000000000000000000000000000000000000)
+                    176,
+                    and(
+                        mload(add(encodedPacket, offset)),
+                        0x0000000000000000ffff00000000000000000000000000000000000000000000
+                    )
                 )
 
-            // Load 32 bytes from encodedPacket + mask out remaining 32 - 20 = 12 bytes
+            // Ignore first 64 bytes of word and byte length. Load 32 bytes from encodedPacket + mask out remaining 32 - 20 = 12 bytes
             originUA :=
                 shr(
-                    96,
-                    and(mload(add(add(encodedPacket, 96), 10)), 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000)
+                    16,
+                    and(
+                        mload(add(encodedPacket, offset)),
+                        0x00000000000000000000ffffffffffffffffffffffffffffffffffffffff0000
+                    )
                 )
 
-            // Load 32 bytes from encodedPacket + mask out remaining 32 - 2 = 30 bytes
+            // Ignore first 64 bytes of word and byte length. Load 32 bytes from encodedPacket + mask out remaining 32 - 2 = 30 bytes
             destinationLzChainId :=
-                shr(
-                    240,
-                    and(mload(add(add(encodedPacket, 96), 30)), 0xffff000000000000000000000000000000000000000000000000000000000000)
-                )
+                and(mload(add(encodedPacket, offset)), 0x000000000000000000000000000000000000000000000000000000000000ffff)
 
-            // Load 32 bytes from encodedPacket + mask out remaining 32 - 20 = 12 bytes
+            // Ignore first 64 bytes of word and byte length and an additional 20 since 32 + 20 = 52 (header length in bytes). Load 32 bytes from encodedPacket + mask out remaining 32 - 20 = 12 bytes
             destinationUA :=
-                shr(
-                    96,
-                    and(mload(add(add(encodedPacket, 96), 32)), 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000)
+                and(
+                    mload(add(encodedPacket, add(offset, 20))),
+                    0x000000000000000000000000ffffffffffffffffffffffffffffffffffffffff
                 ) // Mask out 32 - 20 bytes
         }
 
         if (encodedPacket.length > 52) {
-            packet = Packet(
-                nonce,
-                originLzChainId,
-                originUA,
-                destinationLzChainId,
-                destinationUA,
-                bytes(string(encodedPacket).slice(52)),
-                encodedPacket
-            );
+            bytes memory payload = bytes(string(encodedPacket).slice(52));
+
+            packet =
+                Packet(nonce, originLzChainId, originUA, destinationLzChainId, destinationUA, payload, encodedPacket);
         } else {
             packet = Packet(nonce, originLzChainId, originUA, destinationLzChainId, destinationUA, "", encodedPacket);
         }

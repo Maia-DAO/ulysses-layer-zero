@@ -13,98 +13,81 @@ import {DepositParams, DepositMultipleParams} from "../interfaces/IRootBridgeAge
  */
 interface IRootRouter {
     /*///////////////////////////////////////////////////////////////
-                        ANYCALL FUNCTIONS
+                        LAYERZERO FUNCTIONS
     ///////////////////////////////////////////////////////////////*/
 
     /**
      *     @notice Function to execute Branch Bridge Agent system initiated requests with no asset deposit.
-     *     @param funcId 1 byte called Router function identifier.
-     *     @param encodedData data received from messaging layer.
-     *     @param fromChainId chain where the request originated from.
+     *     @param params data received from messaging layer.
+     *     @param srcChainId chain where the request originated from.
      *
      */
-    function executeResponse(bytes1 funcId, bytes memory encodedData, uint16 fromChainId) external payable;
+    function executeResponse(bytes memory params, uint16 srcChainId) external payable;
 
     /**
      *     @notice Function responsible of executing a crosschain request without any deposit.
-     *     @param funcId 1 byte Router function identifier.
-     *     @param encodedData data received from messaging layer.
-     *     @param fromChainId chain where the request originated from.
+     *     @param params data received from messaging layer.
+     *     @param srcChainId chain where the request originated from.
      *
      */
-    function execute(bytes1 funcId, bytes memory encodedData, uint16 fromChainId) external payable;
+    function execute(bytes memory params, uint16 srcChainId) external payable;
 
     /**
      *   @notice Function responsible of executing a crosschain request which contains cross-chain deposit information attached.
-     *   @param funcId 1 byte Router function identifier.
-     *   @param encodedData execution data received from messaging layer.
+     *   @param params execution data received from messaging layer.
      *   @param dParams cross-chain deposit information.
-     *   @param fromChainId chain where the request originated from.
+     *   @param srcChainId chain where the request originated from.
      *
      */
-    function executeDepositSingle(
-        bytes1 funcId,
-        bytes memory encodedData,
-        DepositParams memory dParams,
-        uint16 fromChainId
-    ) external payable;
-
-    /**
-     *   @notice Function responsible of executing a crosschain request which contains cross-chain deposit information for multiple assets attached.
-     *   @param funcId 1 byte Router function identifier.
-     *   @param encodedData execution data received from messaging layer.
-     *   @param dParams cross-chain multiple deposit information.
-     *   @param fromChainId chain where the request originated from.
-     *
-     */
-    function executeDepositMultiple(
-        bytes1 funcId,
-        bytes memory encodedData,
-        DepositMultipleParams memory dParams,
-        uint16 fromChainId
-    ) external payable;
-
-    /**
-     * @notice Function responsible of executing a crosschain request with msg.sender without any deposit.
-     * @param funcId 1 byte Router function identifier.
-     * @param encodedData execution data received from messaging layer.
-     * @param userAccount user account address.
-     * @param fromChainId chain where the request originated from.
-     */
-    function executeSigned(bytes1 funcId, bytes memory encodedData, address userAccount, uint16 fromChainId)
+    function executeDepositSingle(bytes memory params, DepositParams memory dParams, uint16 srcChainId)
         external
         payable;
 
     /**
+     *   @notice Function responsible of executing a crosschain request which contains cross-chain deposit information for multiple assets attached.
+     *   @param params execution data received from messaging layer.
+     *   @param dParams cross-chain multiple deposit information.
+     *   @param srcChainId chain where the request originated from.
+     *
+     */
+    function executeDepositMultiple(bytes memory params, DepositMultipleParams memory dParams, uint16 srcChainId)
+        external
+        payable;
+
+    /**
+     * @notice Function responsible of executing a crosschain request with msg.sender without any deposit.
+     * @param params execution data received from messaging layer.
+     * @param userAccount user account address.
+     * @param srcChainId chain where the request originated from.
+     */
+    function executeSigned(bytes memory params, address userAccount, uint16 srcChainId) external payable;
+
+    /**
      * @notice Function responsible of executing a crosschain request which contains cross-chain deposit information and msg.sender attached.
-     * @param funcId 1 byte Router function identifier.
-     * @param encodedData execution data received from messaging layer.
+     * @param params execution data received from messaging layer.
      * @param dParams cross-chain deposit information.
      * @param userAccount user account address.
-     * @param fromChainId chain where the request originated from.
+     * @param srcChainId chain where the request originated from.
      */
     function executeSignedDepositSingle(
-        bytes1 funcId,
-        bytes memory encodedData,
+        bytes memory params,
         DepositParams memory dParams,
         address userAccount,
-        uint16 fromChainId
+        uint16 srcChainId
     ) external payable;
 
     /**
      * @notice Function responsible of executing a crosschain request which contains cross-chain deposit information for multiple assets and msg.sender attached.
-     * @param funcId 1 byte Router function identifier.
-     * @param encodedData execution data received from messaging layer.
+     * @param params execution data received from messaging layer.
      * @param dParams cross-chain multiple deposit information.
      * @param userAccount user account address.
-     * @param fromChainId chain where the request originated from.
+     * @param srcChainId chain where the request originated from.
      */
     function executeSignedDepositMultiple(
-        bytes1 funcId,
-        bytes memory encodedData,
+        bytes memory params,
         DepositMultipleParams memory dParams,
         address userAccount,
-        uint16 fromChainId
+        uint16 srcChainId
     ) external payable;
 
     /*///////////////////////////////////////////////////////////////

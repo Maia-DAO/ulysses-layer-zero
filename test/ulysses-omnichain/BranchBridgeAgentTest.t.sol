@@ -1,26 +1,9 @@
 //SPDX-License-Identifier: AGPL-3.0-only
+pragma solidity ^0.8.0;
 
-import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
-import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
-import {stdError} from "forge-std/StdError.sol";
-import {Test} from "forge-std/Test.sol";
-import {WETH9 as WETH} from "./mocks/WETH9.sol";
-import {console2} from "forge-std/console2.sol";
-import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
-
-import {IBranchRouter} from "@omni/interfaces/IBranchRouter.sol";
-
-import {Deposit, DepositStatus, DepositMultipleInput, DepositInput} from "@omni/interfaces/IBranchBridgeAgent.sol";
-
-import {MockBranchBridgeAgent, WETH9, DepositParams, DepositMultipleParams} from "./mocks/MockBranchBridgeAgent.t.sol";
-import {GasParams} from "@omni/interfaces/IBranchBridgeAgent.sol";
-import {BaseBranchRouter} from "@omni/BaseBranchRouter.sol";
-import {BranchPort} from "@omni/BranchPort.sol";
-import {ERC20hTokenBranch} from "@omni/token/ERC20hTokenBranch.sol";
+import "./helpers/ImportHelper.sol";
 
 contract BranchBridgeAgentTest is Test {
-    using SafeCastLib for uint256;
-
     MockERC20 underlyingToken;
 
     MockERC20 rewardToken;
@@ -29,9 +12,7 @@ contract BranchBridgeAgentTest is Test {
 
     BaseBranchRouter bRouter;
 
-    MockBranchBridgeAgent bAgent;
-
-    address wrappedNativeToken;
+    BranchBridgeAgent bAgent;
 
     uint16 rootChainId = uint16(42161);
 
@@ -41,15 +22,13 @@ contract BranchBridgeAgentTest is Test {
 
     address lzEndpointAddress = address(0xCAFE);
 
-    address payable localAnyCongfig = payable(address(new MockAnyConfig()));
-
     address localPortAddress;
 
     address owner = address(this);
 
-    function setUp() public {
-        wrappedNativeToken = address(new WETH());
+    bytes private rootBridgeAgentPath;
 
+    function setUp() public {
         underlyingToken = new MockERC20("underlying token", "UNDER", 18);
 
         rewardToken = new MockERC20("hermes token", "HERMES", 18);
@@ -59,16 +38,11 @@ contract BranchBridgeAgentTest is Test {
         testToken = new ERC20hTokenBranch(       "Test Ulysses ",
             "test-u","Hermes underlying token", "hUNDER",18, address(this));
 
-        vm.mockCall(lzEndpointAddress, abi.encodeWithSignature("executor()"), abi.encode(lzEndpointAddress));
-
-        vm.mockCall(lzEndpointAddress, abi.encodeWithSignature("config()"), abi.encode(localAnyCongfig));
-
         bRouter = new BaseBranchRouter();
 
-        BranchPort(localPortAddress).initialize(address(bRouter), address(this));
+        BranchPort(payable(localPortAddress)).initialize(address(bRouter), address(this));
 
-        bAgent = new MockBranchBridgeAgent(
-            WETH9(wrappedNativeToken),
+        bAgent = new BranchBridgeAgent(
             rootChainId,
             localChainId,
             rootBridgeAgentAddress,
@@ -79,96 +53,204 @@ contract BranchBridgeAgentTest is Test {
 
         bRouter.initialize(address(bAgent));
 
-        BranchPort(localPortAddress).addBridgeAgent(address(bAgent));
+        BranchPort(payable(localPortAddress)).addBridgeAgent(address(bAgent));
+
+        rootBridgeAgentPath = abi.encodePacked(rootBridgeAgentAddress, address(bAgent));
+
+        vm.mockCall(lzEndpointAddress, "", "");
     }
 
-    fallback() external payable {}
+    receive() external payable {}
+
+    function _getAdapterParams(uint256 _gasLimit, uint256 _remoteBranchExecutionGas)
+        internal
+        view
+        returns (bytes memory)
+    {
+        return abi.encodePacked(uint16(2), _gasLimit, _remoteBranchExecutionGas, rootBridgeAgentAddress);
+    }
+
+    function expectLayerZeroSend(uint256 msgValue, bytes memory data, address refundee, GasParams memory gasParams)
+        internal
+    {
+        vm.expectCall(
+            lzEndpointAddress,
+            msgValue,
+            abi.encodeWithSelector(
+                // "send(uint16,bytes,bytes,address,address,bytes)",
+                ILayerZeroEndpoint.send.selector,
+                rootChainId,
+                rootBridgeAgentPath,
+                data,
+                refundee,
+                address(0),
+                _getAdapterParams(gasParams.gasLimit, gasParams.remoteBranchExecutionGas)
+            )
+        );
+    }
 
     function testCallOutNoDeposit() public {
-        //Get some gas.
-        vm.deal(address(this), 1 ether);
-
-        //GasParams
-        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
-
-        console2.log("Test CallOut Addresses:");
-        console2.log(address(testToken), address(underlyingToken));
-
-        //Call Deposit function
-        IBranchRouter(bRouter).callOut{value: 1 ether}("testdata", gasParams);
+        testFuzzCallOutNoDeposit(address(this));
     }
 
-    // function testCallOutNoDepositNotEnoughGas() public {
-    //     //Get some gas.
-    //     vm.deal(address(this), 1 ether);
-
-    //     //GasParams
-    //     GasParams memory gasParams = GasParams(1, 0);
-
-    //     console2.logUint(1);
-    //     console2.log(address(testToken), address(underlyingToken));
-
-    //     vm.expectRevert(abi.encodeWithSignature("InsufficientGas()"));
-
-    //     //Call Deposit function
-    //     IBranchRouter(bRouter).callOut{value: 200}("testdata", gasParams);
-    // }
-
-    function testFuzzCallOutNoDeposit(address _user, uint256 _amount, uint256 _toChain) public {
+    function testFuzzCallOutNoDeposit(address _user) public {
         // Input restrictions
-        vm.assume(_user > address(2) && _amount > 0 && _toChain > 0);
-
-        //GasParams
-        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+        if (_user < address(3)) _user = address(3);
 
         // Prank into user account
         vm.startPrank(_user);
 
-        //Get some gas.
+        // Get some gas.
         vm.deal(_user, 1 ether);
+
+        //GasParams
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+
+        uint32 depositNonce = bAgent.depositNonce();
+
+        expectLayerZeroSend(1 ether, abi.encodePacked(bytes1(0x01), depositNonce, "testdata"), _user, gasParams);
 
         //Call Deposit function
         IBranchRouter(bRouter).callOut{value: 1 ether}("testdata", gasParams);
 
         // Prank out of user account
         vm.stopPrank();
+
+        assertEq(bAgent.depositNonce(), depositNonce + 1);
     }
 
     function testCallOutWithDeposit() public {
-        //Get some gas.
-        vm.deal(address(this), 1 ether);
+        testCallOutWithDeposit(address(this), 100 ether);
+    }
+
+    function testCallOutWithDeposit(address _user, uint256 _amount) public {
+        // Input restrictions
+        if (_user < address(3)) _user = address(3);
+        else if (_user == localPortAddress) _user = address(uint160(_user) - 10);
+
+        // Prank into user account
+        vm.startPrank(_user);
+
+        // Get some gas.
+        vm.deal(_user, 1 ether);
 
         //GasParams
         GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
 
         //Mint Test tokens.
-        underlyingToken.mint(address(this), 100 ether);
+        underlyingToken.mint(_user, _amount);
 
         //Approve spend by router
-        underlyingToken.approve(address(bRouter), 100 ether);
+        underlyingToken.approve(address(bRouter), _amount);
 
         console2.log("Test CallOut Addresses:");
         console2.log(address(testToken), address(underlyingToken));
 
-        //Prepare deposit info
+        // Prepare deposit info
         DepositInput memory depositInput = DepositInput({
             hToken: address(testToken),
             token: address(underlyingToken),
-            amount: 100 ether,
-            deposit: 100 ether
+            amount: _amount,
+            deposit: _amount
         });
 
-        //Call Deposit function
-        IBranchRouter(bRouter).callOutAndBridge{value: 1 ether}(bytes("test"), depositInput, gasParams);
+        uint32 depositNonce = bAgent.depositNonce();
 
-        //Test If Deposit was successful
-        testCreateDepositSingle(
-            uint32(1), address(this), address(testToken), address(underlyingToken), 100 ether, 100 ether
+        expectLayerZeroSend(
+            1 ether,
+            abi.encodePacked(
+                bytes1(0x02),
+                depositNonce,
+                depositInput.hToken,
+                depositInput.token,
+                depositInput.amount,
+                depositInput.deposit,
+                "testdata"
+            ),
+            _user,
+            gasParams
         );
+
+        //Call Deposit function
+        IBranchRouter(bRouter).callOutAndBridge{value: 1 ether}("testdata", depositInput, gasParams);
+
+        // Prank out of user account
+        vm.stopPrank();
+
+        assertEq(bAgent.depositNonce(), depositNonce + 1);
+
+        // Test If Deposit was successful
+        testCreateDepositSingle(uint32(1), _user, address(testToken), address(underlyingToken), _amount, _amount);
+    }
+
+    address storedFallbackUser;
+
+    function testCallOutSignedAndBridge(address _user, uint256 _amount) public {
+        // Input restrictions
+        if (_user < address(3)) _user = address(3);
+        else if (_user == localPortAddress) _user = address(uint160(_user) - 10);
+
+        // Prank into user account
+        vm.startPrank(_user);
+
+        // Get some gas.
+        vm.deal(_user, 1 ether);
+
+        //GasParams
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+
+        //Mint Test tokens.
+        underlyingToken.mint(_user, _amount);
+
+        //Approve spend by router
+        underlyingToken.approve(localPortAddress, _amount);
+
+        console2.log("Test CallOut Addresses:");
+        console2.log(address(testToken), address(underlyingToken));
+
+        // Prepare deposit info
+        DepositInput memory depositInput = DepositInput({
+            hToken: address(testToken),
+            token: address(underlyingToken),
+            amount: _amount,
+            deposit: _amount
+        });
+
+        uint32 depositNonce = bAgent.depositNonce();
+
+        expectLayerZeroSend(
+            1 ether,
+            abi.encodePacked(
+                bytes1(0x85),
+                _user,
+                depositNonce,
+                depositInput.hToken,
+                depositInput.token,
+                depositInput.amount,
+                depositInput.deposit,
+                "testdata"
+            ),
+            _user,
+            gasParams
+        );
+
+        //Call Deposit function
+        bAgent.callOutSignedAndBridge{value: 1 ether}(payable(_user), "testdata", depositInput, gasParams, true);
+
+        // Prank out of user account
+        vm.stopPrank();
+
+        assertEq(bAgent.depositNonce(), depositNonce + 1);
+
+        // Test If Deposit was successful
+        testCreateDepositSingle(uint32(1), _user, address(testToken), address(underlyingToken), _amount, _amount);
+
+        // Store user for usage in other tests
+        storedFallbackUser = _user;
     }
 
     function testCallOutInsufficientAmount() public {
-        //Get some gas.
+        // Get some gas.
         vm.deal(address(this), 1 ether);
 
         //GasParams
@@ -183,7 +265,7 @@ contract BranchBridgeAgentTest is Test {
         console2.log("Test CallOut TokenAddresses:");
         console2.log(address(testToken), address(underlyingToken));
 
-        //Prepare deposit info
+        // Prepare deposit info
         DepositInput memory depositInput = DepositInput({
             hToken: address(testToken),
             token: address(underlyingToken),
@@ -194,11 +276,11 @@ contract BranchBridgeAgentTest is Test {
         vm.expectRevert(abi.encodeWithSignature("TransferFromFailed()"));
 
         //Call Deposit function
-        IBranchRouter(bRouter).callOutAndBridge{value: 1 ether}(bytes("test"), depositInput, gasParams);
+        IBranchRouter(bRouter).callOutAndBridge{value: 1 ether}(bytes("testdata"), depositInput, gasParams);
     }
 
     function testCallOutIncorrectAmount() public {
-        //Get some gas.
+        // Get some gas.
         vm.deal(address(this), 1 ether);
 
         //GasParams
@@ -213,7 +295,7 @@ contract BranchBridgeAgentTest is Test {
         console2.logUint(1);
         console2.log(address(testToken), address(underlyingToken));
 
-        //Prepare deposit info
+        // Prepare deposit info
         DepositInput memory depositInput = DepositInput({
             hToken: address(testToken),
             token: address(underlyingToken),
@@ -224,25 +306,28 @@ contract BranchBridgeAgentTest is Test {
         vm.expectRevert(stdError.arithmeticError);
 
         //Call Deposit function
-        IBranchRouter(bRouter).callOutAndBridge{value: 1 ether}(bytes("test"), depositInput, gasParams);
+        IBranchRouter(bRouter).callOutAndBridge{value: 1 ether}(bytes("testdata"), depositInput, gasParams);
     }
 
-    function testFuzzCallOutWithDeposit(address _user, uint256 _amount, uint256 _deposit, uint256 _toChain) public {
+    function testFuzzCallOutWithDeposit() public {
+        testFuzzCallOutWithDeposit(address(this), 1 ether, 0.5 ether, 18);
+    }
+
+    function testFuzzCallOutWithDeposit(address _user, uint256 _amount, uint256 _deposit, uint8 _decimals) public {
         // Input restrictions
-        vm.assume(_user != address(0) && _amount > 0 && _amount > _deposit && _toChain > 0);
+        if (_user < address(3)) _user = address(3);
+        if (_amount == 0) _amount = 1;
+        if (_amount < _deposit) _deposit %= _amount;
 
-        //Get some gas.
+        // Get some gas.
         vm.deal(_user, 1 ether);
-
-        //GasParams
-        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
 
         // Prank into Port
         vm.startPrank(localPortAddress);
 
         // Mint Test tokens.
         ERC20hTokenBranch fuzzToken =
-            new ERC20hTokenBranch("Test Ulysses ", "test-u","fuzz token", "FUZZ",18, localPortAddress);
+            new ERC20hTokenBranch("Test Ulysses ", "test-u","fuzz token", "FUZZ",_decimals, localPortAddress);
         fuzzToken.mint(_user, _amount - _deposit);
 
         // Mint under tokens.
@@ -251,7 +336,7 @@ contract BranchBridgeAgentTest is Test {
             "test-u",
             "uunder token",
             "UU",
-            18,
+            _decimals,
             localPortAddress
         );
         uunderToken.mint(_user, _deposit);
@@ -269,119 +354,58 @@ contract BranchBridgeAgentTest is Test {
         fuzzToken.approve(address(bRouter), _amount);
         uunderToken.approve(address(bRouter), _deposit);
 
+        uint32 depositNonce = bAgent.depositNonce();
+
+        address _userCache = _user;
+
+        //GasParams
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+
+        expectLayerZeroSend(
+            1 ether,
+            abi.encodePacked(
+                bytes1(0x02),
+                depositNonce,
+                depositInput.hToken,
+                depositInput.token,
+                depositInput.amount,
+                depositInput.deposit,
+                "testdata"
+            ),
+            _userCache,
+            gasParams
+        );
+
         //Call Deposit function
         IBranchRouter(bRouter).callOutAndBridge{value: 1 ether}(bytes("testdata"), depositInput, gasParams);
 
         // Prank out of user account
         vm.stopPrank();
 
+        assertEq(bAgent.depositNonce(), depositNonce + 1);
+
         // Test If Deposit was successful
         testCreateDepositSingle(uint32(1), _user, address(fuzzToken), address(uunderToken), _amount, _deposit);
     }
 
-    // function testFuzzCallOutWithDeposit(address _user, uint256 _amount, uint256 _deposit, uint256 _toChain) public {
-    //     testFuzzCallOutWithDepositTokenDecimals(_user, _amount, _deposit, _toChain, 18);
-    // }
-
-    // function testFuzzCallOutWithDepositTokenDecimals(
-    //     address _user,
-    //     uint256 _amount,
-    //     uint256 _deposit,
-    //     uint256 _toChain,
-    //     uint8 _decimals
-    // ) public {
-    //     // Input restrictions
-    //     _decimals %= 77;
-    //     _amount %= (type(uint256).max / 1 ether) - (_decimals > 18 ? 10 ** (_decimals - 18) : 0);
-    //     // _amount += (_decimals > 18 ? 10 ** (_decimals - 18) : 0);
-
-    //     // _deposit += 10 ** _decimals;
-    //     _deposit += (_decimals > 18 ? 10 ** (_decimals - 18) : 0);
-    //     // _deposit += (_decimals < 18 ? 10 ** (18 - _decimals) : 10 ** (_decimals - 18));
-
-    //     vm.assume(_user != address(0) && _deposit < _amount && _toChain > 0 && _decimals > 0);
-
-    //     console2.log("amount", _amount);
-    //     console2.log("deposit", _deposit);
-
-    //     //Get some gas.
-    //     vm.deal(_user, 1 ether);
-
-    //     //GasParams
-    //     GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
-
-    //     // Prank into Port
-    //     vm.startPrank(localPortAddress);
-
-    //     // Mint Test tokens.
-    //     ERC20hTokenBranch fuzzToken = new ERC20hTokenBranch(       "Test Ulysses ",
-    //         "test-u","fuzz token", "FUZZ",18, localPortAddress);
-    //     fuzzToken.mint(_user, _amount - _deposit);
-
-    //     // Mint under tokens.
-    //     MockERC20 uunderToken = new MockERC20(
-    //         "uunder token",
-    //         "UU",
-    //         _decimals
-    //     );
-    //     uunderToken.mint(_user, _deposit);
-
-    //     vm.stopPrank();
-
-    //     //Prepare deposit info
-    //     DepositInput memory depositInput =
-    //         DepositInput({hToken: address(fuzzToken), token: address(uunderToken), amount: _amount, deposit: _deposit});
-
-    //     // Prank into user account
-    //     vm.startPrank(_user);
-
-    //     // Approve spend by router
-    //     fuzzToken.approve(address(bRouter), _amount);
-    //     uunderToken.approve(address(bRouter), _deposit);
-
-    //     //Call Deposit function
-    //     IBranchRouter(bRouter).callOutAndBridge{value: 1 ether}(bytes("testdata"), depositInput, gasParams);
-
-    //     // Prank out of user account
-    //     vm.stopPrank();
-
-    //     // Test If Deposit was successful
-    //     testCreateDepositSingle(uint32(1), _user, address(fuzzToken), address(uunderToken), _amount, _deposit);
-    // }
-
     function testFallbackClearDepositRedeemSuccess() public {
         // Create Test Deposit
-        testCallOutWithDeposit();
+        testCallOutSignedAndBridge(address(this), 100 ether);
 
         vm.deal(localPortAddress, 1 ether);
 
-        //Prepare deposit info
-        DepositParams memory depositParams = DepositParams({
-            hToken: address(testToken),
-            token: address(underlyingToken),
-            amount: 100 ether,
-            deposit: 100 ether,
-            depositNonce: 1
-        });
-
         // Encode Fallback message
-        bytes memory fallbackData = abi.encodePacked(
-            bytes1(0x03),
-            bytes1(0x02),
-            depositParams.depositNonce,
-            depositParams.hToken,
-            depositParams.token,
-            depositParams.amount,
-            depositParams.deposit,
-            bytes("testdata")
-        );
+        bytes memory fallbackData = abi.encodePacked(bytes1(0x04), uint32(1));
 
         // Call 'Fallback'
         vm.prank(lzEndpointAddress);
-        bAgent.lzReceive(rootChainId, abi.encodePacked(rootBridgeAgentAddress, bAgent), 1, fallbackData);
+        bAgent.lzReceive(rootChainId, abi.encodePacked(bAgent, rootBridgeAgentAddress), 1, fallbackData);
 
-        //Call redeemDeposit
+        // Call redeemDeposit
         bAgent.redeemDeposit(1);
+
+        // Check deposit state
+        require(bAgent.getDepositEntry(1).owner == address(0), "Deposit should be deleted");
 
         // Check balances
         require(testToken.balanceOf(address(this)) == 0);
@@ -391,102 +415,47 @@ contract BranchBridgeAgentTest is Test {
     }
 
     function testFallbackClearDepositRedeemAlreadyRedeemed() public {
-        // Create Test Deposit
-        testCallOutWithDeposit();
-
-        vm.deal(localPortAddress, 1 ether);
-
-        //Prepare deposit info
-        DepositParams memory depositParams = DepositParams({
-            hToken: address(testToken),
-            token: address(underlyingToken),
-            amount: 100 ether,
-            deposit: 100 ether,
-            depositNonce: 1
-        });
-
-        // Encode Fallback message
-        bytes memory fallbackData = abi.encodePacked(
-            bytes1(0x03),
-            bytes1(0x02),
-            depositParams.depositNonce,
-            depositParams.hToken,
-            depositParams.token,
-            depositParams.amount,
-            depositParams.deposit,
-            bytes("testdata")
-        );
-
-        // Call 'Fallback'
-        vm.prank(lzEndpointAddress);
-        bAgent.lzReceive(rootChainId, abi.encodePacked(rootBridgeAgentAddress, bAgent), 1, fallbackData);
-
-        //Call redeemDeposit
-        bAgent.redeemDeposit(1);
-
-        // Check balances
-        require(testToken.balanceOf(address(this)) == 0);
-        require(underlyingToken.balanceOf(address(this)) == 100 ether);
-        require(testToken.balanceOf(localPortAddress) == 0);
-        require(underlyingToken.balanceOf(localPortAddress) == 0);
+        // Redeem once
+        testFallbackClearDepositRedeemSuccess();
 
         vm.expectRevert(abi.encodeWithSignature("DepositRedeemUnavailable()"));
 
-        //Call redeemDeposit
+        // Call redeemDeposit again
         bAgent.redeemDeposit(1);
     }
 
-    function testFallbackClearDepositRedeemDoubleAnycall() public {
+    function testFallbackClearDepositRedeemDouble() public {
         // Create Test Deposit
-        testCallOutWithDeposit();
-
-        // vm.deal(localPortAddress, 1 ether);
-
-        //Prepare deposit info
-        DepositParams memory depositParams = DepositParams({
-            hToken: address(testToken),
-            token: address(underlyingToken),
-            amount: 100 ether,
-            deposit: 100 ether,
-            depositNonce: 1
-        });
+        testCallOutSignedAndBridge(address(this), 100 ether);
 
         // Encode fallback message
-        bytes memory fallbackData = abi.encodePacked(
-            bytes1(0x03),
-            bytes1(0x02),
-            depositParams.depositNonce,
-            depositParams.hToken,
-            depositParams.token,
-            depositParams.amount,
-            depositParams.deposit,
-            bytes("testdata")
-        );
+        bytes memory fallbackData = abi.encodePacked(bytes1(0x04), uint32(1));
 
         // Call 'Fallback'
         vm.prank(lzEndpointAddress);
-        bAgent.lzReceive(rootChainId, abi.encodePacked(rootBridgeAgentAddress, bAgent), 1, fallbackData);
+        bAgent.lzReceive(rootChainId, abi.encodePacked(bAgent, rootBridgeAgentAddress), 1, fallbackData);
 
         bAgent.redeemDeposit(1);
 
         vm.startPrank(lzEndpointAddress);
 
-        bAgent.lzReceive(rootChainId, abi.encodePacked(rootBridgeAgentAddress, bAgent), 1, fallbackData);
+        bAgent.lzReceive(rootChainId, abi.encodePacked(bAgent, rootBridgeAgentAddress), 1, fallbackData);
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSignature("DepositRedeemUnavailable()"));
+
         bAgent.redeemDeposit(1);
     }
 
-    function testFuzzFallbackClearDepositRedeem(address _user, uint256 _amount, uint256 _deposit, uint16 _toChain)
+    function testFuzzFallbackClearDepositRedeem(address _user, uint256 _amount, uint256 _deposit, uint16 _dstChainId)
         public
     {
         _amount %= type(uint256).max / 1 ether;
 
+        // Input restrictions
+        vm.assume(_user != address(0) && _amount > 0 && _deposit <= _amount && _dstChainId > 0);
+
         //GasParams
         GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
-
-        // Input restrictions
-        vm.assume(_user != address(0) && _amount > 0 && _deposit <= _amount && _toChain > 0);
 
         vm.startPrank(localPortAddress);
 
@@ -506,9 +475,11 @@ contract BranchBridgeAgentTest is Test {
         vm.stopPrank();
 
         // Perform deposit
-        makeTestCallWithDeposit(_user, address(fuzzToken), address(underToken), _amount, _deposit, _toChain, gasParams);
+        makeTestCallWithDepositSigned(
+            _user, address(fuzzToken), address(underToken), _amount, _deposit, gasParams, true
+        );
 
-        //Prepare deposit info
+        // Prepare deposit info
         DepositParams memory depositParams = DepositParams({
             hToken: address(fuzzToken),
             token: address(underlyingToken),
@@ -518,22 +489,14 @@ contract BranchBridgeAgentTest is Test {
         });
 
         // Encode Fallback message
-        bytes memory fallbackData = abi.encodePacked(
-            bytes1(0x03),
-            bytes1(0x01),
-            depositParams.depositNonce,
-            depositParams.hToken,
-            depositParams.token,
-            depositParams.amount,
-            depositParams.deposit,
-            bytes("testdata")
-        );
+        bytes memory fallbackData = abi.encodePacked(bytes1(0x04), depositParams.depositNonce);
 
         // Call 'Fallback'
         vm.prank(lzEndpointAddress);
-        bAgent.lzReceive(rootChainId, abi.encodePacked(rootBridgeAgentAddress, bAgent), 1, fallbackData);
+        bAgent.lzReceive(rootChainId, abi.encodePacked(bAgent, rootBridgeAgentAddress), 1, fallbackData);
 
-        //Call redeemDeposit
+        // Call redeemDeposit
+        vm.prank(_user);
         bAgent.redeemDeposit(1);
 
         // Check balances
@@ -552,30 +515,12 @@ contract BranchBridgeAgentTest is Test {
         //GasParams
         GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
 
-        //Prepare deposit info
-        DepositParams memory depositParams = DepositParams({
-            hToken: address(testToken),
-            token: address(underlyingToken),
-            amount: 100 ether,
-            deposit: 100 ether,
-            depositNonce: 1
-        });
-
-        // Encode Fallback message
-        bytes memory anyFallbackData = abi.encodePacked(
-            bytes1(0x02),
-            depositParams.depositNonce,
-            depositParams.hToken,
-            depositParams.token,
-            depositParams.amount,
-            depositParams.deposit,
-            bytes("testdata")
-        );
-
         vm.deal(address(this), 1 ether);
 
         //Call redeemDeposit
-        bAgent.retryDeposit{value: 1 ether}(true, 1, payable(address(this)), "", gasParams);
+        bAgent.retryDeposit{value: 1 ether}(true, 1, "", gasParams, true);
+
+        //TODO Check if still success (?)
     }
 
     function testRetryDepositFailNotOwner() public {
@@ -589,26 +534,6 @@ contract BranchBridgeAgentTest is Test {
 
         vm.deal(localPortAddress, 1 ether);
 
-        //Prepare deposit info
-        DepositParams memory depositParams = DepositParams({
-            hToken: address(testToken),
-            token: address(underlyingToken),
-            amount: 100 ether,
-            deposit: 100 ether,
-            depositNonce: 1
-        });
-
-        // Encode Fallback message
-        bytes memory anyFallbackData = abi.encodePacked(
-            bytes1(0x02),
-            depositParams.depositNonce,
-            depositParams.hToken,
-            depositParams.token,
-            depositParams.amount,
-            depositParams.deposit,
-            bytes("testdata")
-        );
-
         vm.deal(address(42), 1 ether);
 
         vm.startPrank(address(42));
@@ -616,7 +541,7 @@ contract BranchBridgeAgentTest is Test {
         vm.expectRevert(abi.encodeWithSignature("NotDepositOwner()"));
 
         //Call redeemDeposit
-        bAgent.retryDeposit{value: 1 ether}(true, 1, payable(address(this)), "", gasParams);
+        bAgent.retryDeposit{value: 1 ether}(true, 1, "", gasParams, true);
     }
 
     function testRetryDepositFailCanAlwaysRetry() public {
@@ -624,7 +549,7 @@ contract BranchBridgeAgentTest is Test {
         GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
 
         // Create Test Deposit
-        testCallOutWithDeposit();
+        testCallOutSignedAndBridge(address(this), 100 ether);
 
         //Prepare deposit info
         DepositParams memory depositParams = DepositParams({
@@ -636,35 +561,26 @@ contract BranchBridgeAgentTest is Test {
         });
 
         // Encode Fallback message
-        bytes memory fallbackData = abi.encodePacked(
-            bytes1(0x01),
-            bytes1(0x02),
-            depositParams.depositNonce,
-            depositParams.hToken,
-            depositParams.token,
-            depositParams.amount,
-            depositParams.deposit,
-            bytes("testdata")
-        );
+        bytes memory fallbackData = abi.encodePacked(bytes1(0x04), depositParams.depositNonce);
 
         // Call 'fallback'
         vm.prank(lzEndpointAddress);
-        bAgent.lzReceive(rootChainId, abi.encodePacked(rootBridgeAgentAddress, bAgent), 1, fallbackData);
+        bAgent.lzReceive(rootChainId, abi.encodePacked(bAgent, rootBridgeAgentAddress), 1, fallbackData);
 
         vm.deal(address(this), 1 ether);
 
         //Call redeemDeposit
-        bAgent.retryDeposit{value: 1 ether}(true, 1, payable(address(this)), "", gasParams);
+        bAgent.retryDeposit{value: 1 ether}(true, 1, "", gasParams, true);
     }
 
-    function testFuzzExecuteWithSettlement(address, uint256 _amount, uint256 _deposit, uint16 _toChain) public {
+    function testFuzzExecuteWithSettlement(address, uint256 _amount, uint256 _deposit, uint16 _dstChainId) public {
+        // Input restrictions
+        vm.assume(_amount > 0 && _deposit <= _amount && _dstChainId > 0);
+
         //GasParams
         GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
 
         address _recipient = address(this);
-
-        // Input restrictions
-        vm.assume(_amount > 0 && _deposit <= _amount && _toChain > 0);
 
         vm.deal(localPortAddress, 1 ether);
 
@@ -692,12 +608,10 @@ contract BranchBridgeAgentTest is Test {
         console2.log(address(underToken));
         console2.log(_amount);
         console2.log(_deposit);
-        console2.log(_toChain);
+        console2.log(_dstChainId);
 
         // Perform deposit
-        makeTestCallWithDeposit(
-            _recipient, address(fuzzToken), address(underToken), _amount, _deposit, _toChain, gasParams
-        );
+        makeTestCallWithDeposit(_recipient, address(fuzzToken), address(underToken), _amount, _deposit, gasParams);
 
         // Encode Settlement Data for Clear Token Execution
         bytes memory settlementData = abi.encodePacked(
@@ -706,7 +620,7 @@ contract BranchBridgeAgentTest is Test {
 
         // Call 'clearToken'
         vm.prank(lzEndpointAddress);
-        bAgent.lzReceive(rootChainId, abi.encodePacked(rootBridgeAgentAddress, bAgent), 1, settlementData);
+        bAgent.lzReceive(rootChainId, abi.encodePacked(bAgent, rootBridgeAgentAddress), 1, settlementData);
 
         require(fuzzToken.balanceOf(_recipient) == _amount - _deposit);
         require(underToken.balanceOf(_recipient) == _deposit);
@@ -724,7 +638,7 @@ contract BranchBridgeAgentTest is Test {
         uint256 _amount1,
         uint256 _deposit0,
         uint256 _deposit1,
-        uint16 _toChain
+        uint16 _dstChainId
     ) public {
         _amount0 %= type(uint256).max / 1 ether;
         _amount1 %= type(uint256).max / 1 ether;
@@ -735,7 +649,7 @@ contract BranchBridgeAgentTest is Test {
         address _recipient = address(this);
 
         // Input restrictions
-        vm.assume(_amount0 > 0 && _deposit0 <= _amount0 && _amount1 > 0 && _deposit1 <= _amount1 && _toChain > 0);
+        vm.assume(_amount0 > 0 && _deposit0 <= _amount0 && _amount1 > 0 && _deposit1 <= _amount1 && _dstChainId > 0);
 
         vm.startPrank(localPortAddress);
 
@@ -775,7 +689,7 @@ contract BranchBridgeAgentTest is Test {
         console2.log(_amount1);
         console2.log(_deposit0);
         console2.log(_deposit1);
-        console2.log(_toChain);
+        console2.log(_dstChainId);
 
         vm.stopPrank();
 
@@ -790,7 +704,7 @@ contract BranchBridgeAgentTest is Test {
         deposits.push(_deposit1);
 
         // Perform deposit
-        makeTestCallWithDepositMultiple(_recipient, hTokens, tokens, amounts, deposits, _toChain, gasParams);
+        makeTestCallWithDepositMultiple(_recipient, hTokens, tokens, amounts, deposits, gasParams);
 
         // Encode Settlement Data for Clear Token Execution
         bytes memory settlementData = abi.encodePacked(
@@ -799,7 +713,7 @@ contract BranchBridgeAgentTest is Test {
 
         // Call 'clearToken'
         vm.prank(lzEndpointAddress);
-        bAgent.lzReceive(rootChainId, abi.encodePacked(rootBridgeAgentAddress, bAgent), 1, settlementData);
+        bAgent.lzReceive(rootChainId, abi.encodePacked(bAgent, rootBridgeAgentAddress), 1, settlementData);
 
         require(fuzzToken0.balanceOf(localPortAddress) == 0);
         require(fuzzToken1.balanceOf(localPortAddress) == 0);
@@ -842,7 +756,7 @@ contract BranchBridgeAgentTest is Test {
             "Deposit deposit doesn't match"
         );
 
-        require(deposit.status == DepositStatus.Success, "Deposit status should be success");
+        require(deposit.status == 0, "Deposit status should be success");
 
         for (uint256 i = 0; i < _hTokens.length; i++) {
             if (_amounts[i] - _deposits[i] > 0 && _deposits[i] == 0) {
@@ -905,10 +819,9 @@ contract BranchBridgeAgentTest is Test {
             );
         }
 
-        require(deposit.status == DepositStatus.Success, "Deposit status should be succesful.");
+        require(deposit.status == 0, "Deposit status should be succesful.");
 
         console2.log("TEST DEPOSIT");
-        console2.logUint(WETH9(wrappedNativeToken).balanceOf(localPortAddress));
 
         console2.logUint(amounts[0]);
         console2.logUint(deposits[0]);
@@ -943,17 +856,16 @@ contract BranchBridgeAgentTest is Test {
         address _token,
         uint256 _amount,
         uint256 _deposit,
-        uint16 _toChain,
         GasParams memory _gasParams
     ) private {
-        //Prepare deposit info
+        // Prepare deposit info
         DepositInput memory depositInput =
             DepositInput({hToken: _hToken, token: _token, amount: _amount, deposit: _deposit});
 
         // Prank into user account
         vm.startPrank(_user);
 
-        //Get some gas.
+        // Get some gas.
         vm.deal(_user, 1 ether);
 
         // Approve spend by router
@@ -970,13 +882,47 @@ contract BranchBridgeAgentTest is Test {
         testCreateDepositSingle(uint32(1), _user, address(_hToken), address(_token), _amount, _deposit);
     }
 
+    function makeTestCallWithDepositSigned(
+        address _user,
+        address _hToken,
+        address _token,
+        uint256 _amount,
+        uint256 _deposit,
+        GasParams memory _gasParams,
+        bool _hasFallbackToggled
+    ) private {
+        // Prepare deposit info
+        DepositInput memory depositInput =
+            DepositInput({hToken: _hToken, token: _token, amount: _amount, deposit: _deposit});
+
+        // Prank into user account
+        vm.startPrank(_user);
+
+        // Get some gas.
+        vm.deal(_user, 1 ether);
+
+        // Approve spend by router
+        ERC20hTokenBranch(_hToken).approve(localPortAddress, _amount - _deposit);
+        MockERC20(_token).approve(localPortAddress, _deposit);
+
+        //Call Deposit function
+        bAgent.callOutSignedAndBridge{value: 1 ether}(
+            payable(_user), bytes("testdata"), depositInput, _gasParams, _hasFallbackToggled
+        );
+
+        // Prank out of user account
+        vm.stopPrank();
+
+        // Test If Deposit was successful
+        testCreateDepositSingle(uint32(1), _user, address(_hToken), address(_token), _amount, _deposit);
+    }
+
     function makeTestCallWithDepositMultiple(
         address _user,
         address[] memory _hTokens,
         address[] memory _tokens,
         uint256[] memory _amounts,
         uint256[] memory _deposits,
-        uint16 _toChain,
         GasParams memory _gasParams
     ) private {
         //Prepare deposit info
@@ -986,7 +932,7 @@ contract BranchBridgeAgentTest is Test {
         // Prank into user account
         vm.startPrank(_user);
 
-        //Get some gas.
+        // Get some gas.
         vm.deal(_user, 1 ether);
 
         console2.log(_hTokens[0], _deposits[0]);
@@ -1006,24 +952,4 @@ contract BranchBridgeAgentTest is Test {
         // Test If Deposit was successful
         testCreateDeposit(uint32(1), _user, _hTokens, _tokens, _amounts, _deposits);
     }
-
-    function compareDynamicArrays(bytes memory a, bytes memory b) public pure returns (bool aEqualsB) {
-        assembly {
-            aEqualsB := eq(a, b)
-        }
-    }
-}
-
-contract MockAnyConfig {
-    uint256 _executionBudget;
-
-    function deposit(address) external payable {
-        emit PaidGas(msg.sender, msg.value);
-    }
-
-    function executionBudget(address) public view returns (uint256) {
-        return 0.1 ether + address(this).balance;
-    }
-
-    event PaidGas(address indexed user, uint256 gas);
 }

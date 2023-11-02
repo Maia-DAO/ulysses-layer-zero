@@ -1,39 +1,7 @@
 //SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.16;
 
-//TEST
-import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
-import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
-import {stdError} from "forge-std/StdError.sol";
-import {Test} from "forge-std/Test.sol";
-import {console2} from "forge-std/console2.sol";
-
-//COMPONENTS
-import {RootPort} from "@omni/RootPort.sol";
-import {ArbitrumBranchPort} from "@omni/ArbitrumBranchPort.sol";
-
-import {MockRootBridgeAgent, RootBridgeAgent, WETH9} from "./mocks/MockRootBridgeAgent.t.sol";
-import {BranchBridgeAgent} from "./mocks/MockBranchBridgeAgent.t.sol";
-import {ArbitrumBranchBridgeAgent} from "@omni/ArbitrumBranchBridgeAgent.sol";
-
-import {BaseBranchRouter} from "@omni/BaseBranchRouter.sol";
-import {MulticallRootRouter} from "@omni/MulticallRootRouter.sol";
-import {CoreRootRouter} from "@omni/CoreRootRouter.sol";
-import {ArbitrumCoreBranchRouter} from "@omni/ArbitrumCoreBranchRouter.sol";
-
-import {ERC20hTokenRoot} from "@omni/token/ERC20hTokenRoot.sol";
-import {ERC20hTokenRootFactory} from "@omni/factories/ERC20hTokenRootFactory.sol";
-import {ERC20hTokenBranchFactory} from "@omni/factories/ERC20hTokenBranchFactory.sol";
-import {RootBridgeAgentFactory} from "@omni/factories/RootBridgeAgentFactory.sol";
-import {BranchBridgeAgentFactory} from "@omni/factories/BranchBridgeAgentFactory.sol";
-import {ArbitrumBranchBridgeAgentFactory} from "@omni/factories/ArbitrumBranchBridgeAgentFactory.sol";
-
-//UTILS
-import {DepositParams, DepositMultipleParams} from "./mocks/MockRootBridgeAgent.t.sol";
-import {Deposit, DepositStatus, DepositMultipleInput, DepositInput} from "@omni/interfaces/IBranchBridgeAgent.sol";
-
-import {WETH9 as WETH} from "./mocks/WETH9.sol";
-import {Multicall2} from "./mocks/Multicall2.sol";
+import "./helpers/ImportHelper.sol";
 
 contract RootBridgeAgentDecodeTest is DSTestPlus {
     MockRootBridgeAgent mockRootBridgeAgent;
@@ -49,9 +17,7 @@ contract RootBridgeAgentDecodeTest is DSTestPlus {
         testToken = new MockERC20("A", "AAA", 18);
 
         mockRootBridgeAgent = new MockRootBridgeAgent(
-            WETH9(address(1)),
         0,
-        address(1),
         address(1),
         address(1),
         address(1));
@@ -114,11 +80,5 @@ contract RootBridgeAgentDecodeTest is DSTestPlus {
         require(((actual.amounts[1]) == (expected.amounts[1])));
         console2.log("actual.deposits");
         require(((actual.deposits[1]) == (expected.deposits[1])));
-    }
-
-    function compareDynamicArrays(bytes memory a, bytes memory b) public pure returns (bool aEqualsB) {
-        assembly {
-            aEqualsB := eq(a, b)
-        }
     }
 }

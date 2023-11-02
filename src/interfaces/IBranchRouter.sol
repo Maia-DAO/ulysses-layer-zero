@@ -22,11 +22,11 @@ interface IBranchRouter {
     /*///////////////////////////////////////////////////////////////
                             VIEW / STATE
     //////////////////////////////////////////////////////////////*/
-    
+
     /// @notice External function to return the Branch Chain's Local Port Address.
     function localPortAddress() external view returns (address);
 
-    /// @notice Address for local Branch Bridge Agent who processes requests and ineracts with local port.
+    /// @notice Address for local Branch Bridge Agent who processes requests and interacts with local port.
     function localBridgeAgentAddress() external view returns (address);
 
     /// @notice Local Bridge Agent Executor Address.
@@ -47,7 +47,7 @@ interface IBranchRouter {
 
     /**
      * @notice Function to perform a call to the Root Omnichain Router while depositing a single asset.
-     *   @param params RLP enconded parameters to execute on the root chain.
+     *   @param params encoded parameters to execute on the root chain.
      *   @param dParams additional token deposit parameters.
      *   @param gParams gas parameters for the cross-chain call.
      *   @dev ACTION ID: 2 (Call with single deposit)
@@ -59,7 +59,7 @@ interface IBranchRouter {
 
     /**
      * @notice Function to perform a call to the Root Omnichain Router while depositing two or more assets.
-     *   @param params RLP enconded parameters to execute on the root chain.
+     *   @param params encoded parameters to execute on the root chain.
      *   @param dParams additional token deposit parameters.
      *   @param gParams gas parameters for the cross-chain call.
      *   @dev ACTION ID: 3 (Call with multiple deposit)
@@ -72,29 +72,14 @@ interface IBranchRouter {
     ) external payable;
 
     /**
-     * @notice External function to retry a failed Settlement entry on the root chain.
-     *     @param _settlementNonce Identifier for user settlement.
-     *     @param gParams gas parameters for the cross-chain call.
-     *
-     */
-    function retrySettlement(uint32 _settlementNonce, GasParams calldata gParams) external payable;
-
-    /**
-     * @notice External function to retry a failed Deposit entry on this branch chain.
-     *     @param _depositNonce Identifier for user deposit.
-     *
-     */
-    function redeemDeposit(uint32 _depositNonce) external;
-
-    /**
      * @notice External function that returns a given deposit entry.
-     *     @param _depositNonce Identifier for user deposit.
+     *     @param depositNonce Identifier for user deposit.
      *
      */
-    function getDepositEntry(uint32 _depositNonce) external view returns (Deposit memory);
+    function getDepositEntry(uint32 depositNonce) external view returns (Deposit memory);
 
     /*///////////////////////////////////////////////////////////////
-                        ANYCALL EXTERNAL FUNCTIONS
+                        LAYERZERO EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /**
@@ -111,7 +96,8 @@ interface IBranchRouter {
     function executeSettlement(bytes calldata params, SettlementParams calldata sParams) external payable;
 
     /**
-     * @dev Function responsible of executing a crosschain request which contains cross-chain deposit information attached.
+     * @dev Function responsible of executing a crosschain request which contains
+     *      cross-chain deposit information attached.
      *     @param params data received from messaging layer.
      *     @param sParams SettlementParams struct containing deposit information.
      *

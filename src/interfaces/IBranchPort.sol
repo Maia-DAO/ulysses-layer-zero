@@ -59,17 +59,26 @@ interface IBranchPort {
      * @notice allow approved address to repay borrowed reserves with reserves
      *     @param _amount uint
      *     @param _token address
+     *     @dev must be called by the port strategy itself
      */
-    function replenishReserves(address _strategy, address _token, uint256 _amount) external;
+    function replenishReserves(address _token, uint256 _amount) external;
+
+    /**
+     * @notice allow approved address to repay borrowed reserves and replenish a given token's reserves
+     *     @param _strategy address
+     *     @param _token address
+     *     @dev can be called by anyone to ensure availability of service
+     */
+    function replenishReserves(address _strategy, address _token) external;
 
     /*///////////////////////////////////////////////////////////////
                           hTOKEN MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Function to withdraw underlying / native token amount into Port in exchange for Local hToken.
+     * @notice Function to withdraw underlying/native token amount into Port in exchange for Local hToken.
      *   @param _recipient hToken receiver.
-     *   @param _underlyingAddress underlying / native token address.
+     *   @param _underlyingAddress underlying/native token address.
      *   @param _amount amount of tokens.
      *
      */
@@ -91,8 +100,13 @@ interface IBranchPort {
      *   @param _amounts amount of tokens.
      *
      */
-    function bridgeInMultiple(address _recipient, address[] memory _localAddresses, uint256[] memory _amounts)
-        external;
+    function bridgeInMultiple(
+        address _recipient,
+        address[] memory _localAddresses,
+        address[] memory _underlyingAddresses,
+        uint256[] memory _amounts,
+        uint256[] memory _deposits
+    ) external;
 
     /**
      * @notice Setter function to decrease local hToken supply.
@@ -192,6 +206,13 @@ interface IBranchPort {
      */
     function updatePortStrategy(address _portStrategy, address _token, uint256 _dailyManagementLimit) external;
 
+    /**
+     * @notice Sets the core branch router and bridge agent for the branch port.
+     *   @param _coreBranchRouter address of the new core branch router
+     *   @param _coreBranchBridgeAgent address of the new core branch bridge agent
+     */
+    function setCoreBranchRouter(address _coreBranchRouter, address _coreBranchBridgeAgent) external;
+
     /*///////////////////////////////////////////////////////////////
                             EVENTS
     //////////////////////////////////////////////////////////////*/
@@ -199,27 +220,37 @@ interface IBranchPort {
     event DebtCreated(address indexed _strategy, address indexed _token, uint256 _amount);
     event DebtRepaid(address indexed _strategy, address indexed _token, uint256 _amount);
 
-    event StrategyTokenAdded(address indexed _token, uint256 _minimumReservesRatio);
+    event StrategyTokenAdded(address indexed _token, uint256 indexed _minimumReservesRatio);
     event StrategyTokenToggled(address indexed _token);
 
-    event PortStrategyAdded(address indexed _portStrategy, address indexed _token, uint256 _dailyManagementLimit);
+    event PortStrategyAdded(
+        address indexed _portStrategy, address indexed _token, uint256 indexed _dailyManagementLimit
+    );
     event PortStrategyToggled(address indexed _portStrategy, address indexed _token);
-    event PortStrategyUpdated(address indexed _portStrategy, address indexed _token, uint256 _dailyManagementLimit);
+    event PortStrategyUpdated(
+        address indexed _portStrategy, address indexed _token, uint256 indexed _dailyManagementLimit
+    );
 
     event BridgeAgentFactoryAdded(address indexed _bridgeAgentFactory);
     event BridgeAgentFactoryToggled(address indexed _bridgeAgentFactory);
 
     event BridgeAgentToggled(address indexed _bridgeAgent);
 
+    event CoreBranchSet(address indexed _coreBranchRouter, address indexed _coreBranchBridgeAgent);
+
     /*///////////////////////////////////////////////////////////////
                             ERRORS
     //////////////////////////////////////////////////////////////*/
 
+    error AlreadyAddedBridgeAgent();
+    error AlreadyAddedBridgeAgentFactory();
     error InvalidMinimumReservesRatio();
+    error InvalidInputArrays();
     error InsufficientReserves();
     error UnrecognizedCore();
     error UnrecognizedBridgeAgent();
     error UnrecognizedBridgeAgentFactory();
     error UnrecognizedPortStrategy();
     error UnrecognizedStrategyToken();
+    error NotEnoughDebtToRepay();
 }

@@ -2,133 +2,172 @@
 
 pragma solidity ^0.8.0;
 
+import {GasParams} from "../interfaces/IRootBridgeAgent.sol";
+
 import {VirtualAccount} from "../VirtualAccount.sol";
 
 /// @title Core Root Router Interface
 interface ICoreRootRouter {
     function bridgeAgentAddress() external view returns (address);
     function hTokenFactoryAddress() external view returns (address);
-}
-
-/// @title Struct that contains the information of the Gas Pool - used for swapping in and out of a given Branch Chain's Gas Token.
-struct GasPoolInfo {
-    bool zeroForOneOnInflow;
-    uint16 priceImpactPercentage;
-    address gasTokenGlobalAddress;
-    address poolAddress;
+    function setCoreBranch(
+        address _refundee,
+        address _coreBranchRouter,
+        address _coreBranchBridgeAgent,
+        uint16 _dstChainId,
+        GasParams calldata _gParams
+    ) external payable;
 }
 
 /**
  * @title  Root Port - Omnichain Token Management Contract
  * @author MaiaDAO
- * @notice Ulyses `RootPort` implementation for Root Omnichain Environment deployment.
+ * @notice Ulysses `RootPort` implementation for Root Omnichain Environment deployment.
  *         This contract is used to manage the deposit and withdrawal of assets
- *         between the Root Omnichain Environment an every Branch Chain in response to
+ *         between the Root Omnichain Environment and every Branch Chain in response to
  *         Root Bridge Agents requests. Manages Bridge Agents and their factories as well as
  *         key governance enabled actions such as adding new chains and bridge agent factories.
  */
 interface IRootPort {
     /*///////////////////////////////////////////////////////////////
-                        BRIDGE AGENT FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    function getBridgeAgentManager(address _rootBridgeAgent) external view returns (address);
-
-    /*///////////////////////////////////////////////////////////////
                         VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
+    /**
+     * @notice View Function returns True if the chain Id has been added to the system.
+     *  @param _chainId The Layer Zero chainId of the chain.
+     * @return bool True if the chain Id has been added to the system.
+     */
     function isChainId(uint256 _chainId) external view returns (bool);
 
+    /**
+     * @notice View Function returns bridge agent manager for a given root bridge agent.
+     *  @param _rootBridgeAgent address of the root bridge agent.
+     * @return address address of the bridge agent manager.
+     */
+    function getBridgeAgentManager(address _rootBridgeAgent) external view returns (address);
+
+    /**
+     * @notice View Function returns True if the bridge agent factory has been added to the system.
+     *  @param _bridgeAgentFactory The address of the bridge agent factory.
+     * @return bool True if the bridge agent factory has been added to the system.
+     */
     function isBridgeAgentFactory(address _bridgeAgentFactory) external view returns (bool);
 
+    /**
+     * @notice View Function returns True if the address corresponds to a global token.
+     *  @param _globalAddress The address of the token in the global chain.
+     * @return bool True if the address corresponds to a global token.
+     */
     function isGlobalAddress(address _globalAddress) external view returns (bool);
-
-    /// @notice Mapping from Underlying Address to isUnderlying (bool).
-    function isRouterApproved(VirtualAccount _userAccount, address _router) external returns (bool);
 
     /**
      * @notice View Function returns Token's Global Address from it's local address.
      *  @param _localAddress The address of the token in the local chain.
-     *  @param _fromChain The chainId of the chain where the token is deployed.
+     *  @param _srcChainId The chainId of the chain where the token is deployed.
+     * @return address The address of the global token.
      */
-    function getGlobalTokenFromLocal(address _localAddress, uint256 _fromChain) external view returns (address);
+    function getGlobalTokenFromLocal(address _localAddress, uint256 _srcChainId) external view returns (address);
 
     /**
      * @notice View Function returns Token's Local Address from it's global address.
-     * @param _globalAddress The address of the token in the global chain.
-     * @param _fromChain The chainId of the chain where the token is deployed.
+     *  @param _globalAddress The address of the token in the global chain.
+     *  @param _srcChainId The chainId of the chain where the token is deployed.
+     * @return address The address of the local token.
      */
-    function getLocalTokenFromGlobal(address _globalAddress, uint256 _fromChain) external view returns (address);
+    function getLocalTokenFromGlobal(address _globalAddress, uint256 _srcChainId) external view returns (address);
 
     /**
      * @notice View Function that returns the local token address from the underlying token address.
      *  @param _underlyingAddress The address of the underlying token.
-     *  @param _fromChain The chainId of the chain where the token is deployed.
+     *  @param _srcChainId The chainId of the chain where the token is deployed.
+     * @return address The address of the local token.
      */
-    function getLocalTokenFromUnder(address _underlyingAddress, uint256 _fromChain) external view returns (address);
+    function getLocalTokenFromUnderlying(address _underlyingAddress, uint256 _srcChainId)
+        external
+        view
+        returns (address);
 
     /**
      * @notice Function that returns Local Token's Local Address on another chain.
-     * @param _localAddress The address of the token in the local chain.
-     * @param _fromChain The chainId of the chain where the token is deployed.
-     * @param _toChain The chainId of the chain where the token is deployed.
+     *  @param _localAddress The address of the token in the local chain.
+     *  @param _srcChainId The chainId of the chain where the token is deployed.
+     *  @param _dstChainId The chainId of the chain where the token is deployed.
+     * @return address The address of the local token in the destination chain.
      */
-    function getLocalToken(address _localAddress, uint16 _fromChain, uint16 _toChain) external view returns (address);
+    function getLocalToken(address _localAddress, uint256 _srcChainId, uint256 _dstChainId)
+        external
+        view
+        returns (address);
 
     /**
      * @notice View Function returns a underlying token address from it's local address.
-     * @param _localAddress The address of the token in the local chain.
-     * @param _fromChain The chainId of the chain where the token is deployed.
+     *  @param _localAddress The address of the token in the local chain.
+     *  @param _srcChainId The chainId of the chain where the token is deployed.
+     * @return address The address of the underlying token.
      */
-    function getUnderlyingTokenFromLocal(address _localAddress, uint256 _fromChain) external view returns (address);
+    function getUnderlyingTokenFromLocal(address _localAddress, uint256 _srcChainId) external view returns (address);
 
     /**
      * @notice Returns the underlying token address given it's global address.
-     * @param _globalAddress The address of the token in the global chain.
-     * @param _fromChain The chainId of the chain where the token is deployed.
+     *  @param _globalAddress The address of the token in the global chain.
+     *  @param _srcChainId The chainId of the chain where the token is deployed.
+     * @return address The address of the underlying token.
      */
-    function getUnderlyingTokenFromGlobal(address _globalAddress, uint16 _fromChain) external view returns (address);
+    function getUnderlyingTokenFromGlobal(address _globalAddress, uint256 _srcChainId)
+        external
+        view
+        returns (address);
 
     /**
      * @notice View Function returns True if Global Token is already added in current chain, false otherwise.
-     * @param _globalAddress The address of the token in the global chain.
-     * @param _fromChain The chainId of the chain where the token is deployed.
+     *  @param _globalAddress The address of the token in the global chain.
+     *  @param _srcChainId The chainId of the chain where the token is deployed.
+     * @return bool True if Global Token is already added in current chain, false otherwise.
      */
-    function isGlobalToken(address _globalAddress, uint16 _fromChain) external view returns (bool);
+    function isGlobalToken(address _globalAddress, uint256 _srcChainId) external view returns (bool);
 
     /**
      * @notice View Function returns True if Local Token is already added in current chain, false otherwise.
      *  @param _localAddress The address of the token in the local chain.
-     *  @param _fromChain The chainId of the chain where the token is deployed.
+     *  @param _srcChainId The chainId of the chain where the token is deployed.
+     * @return bool True if Local Token is already added in current chain, false otherwise.
      */
-    function isLocalToken(address _localAddress, uint16 _fromChain) external view returns (bool);
-
-    /// @notice View Function returns True if Local Token and is also already added in another branch chain, false otherwise.
-    function isLocalToken(address _localAddress, uint16 _fromChain, uint16 _toChain) external view returns (bool);
+    function isLocalToken(address _localAddress, uint256 _srcChainId) external view returns (bool);
 
     /**
-     * @notice View Function returns True if the underlying Token is already added in current chain, false otherwise.
-     * @param _underlyingToken The address of the underlying token.
-     * @param _fromChain The chainId of the chain where the token is deployed.
+     * @notice View Function returns True if Local Token is already added in destination chain, false otherwise.
+     *  @param _localAddress The address of the token in the local chain.
+     *  @param _srcChainId The chainId of the chain where the token is deployed.
+     *  @param _dstChainId The chainId of the chain where the token is deployed.
+     * @return bool True if Local Token is already added in current chain, false otherwise.
      */
-    function isUnderlyingToken(address _underlyingToken, uint16 _fromChain) external view returns (bool);
-
-    /// @notice View Function returns wrapped native token address for a given chain.
-    function getWrappedNativeToken(uint256 _chainId) external view returns (address);
-
-    /// @notice View Function returns the gasPoolAddress for a given chain.
-    function getGasPoolInfo(uint256 _chainId)
+    function isLocalToken(address _localAddress, uint256 _srcChainId, uint256 _dstChainId)
         external
         view
-        returns (
-            bool zeroForOneOnInflow,
-            uint16 priceImpactPercentage,
-            address gasTokenGlobalAddress,
-            address poolAddress
-        );
+        returns (bool);
 
+    /**
+     * @notice View Function returns True if the underlying Token is already added in given chain, false otherwise.
+     *  @param _underlyingToken The address of the underlying token.
+     *  @param _srcChainId The chainId of the chain where the token is deployed.
+     * @return bool True if the underlying Token is already added in given chain, false otherwise.
+     */
+    function isUnderlyingToken(address _underlyingToken, uint256 _srcChainId) external view returns (bool);
+
+    /**
+     * @notice View Function returns Virtual Account of a given user.
+     *  @param _user The address of the user.
+     * @return VirtualAccount user virtual account.
+     */
     function getUserAccount(address _user) external view returns (VirtualAccount);
+
+    /**
+     * @notice View Function returns True if the router is approved by user request to use their virtual account.
+     *  @param _userAccount The virtual account of the user.
+     *  @param _router The address of the router.
+     * @return bool True if the router is approved by user request to use their virtual account.
+     */
+    function isRouterApproved(VirtualAccount _userAccount, address _router) external returns (bool);
 
     /*///////////////////////////////////////////////////////////////
                         hTOKEN ACCOUTING FUNCTIONS
@@ -139,9 +178,9 @@ interface IRootPort {
      * @param _from sender of the hTokens to burn.
      * @param _hToken address of the hToken to burn.
      * @param _amount amount of hTokens to burn.
-     * @param _fromChain The chainId of the chain where the token is deployed.
+     * @param _srcChainId The chainId of the chain where the token is deployed.
      */
-    function burn(address _from, address _hToken, uint256 _amount, uint16 _fromChain) external;
+    function burn(address _from, address _hToken, uint256 _amount, uint256 _srcChainId) external;
 
     /**
      * @notice Updates root port state to match a new deposit.
@@ -149,9 +188,9 @@ interface IRootPort {
      * @param _hToken address of the hToken to bridge.
      * @param _amount amount of hTokens to bridge.
      * @param _deposit amount of underlying tokens to deposit.
-     * @param _fromChainId The chainId of the chain where the token is deployed.
+     * @param _srcChainId The chainId of the chain where the token is deployed.
      */
-    function bridgeToRoot(address _recipient, address _hToken, uint256 _amount, uint256 _deposit, uint16 _fromChainId)
+    function bridgeToRoot(address _recipient, address _hToken, uint256 _amount, uint256 _deposit, uint256 _srcChainId)
         external;
 
     /**
@@ -196,8 +235,12 @@ interface IRootPort {
      *   @param _localAddress new underlying/native token address to set.
      *
      */
-    function setAddresses(address _globalAddress, address _localAddress, address _underlyingAddress, uint16 _fromChain)
-        external;
+    function setAddresses(
+        address _globalAddress,
+        address _localAddress,
+        address _underlyingAddress,
+        uint256 _srcChainId
+    ) external;
 
     /**
      * @notice Setter function to update a Global hToken's Local hToken Address.
@@ -205,7 +248,7 @@ interface IRootPort {
      *   @param _localAddress new underlying/native token address to set.
      *
      */
-    function setLocalAddress(address _globalAddress, address _localAddress, uint16 _fromChain) external;
+    function setLocalAddress(address _globalAddress, address _localAddress, uint256 _srcChainId) external;
 
     /*///////////////////////////////////////////////////////////////
                     VIRTUAL ACCOUNT MANAGEMENT FUNCTIONS
@@ -218,7 +261,8 @@ interface IRootPort {
     function fetchVirtualAccount(address _user) external returns (VirtualAccount account);
 
     /**
-     * @notice Toggles the approval of a router for a virtual account. Allows for a router to spend a user's virtual account.
+     * @notice Toggles the approval of a router for a virtual account.
+     * @dev Allows for a router to spend from a user's virtual account.
      * @param _userAccount virtual account to toggle the approval for.
      * @param _router router to toggle the approval for.
      */
@@ -232,9 +276,9 @@ interface IRootPort {
      * @notice Sets the address of the bridge agent for a given chain.
      * @param _newBranchBridgeAgent address of the new branch bridge agent.
      * @param _rootBridgeAgent address of the root bridge agent.
-     * @param _fromChain chainId of the chain to set the bridge agent for.
+     * @param _srcChainId chainId of the chain to set the bridge agent for.
      */
-    function syncBranchBridgeAgentWithRoot(address _newBranchBridgeAgent, address _rootBridgeAgent, uint16 _fromChain)
+    function syncBranchBridgeAgentWithRoot(address _newBranchBridgeAgent, address _rootBridgeAgent, uint256 _srcChainId)
         external;
 
     /**
@@ -270,11 +314,11 @@ interface IRootPort {
      * @param _wrappedGasTokenSymbol gas token symbol of the chain to add
      * @param _wrappedGasTokenDecimals gas token decimals of the chain to add
      * @param _newLocalBranchWrappedNativeTokenAddress address of the wrapped native token of the new branch
-     * @param _newUnderlyingBranchWrappedNativeTokenAddress address of the underlying wrapped native token of the new branch
+     * @param _newUnderlyingBranchWrappedNativeTokenAddress new branch address of the underlying wrapped native token
      */
     function addNewChain(
         address _coreBranchBridgeAgentAddress,
-        uint16 _chainId,
+        uint256 _chainId,
         string memory _wrappedGasTokenName,
         string memory _wrappedGasTokenSymbol,
         uint8 _wrappedGasTokenDecimals,
@@ -283,17 +327,42 @@ interface IRootPort {
     ) external;
 
     /**
-     * @notice Sets the gas pool info for a chain
-     * @param _chainId chainId of the chain to set the gas pool info for
-     * @param _gasPoolInfo gas pool info to set
-     */
-    function setGasPoolInfo(uint16 _chainId, GasPoolInfo calldata _gasPoolInfo) external;
-
-    /**
      * @notice Adds an ecosystem hToken to a branch chain
      * @param ecoTokenGlobalAddress ecosystem token global address
      */
     function addEcosystemToken(address ecoTokenGlobalAddress) external;
+
+    /**
+     * @notice Sets the core root router and bridge agent
+     * @param _coreRootRouter address of the core root router
+     * @param _coreRootBridgeAgent address of the core root bridge agent
+     */
+    function setCoreRootRouter(address _coreRootRouter, address _coreRootBridgeAgent) external;
+
+    /**
+     * @notice Sets the core branch router and bridge agent
+     * @param _refundee address of the refundee
+     * @param _coreBranchRouter address of the core branch router
+     * @param _coreBranchBridgeAgent address of the core branch bridge agent
+     * @param _dstChainId chainId of the destination chain
+     * @param _gParams gas params for the transaction
+     */
+    function setCoreBranchRouter(
+        address _refundee,
+        address _coreBranchRouter,
+        address _coreBranchBridgeAgent,
+        uint16 _dstChainId,
+        GasParams calldata _gParams
+    ) external payable;
+
+    /**
+     * @notice Syncs a newly added core branch router and bridge agent
+     * @param _coreBranchRouter address of the core branch router
+     * @param _coreBranchBridgeAgent address of the core branch bridge agent
+     * @param _dstChainId chainId of the destination chain
+     */
+    function syncNewCoreBranchRouter(address _coreBranchRouter, address _coreBranchBridgeAgent, uint16 _dstChainId)
+        external;
 
     /*///////////////////////////////////////////////////////////////
                             EVENTS
@@ -302,35 +371,54 @@ interface IRootPort {
     event BridgeAgentFactoryAdded(address indexed bridgeAgentFactory);
     event BridgeAgentFactoryToggled(address indexed bridgeAgentFactory);
 
-    event BridgeAgentAdded(address indexed bridgeAgent, address manager);
+    event BridgeAgentAdded(address indexed bridgeAgent, address indexed manager);
     event BridgeAgentToggled(address indexed bridgeAgent);
-    event BridgeAgentSynced(address indexed bridgeAgent, address indexed rootBridgeAgent, uint16 indexed fromChain);
+    event BridgeAgentSynced(address indexed bridgeAgent, address indexed rootBridgeAgent, uint256 indexed srcChainId);
 
-    event NewChainAdded(uint16 indexed chainId);
-    event GasPoolInfoSet(uint16 indexed chainId, GasPoolInfo gasPoolInfo);
+    event NewChainAdded(uint256 indexed chainId);
 
     event VirtualAccountCreated(address indexed user, address account);
 
     event LocalTokenAdded(
-        address indexed underlyingAddress, address localAddress, address globalAddress, uint16 chainId
+        address indexed underlyingAddress, address indexed localAddress, address indexed globalAddress, uint256 chainId
     );
-    event GlobalTokenAdded(address indexed localAddress, address indexed globalAddress, uint16 chainId);
+    event GlobalTokenAdded(address indexed localAddress, address indexed globalAddress, uint256 indexed chainId);
     event EcosystemTokenAdded(address indexed ecoTokenGlobalAddress);
+    event CoreRootSet(address indexed coreRootRouter, address indexed coreRootBridgeAgent);
+    event CoreBranchSet(
+        address indexed coreBranchRouter, address indexed coreBranchBridgeAgent, uint16 indexed dstChainId
+    );
+    event CoreBranchSynced(
+        address indexed coreBranchRouter, address indexed coreBranchBridgeAgent, uint16 indexed dstChainId
+    );
 
     /*///////////////////////////////////////////////////////////////
                             ERRORS  
     //////////////////////////////////////////////////////////////*/
 
+    error InvalidGlobalAddress();
+    error InvalidLocalAddress();
+    error InvalidUnderlyingAddress();
+
+    error InvalidUserAddress();
+
+    error InvalidCoreRootRouter();
+    error InvalidCoreRootBridgeAgent();
+    error InvalidCoreBranchRouter();
+    error InvalidCoreBrancBridgeAgent();
+
     error UnrecognizedBridgeAgentFactory();
     error UnrecognizedBridgeAgent();
 
     error UnrecognizedToken();
+    error UnableToMint();
 
+    error AlreadyAddedChain();
     error AlreadyAddedEcosystemToken();
 
     error AlreadyAddedBridgeAgent();
+    error AlreadyAddedBridgeAgentFactory();
     error BridgeAgentNotAllowed();
     error UnrecognizedCoreRootRouter();
     error UnrecognizedLocalBranchPort();
-    error UnknowHTokenFactory();
 }

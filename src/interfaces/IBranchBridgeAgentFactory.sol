@@ -14,6 +14,13 @@ interface IBranchBridgeAgentFactory {
                         BRIDGE AGENT FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Creates a new Branch Bridge Agent.
+     * @param newRootRouterAddress New Root Router Address.
+     * @param rootBridgeAgentAddress Root Bridge Agent Address.
+     * @param _rootBridgeAgentFactoryAddress Root Bridge Agent Factory Address.
+     * @return newBridgeAgent New Bridge Agent Address.
+     */
     function createBridgeAgent(
         address newRootRouterAddress,
         address rootBridgeAgentAddress,
