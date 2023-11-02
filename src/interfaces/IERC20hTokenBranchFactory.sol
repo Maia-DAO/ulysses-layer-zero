@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {ERC20hTokenBranch} from "../token/ERC20hTokenBranch.sol";
+import {ERC20hToken} from "../token/ERC20hToken.sol";
 
 /**
  * @title  ERC20hTokenBranchFactory Interface
@@ -23,7 +23,7 @@ interface IERC20hTokenBranchFactory {
      */
     function createToken(string memory _name, string memory _symbol, uint8 _decimals, bool _addPrefix)
         external
-        returns (ERC20hTokenBranch newToken);
+        returns (ERC20hToken newToken);
 
     /*///////////////////////////////////////////////////////////////
                                 ERRORS
