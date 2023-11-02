@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {DepositParams, DepositMultipleParams, GasParams} from "../interfaces/IRootBridgeAgent.sol";
+import {DepositParams, DepositMultipleParams} from "../interfaces/IRootBridgeAgent.sol";
 
 /**
  * @title  Root Router Contract
@@ -13,53 +13,21 @@ import {DepositParams, DepositMultipleParams, GasParams} from "../interfaces/IRo
  */
 interface IRootRouter {
     /*///////////////////////////////////////////////////////////////
-                            Router Functions
-    ///////////////////////////////////////////////////////////////*/
-
-    /**
-     * @notice Function to execute Branch Bridge Agent initiated requests to retry a settlement.
-     * @param _settlementNonce settlement nonce.
-     * @param _recipient recipient address.
-     * @param _params data received from messaging layer.
-     * @param _gParams gas parameters.
-     * @param _hasFallbackToggled flag to indicate if fallback has been toggled.
-     */
-    function retrySettlement(
-        uint32 _settlementNonce,
-        address _recipient,
-        bytes calldata _params,
-        GasParams calldata _gParams,
-        bool _hasFallbackToggled
-    ) external payable;
-
-    /*///////////////////////////////////////////////////////////////
                         LAYERZERO FUNCTIONS
     ///////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Function to execute Branch Bridge Agent initiated requests to retry a settlement.
-     * @param _owner user account address.
-     * @param _settlementNonce settlement nonce.
-     * @param _recipient recipient address.
-     * @param _params data received from messaging layer.
-     * @param _gParams gas parameters.
-     * @param _hasFallbackToggled flag to indicate if fallback has been toggled.
-     * @param _srcChainId chain where the request originated from.
+     *     @notice Function to execute Branch Bridge Agent system initiated requests with no asset deposit.
+     *     @param params data received from messaging layer.
+     *     @param srcChainId chain where the request originated from.
+     *
      */
-    function executeRetrySettlement(
-        address _owner,
-        uint32 _settlementNonce,
-        address _recipient,
-        bytes calldata _params,
-        GasParams calldata _gParams,
-        bool _hasFallbackToggled,
-        uint16 _srcChainId
-    ) external payable;
+    function executeResponse(bytes memory params, uint16 srcChainId) external payable;
 
     /**
-     *   @notice Function responsible of executing a crosschain request without any deposit.
-     *   @param params data received from messaging layer.
-     *   @param srcChainId chain where the request originated from.
+     *     @notice Function responsible of executing a crosschain request without any deposit.
+     *     @param params data received from messaging layer.
+     *     @param srcChainId chain where the request originated from.
      *
      */
     function execute(bytes memory params, uint16 srcChainId) external payable;
@@ -126,9 +94,6 @@ interface IRootRouter {
                              ERRORS
     //////////////////////////////////////////////////////////////*/
 
-    // TODO: Add natspec
-
     error UnrecognizedFunctionId();
-    error UnrecognizedBridgeAgent();
     error UnrecognizedBridgeAgentExecutor();
 }

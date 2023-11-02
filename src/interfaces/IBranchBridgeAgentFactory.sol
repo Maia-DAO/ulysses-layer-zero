@@ -26,20 +26,4 @@ interface IBranchBridgeAgentFactory {
         address rootBridgeAgentAddress,
         address _rootBridgeAgentFactoryAddress
     ) external returns (address newBridgeAgent);
-
-    /*///////////////////////////////////////////////////////////////
-                            EVENTS
-    ///////////////////////////////////////////////////////////////*/
-
-    event BridgeAgentAdded(address indexed _bridgeAgent);
-
-    /*///////////////////////////////////////////////////////////////
-                            ERRORS
-    //////////////////////////////////////////////////////////////*/
-
-    error UnrecognizedCoreBranchRouter();
-
-    error InvalidInputCannotBeZeroAddress();
-
-    error InvalidInputFactoryMismatch();
 }

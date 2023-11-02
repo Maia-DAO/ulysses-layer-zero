@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {ERC20hToken} from "../token/ERC20hToken.sol";
+import {ERC20hTokenRoot} from "../token/ERC20hTokenRoot.sol";
 
 /**
  * @title  Factory Contract for Root hTokens
@@ -23,7 +23,7 @@ interface IERC20hTokenRootFactory {
      */
     function createToken(string memory _name, string memory _symbol, uint8 _decimals)
         external
-        returns (ERC20hToken newToken);
+        returns (ERC20hTokenRoot newToken);
 
     /*///////////////////////////////////////////////////////////////
                                 ERRORS

@@ -46,31 +46,55 @@ contract ArbitrumBranchBridgeAgentFactory is BranchBridgeAgentFactory {
     {}
 
     /*///////////////////////////////////////////////////////////////
-                BRIDGE AGENT FACTORY INTERNAL FUNCTIONS
+                             INITIALIZER
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Internal function to deploy a new arbitrum branch bridge agent.
-     * @param _rootBridgeAgentAddress Address of the root bridge agent to connect to.
-     * @param _newBranchRouterAddress Address of the new branch router.
-     * @return newBridgeAgent Address of the newly deployed bridge agent.
+     * @notice Initializes the Bridge Agent Factory Contract.
+     * @param _coreRootBridgeAgent Address of the Core Root Bridge Agent.
      */
-    function _deployBridgeAgent(address _rootBridgeAgentAddress, address _newBranchRouterAddress)
-        internal
-        override
-        returns (address newBridgeAgent)
-    {
-        // Deploy new bridge agent
+    function initialize(address _coreRootBridgeAgent) external override onlyOwner {
+        require(_coreRootBridgeAgent != address(0), "Core Root Bridge Agent Address cannot be 0");
+
+        address newCoreBridgeAgent = address(
+            DeployArbitrumBranchBridgeAgent.deploy(
+                rootChainId, _coreRootBridgeAgent, localCoreBranchRouterAddress, localPortAddress
+            )
+        );
+
+        IPort(localPortAddress).addBridgeAgent(newCoreBridgeAgent);
+
+        renounceOwnership();
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                BRIDGE AGENT FACTORY EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Creates a new bridge agent for a branch chain.
+     * @param _newBranchRouterAddress Address of the new branch router.
+     * @param _rootBridgeAgentAddress Address of the root bridge agent to connect to.
+     */
+    function createBridgeAgent(
+        address _newBranchRouterAddress,
+        address _rootBridgeAgentAddress,
+        address _rootBridgeAgentFactoryAddress
+    ) external virtual override returns (address newBridgeAgent) {
+        require(
+            msg.sender == localCoreBranchRouterAddress, "Only the Core Branch Router can create a new Bridge Agent."
+        );
+        require(
+            _rootBridgeAgentFactoryAddress == rootBridgeAgentFactoryAddress,
+            "Root Bridge Agent Factory Address does not match."
+        );
+
         newBridgeAgent = address(
             DeployArbitrumBranchBridgeAgent.deploy(
                 rootChainId, _rootBridgeAgentAddress, _newBranchRouterAddress, localPortAddress
             )
         );
 
-        // Add the new bridge agent to the local Branch Port's state
         IPort(localPortAddress).addBridgeAgent(newBridgeAgent);
-
-        // Emit event
-        emit BridgeAgentAdded(newBridgeAgent);
     }
 }

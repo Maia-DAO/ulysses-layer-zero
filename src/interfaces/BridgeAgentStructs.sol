@@ -6,13 +6,12 @@ pragma solidity ^0.8.0;
 //////////////////////////////////////////////////////////////*/
 
 struct GasParams {
-    uint256 gasLimit; // gas units allocated for a cross-chain call execution.
-    uint256 remoteBranchExecutionGas; // native token amount allocated for remote branch usage.
+    uint256 gasLimit; // gas allocated for the cross-chain call.
+    uint256 remoteBranchExecutionGas; //gas allocated for remote branch execution. Must be lower than `gasLimit`.
 }
 
 struct Deposit {
     uint8 status;
-    uint88 isSigned;
     address owner;
     address[] hTokens;
     address[] tokens;

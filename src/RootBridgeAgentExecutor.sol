@@ -3,17 +3,16 @@ pragma solidity ^0.8.0;
 
 import {Ownable} from "solady/auth/Ownable.sol";
 
-import {BridgeAgentConstants} from "./interfaces/BridgeAgentConstants.sol";
 import {IRootRouter as IRouter, DepositParams, DepositMultipleParams} from "./interfaces/IRootRouter.sol";
+import {IRootBridgeAgent} from "./interfaces/IRootBridgeAgent.sol";
 
-import {DecodeBridgeInMultipleParams} from "./lib/DecodeBridgeInMultipleParams.sol";
-
+import {BridgeAgentConstants} from "./interfaces/BridgeAgentConstants.sol";
 import {RootBridgeAgent} from "./RootBridgeAgent.sol";
 
 /// @title Library for Root Bridge Agent Executor Deployment
 library DeployRootBridgeAgentExecutor {
-    function deploy(address _rootRouterAddress) external returns (address) {
-        return address(new RootBridgeAgentExecutor(_rootRouterAddress));
+    function deploy(address _rootBridgeAgent) external returns (address) {
+        return address(new RootBridgeAgentExecutor(_rootBridgeAgent));
     }
 }
 
@@ -26,26 +25,15 @@ library DeployRootBridgeAgentExecutor {
  *         and interactions with external contracts should be reverted and caught.
  */
 contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
-    using DecodeBridgeInMultipleParams for bytes;
-
-    /*///////////////////////////////////////////////////////////////
-                                IMMUATABLES
-    ///////////////////////////////////////////////////////////////*/
-
-    /// @notice Router that is responsible for executing the cross-chain requests forwarded by this contract.
-    IRouter public immutable rootRouterAddress;
-
     /*///////////////////////////////////////////////////////////////
                                 CONSTRUCTOR
-    ///////////////////////////////////////////////////////////////*/
-
+    //////////////////////////////////////////////////////////////*/
     /**
      * @notice Constructor for Root Bridge Agent Executor.
-     * @param _rootRouterAddress router that will execute the cross-chain requests forwarded by this contract.
+     * @param _rootBridgeAgent the owner of the contract in charge of calling the different execution functions.
      */
-    constructor(address _rootRouterAddress) {
-        rootRouterAddress = IRouter(_rootRouterAddress);
-        _initializeOwner(msg.sender);
+    constructor(address _rootBridgeAgent) {
+        _initializeOwner(_rootBridgeAgent);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -53,23 +41,49 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Execute a remote request from a remote chain
+     * @notice Execute a system request from a remote chain
+     * @param _router The address of the router to execute the request on
      * @param _payload The encoded request data payload
      * @param _srcChainId The chain id of the chain that sent the request
-     * @dev DEPOSIT FLAG: 1 (Call without Deposit)
+     * @dev DEPOSIT FLAG: 0 (System request / response)
      */
-    function executeNoDeposit(bytes calldata _payload, uint16 _srcChainId) external payable onlyOwner {
-        //Execute remote request
-        rootRouterAddress.execute{value: msg.value}(_payload[PARAMS_TKN_START:], _srcChainId);
+    function executeSystemRequest(address _router, bytes calldata _payload, uint16 _srcChainId)
+        external
+        payable
+        onlyOwner
+    {
+        //Try to execute remote request
+        IRouter(_router).executeResponse(_payload[PARAMS_TKN_START:], _srcChainId);
     }
 
     /**
      * @notice Execute a remote request from a remote chain
+     * @param _router The address of the router to execute the request on
+     * @param _payload The encoded request data payload
+     * @param _srcChainId The chain id of the chain that sent the request
+     * @dev DEPOSIT FLAG: 1 (Call without Deposit)
+     */
+    function executeNoDeposit(address _router, bytes calldata _payload, uint16 _srcChainId)
+        external
+        payable
+        onlyOwner
+    {
+        //Execute remote request
+        IRouter(_router).execute{value: msg.value}(_payload[PARAMS_TKN_START:], _srcChainId);
+    }
+
+    /**
+     * @notice Execute a remote request from a remote chain
+     * @param _router The address of the router to execute the request on
      * @param _payload The encoded request data payload
      * @param _srcChainId The chain id of the chain that sent the request
      * @dev DEPOSIT FLAG: 2 (Call with Deposit)
      */
-    function executeWithDeposit(bytes calldata _payload, uint16 _srcChainId) external payable onlyOwner {
+    function executeWithDeposit(address _router, bytes calldata _payload, uint16 _srcChainId)
+        external
+        payable
+        onlyOwner
+    {
         // Read Deposit Params
         DepositParams memory dParams = DepositParams({
             depositNonce: uint32(bytes4(_payload[PARAMS_START:PARAMS_TKN_START])),
@@ -80,30 +94,32 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
         });
 
         // Bridge In Assets
-        _bridgeIn(address(rootRouterAddress), dParams, _srcChainId);
+        _bridgeIn(_router, dParams, _srcChainId);
 
         // Check if there is additional calldata in the payload
         if (_payload.length > PARAMS_TKN_SET_SIZE) {
             //Execute remote request
-            rootRouterAddress.executeDepositSingle{value: msg.value}(
+            IRouter(_router).executeDepositSingle{value: msg.value}(
                 _payload[PARAMS_TKN_SET_SIZE:], dParams, _srcChainId
             );
-        } else {
-            //Execute remote request
-            rootRouterAddress.executeDepositSingle{value: msg.value}("", dParams, _srcChainId);
         }
     }
 
     /**
      * @notice Execute a remote request from a remote chain
+     * @param _router The address of the router to execute the request on
      * @param _payload The encoded request data payload
      * @param _srcChainId The chain id of the chain that sent the request
      * @dev DEPOSIT FLAG: 3 (Call with multiple asset Deposit)
      */
-    function executeWithDepositMultiple(bytes calldata _payload, uint16 _srcChainId) external payable onlyOwner {
+    function executeWithDepositMultiple(address _router, bytes calldata _payload, uint16 _srcChainId)
+        external
+        payable
+        onlyOwner
+    {
         //Bridge In Assets and Save Deposit Params
         DepositMultipleParams memory dParams = _bridgeInMultiple(
-            address(rootRouterAddress),
+            _router,
             _payload[
                 PARAMS_START:
                     PARAMS_END_OFFSET + uint256(uint8(bytes1(_payload[PARAMS_START]))) * PARAMS_TKN_SET_SIZE_MULTIPLE
@@ -117,39 +133,38 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
         // Check if there is additional calldata in the payload
         if (length > PARAMS_END_OFFSET + (numOfAssets * PARAMS_TKN_SET_SIZE_MULTIPLE)) {
             //Try to execute remote request
-            rootRouterAddress.executeDepositMultiple{value: msg.value}(
+            IRouter(_router).executeDepositMultiple{value: msg.value}(
                 _payload[PARAMS_END_OFFSET + uint256(numOfAssets) * PARAMS_TKN_SET_SIZE_MULTIPLE:], dParams, _srcChainId
             );
-        } else {
-            //Execute remote request
-            rootRouterAddress.executeDepositMultiple{value: msg.value}("", dParams, _srcChainId);
         }
     }
 
     /**
      * @notice Execute a remote request from a remote chain
      * @param _account The account that will execute the request
+     * @param _router The address of the router to execute the request on
      * @param _payload The encoded request data payload
      * @param _srcChainId The chain id of the chain that sent the request
      * @dev DEPOSIT FLAG: 4 (Call without Deposit + msg.sender)
      */
-    function executeSignedNoDeposit(address _account, bytes calldata _payload, uint16 _srcChainId)
+    function executeSignedNoDeposit(address _account, address _router, bytes calldata _payload, uint16 _srcChainId)
         external
         payable
         onlyOwner
     {
         //Execute remote request
-        rootRouterAddress.executeSigned{value: msg.value}(_payload[PARAMS_TKN_START_SIGNED:], _account, _srcChainId);
+        IRouter(_router).executeSigned{value: msg.value}(_payload[PARAMS_TKN_START_SIGNED:], _account, _srcChainId);
     }
 
     /**
      * @notice Execute a remote request from a remote chain with single asset deposit
      * @param _account The account that will execute the request
+     * @param _router The address of the router to execute the request on
      * @param _payload The encoded request data payload
      * @param _srcChainId The chain id of the chain that sent the request
      * @dev DEPOSIT FLAG: 5 (Call with Deposit + msg.sender)
      */
-    function executeSignedWithDeposit(address _account, bytes calldata _payload, uint16 _srcChainId)
+    function executeSignedWithDeposit(address _account, address _router, bytes calldata _payload, uint16 _srcChainId)
         external
         payable
         onlyOwner
@@ -169,27 +184,26 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
         // Check if there is additional calldata in the payload
         if (_payload.length > PARAMS_SETTLEMENT_OFFSET) {
             //Execute remote request
-            rootRouterAddress.executeSignedDepositSingle{value: msg.value}(
+            IRouter(_router).executeSignedDepositSingle{value: msg.value}(
                 _payload[PARAMS_SETTLEMENT_OFFSET:], dParams, _account, _srcChainId
             );
-        } else {
-            //Execute remote request
-            rootRouterAddress.executeSignedDepositSingle{value: msg.value}("", dParams, _account, _srcChainId);
         }
     }
 
     /**
      * @notice Execute a remote request from a remote chain with multiple asset deposit
      * @param _account The account that will execute the request
+     * @param _router The address of the router to execute the request on
      * @param _payload The encoded request data payload
      * @param _srcChainId The chain id of the chain that sent the request
      * @dev DEPOSIT FLAG: 6 (Call with multiple asset Deposit + msg.sender)
      */
-    function executeSignedWithDepositMultiple(address _account, bytes calldata _payload, uint16 _srcChainId)
-        external
-        payable
-        onlyOwner
-    {
+    function executeSignedWithDepositMultiple(
+        address _account,
+        address _router,
+        bytes calldata _payload,
+        uint16 _srcChainId
+    ) external payable onlyOwner {
         //Bridge In Assets
         DepositMultipleParams memory dParams = _bridgeInMultiple(
             _account,
@@ -208,7 +222,7 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
                     + uint256(uint8(bytes1(_payload[PARAMS_START_SIGNED]))) * PARAMS_TKN_SET_SIZE_MULTIPLE
         ) {
             //Execute remote request
-            rootRouterAddress.executeSignedDepositMultiple{value: msg.value}(
+            IRouter(_router).executeSignedDepositMultiple{value: msg.value}(
                 _payload[
                     PARAMS_END_SIGNED_OFFSET
                         + uint256(uint8(bytes1(_payload[PARAMS_START_SIGNED]))) * PARAMS_TKN_SET_SIZE_MULTIPLE:
@@ -217,9 +231,6 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
                 _account,
                 _srcChainId
             );
-        } else {
-            //Execute remote request
-            rootRouterAddress.executeSignedDepositMultiple{value: msg.value}("", dParams, _account, _srcChainId);
         }
     }
 
@@ -227,6 +238,7 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
      * @notice Internal function to move assets from branch chain to root omnichain environment.
      *   @param _dParams Cross-Chain Deposit of Multiple Tokens Params.
      *   @param _srcChainId chain to bridge from.
+     *
      */
     function _bridgeIn(address _recipient, DepositParams memory _dParams, uint16 _srcChainId) internal {
         //Request assets for decoded request.
@@ -251,20 +263,76 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
      *         2. PARAMS_TKN_START + (PARAMS_ADDRESS_SIZE * N)
      *         3. PARAMS_TKN_START + (PARAMS_AMT_OFFSET * N)
      *         4. PARAMS_TKN_START + (PARAMS_DEPOSIT_OFFSET * N)
+     *
      */
     function _bridgeInMultiple(address _recipient, bytes calldata _dParams, uint16 _srcChainId)
         internal
         returns (DepositMultipleParams memory dParams)
     {
-        // Decode Params
-        (
-            uint8 numOfAssets,
-            uint32 nonce,
-            address[] memory hTokens,
-            address[] memory tokens,
-            uint256[] memory amounts,
-            uint256[] memory deposits
-        ) = _dParams.decodeBridgeMultipleInfo();
+        // Parse Parameters
+        uint8 numOfAssets = uint8(bytes1(_dParams[0]));
+        uint32 nonce = uint32(bytes4(_dParams[PARAMS_START:5]));
+
+        address[] memory hTokens = new address[](numOfAssets);
+        address[] memory tokens = new address[](numOfAssets);
+        uint256[] memory amounts = new uint256[](numOfAssets);
+        uint256[] memory deposits = new uint256[](numOfAssets);
+
+        for (uint256 i = 0; i < uint256(uint8(numOfAssets));) {
+            // Cache offset
+            uint256 currentIterationOffset = PARAMS_START + i;
+
+            // Parse Params
+            hTokens[i] = address(
+                uint160(
+                    bytes20(
+                        bytes32(
+                            _dParams[
+                                PARAMS_TKN_START + (PARAMS_ENTRY_SIZE * i) + ADDRESS_END_OFFSET:
+                                    PARAMS_TKN_START + (PARAMS_ENTRY_SIZE * currentIterationOffset)
+                            ]
+                        )
+                    )
+                )
+            );
+
+            tokens[i] = address(
+                uint160(
+                    bytes20(
+                        bytes32(
+                            _dParams[
+                                PARAMS_TKN_START + PARAMS_ENTRY_SIZE * (i + numOfAssets) + ADDRESS_END_OFFSET:
+                                    PARAMS_TKN_START + PARAMS_ENTRY_SIZE * (currentIterationOffset + numOfAssets)
+                            ]
+                        )
+                    )
+                )
+            );
+
+            amounts[i] = uint256(
+                bytes32(
+                    _dParams[
+                        PARAMS_TKN_START + PARAMS_AMT_OFFSET * numOfAssets + (PARAMS_ENTRY_SIZE * i):
+                            PARAMS_TKN_START + PARAMS_AMT_OFFSET * numOfAssets
+                                + (PARAMS_ENTRY_SIZE * currentIterationOffset)
+                    ]
+                )
+            );
+
+            deposits[i] = uint256(
+                bytes32(
+                    _dParams[
+                        PARAMS_TKN_START + PARAMS_DEPOSIT_OFFSET * numOfAssets + (PARAMS_ENTRY_SIZE * i):
+                            PARAMS_TKN_START + PARAMS_DEPOSIT_OFFSET * numOfAssets
+                                + PARAMS_ENTRY_SIZE * currentIterationOffset
+                    ]
+                )
+            );
+
+            unchecked {
+                ++i;
+            }
+        }
 
         // Save Deposit Multiple Params
         dParams = DepositMultipleParams({

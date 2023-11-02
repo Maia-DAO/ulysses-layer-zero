@@ -38,7 +38,7 @@ interface IBranchRouter {
 
     /**
      * @notice Function to perform a call to the Root Omnichain Router without token deposit.
-     *   @param params enconded parameters to execute on the root chain.
+     *   @param params RLP enconded parameters to execute on the root chain.
      *   @param gParams gas parameters for the cross-chain call.
      *   @dev ACTION ID: 1 (Call without deposit)
      *
@@ -73,18 +73,10 @@ interface IBranchRouter {
 
     /**
      * @notice External function that returns a given deposit entry.
-     *   @param depositNonce Identifier for user deposit.
+     *     @param depositNonce Identifier for user deposit.
      *
      */
     function getDepositEntry(uint32 depositNonce) external view returns (Deposit memory);
-
-    /**
-     * @notice Function to retry a deposit that has failed.
-     *   @param _depositNonce Identifier for user deposit.
-     *   @param _params encoded router parameters to execute on the root chain.
-     *   @param _gParams gas parameters for the cross-chain call.
-     */
-    function retryDeposit(uint32 _depositNonce, bytes calldata _params, GasParams calldata _gParams) external payable;
 
     /*///////////////////////////////////////////////////////////////
                         LAYERZERO EXTERNAL FUNCTIONS
@@ -92,22 +84,22 @@ interface IBranchRouter {
 
     /**
      * @notice Function responsible of executing a branch router response.
-     *   @param params data received from messaging layer.
+     *     @param params data received from messaging layer.
      */
     function executeNoSettlement(bytes calldata params) external payable;
 
     /**
      * @dev Function responsible of executing a crosschain request without any deposit.
-     *   @param params data received from messaging layer.
-     *   @param sParams SettlementParams struct.
+     *     @param params data received from messaging layer.
+     *     @param sParams SettlementParams struct.
      */
     function executeSettlement(bytes calldata params, SettlementParams calldata sParams) external payable;
 
     /**
      * @dev Function responsible of executing a crosschain request which contains
      *      cross-chain deposit information attached.
-     *   @param params data received from messaging layer.
-     *   @param sParams SettlementParams struct containing deposit information.
+     *     @param params data received from messaging layer.
+     *     @param sParams SettlementParams struct containing deposit information.
      *
      */
     function executeSettlementMultiple(bytes calldata params, SettlementMultipleParams calldata sParams)
