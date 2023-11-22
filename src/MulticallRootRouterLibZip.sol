@@ -22,6 +22,12 @@ import {MulticallRootRouter} from "./MulticallRootRouter.sol";
 contract MulticallRootRouterLibZip is MulticallRootRouter {
     using LibZip for bytes;
 
+    /**
+     * @notice Constructor for Multicall Root Router.
+     * @param _localChainId The local chain id.
+     * @param _localPortAddress The local port address.
+     * @param _multicallAddress The address of the Multicall contract.
+     */
     constructor(uint256 _localChainId, address _localPortAddress, address _multicallAddress)
         MulticallRootRouter(_localChainId, _localPortAddress, _multicallAddress)
     {}
@@ -30,6 +36,11 @@ contract MulticallRootRouterLibZip is MulticallRootRouter {
                             DECODING FUNCTIONS
     ///////////////////////////////////////////////////////////////*/
 
+    /**
+     *  @notice Function hook to decode bytes data.
+     *  @param data to be decoded.
+     *  @return decoded data.
+     */
     function _decode(bytes calldata data) internal pure override returns (bytes memory) {
         return data.cdDecompress();
     }

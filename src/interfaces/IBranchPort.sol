@@ -5,20 +5,18 @@ pragma solidity ^0.8.0;
 /**
  * @title  Branch Port - Omnichain Token Management Contract
  * @author MaiaDAO
- * @notice Ulyses `Port` implementation for Branch Chain deployment. This contract
- *         is used to manage the deposit and withdrawal of underlying assets from
- *         the Branch Chain in response to Branch Bridge Agents' requests.
- *         Manages Bridge Agents and their factories as well as the chain's strategies and
- *         their tokens.
+ * @notice Ulyses `Port` implementation for Branch Chain deployment. This contract is used to manage the deposit and
+ *         withdrawal of underlying assets from the Branch Chain in response to Branch Bridge Agent requests.
+ *         Manages Bridge Agents and their factories as well as the chain's strategies and their tokens.
  */
 interface IBranchPort {
     /*///////////////////////////////////////////////////////////////
                             VIEW FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
     /**
      * @notice Returns true if the address is a Bridge Agent.
      *   @param _bridgeAgent Bridge Agent address.
-     *   @return bool.
+     *   @return bool .
      */
     function isBridgeAgent(address _bridgeAgent) external view returns (bool);
 
@@ -46,7 +44,7 @@ interface IBranchPort {
 
     /*///////////////////////////////////////////////////////////////
                           PORT STRATEGY MANAGEMENT
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Allows active Port Strategy addresses to withdraw assets.
@@ -56,49 +54,50 @@ interface IBranchPort {
     function manage(address _token, uint256 _amount) external;
 
     /**
-     * @notice allow approved address to repay borrowed reserves with reserves
-     *  @param _amount uint
-     *  @param _token address
-     *  @dev must be called by the port strategy itself
+     * @notice allow strategy address to repay borrowed reserves with reserves.
+     *  @param _amount amount of tokens to repay.
+     *  @param _token address of the token to repay.
+     *  @dev must be called by the port strategy itself.
      */
     function replenishReserves(address _token, uint256 _amount) external;
 
     /**
-     * @notice allow approved address to repay borrowed reserves and replenish a given token's reserves
-     *  @param _strategy address
-     *  @param _token address
-     *  @dev can be called by anyone to ensure availability of service
+     * @notice allow anyone to request repayment of a strategy's reserves if Port is under minimum reserves ratio.
+     *  @param _strategy address of the strategy to repay.
+     *  @param _token address of the token to repay.
+     *  @dev can be called by anyone to ensure availability of service.
      */
     function replenishReserves(address _strategy, address _token) external;
 
     /*///////////////////////////////////////////////////////////////
                           hTOKEN MANAGEMENT
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Function to withdraw underlying/native token amount into Port in exchange for Local hToken.
-     *   @param _recipient hToken receiver.
-     *   @param _underlyingAddress underlying/native token address.
+     * @notice Function to withdraw underlying / native token amount from Port to Branch Bridge Agent.
+     *   @param _recipient address of the underlying token receiver.
+     *   @param _underlyingAddress underlying token address.
      *   @param _amount amount of tokens.
-     *
+     *   @dev must be called by the bridge agent itself. Matches the burning of global hTokens in root chain.
      */
     function withdraw(address _recipient, address _underlyingAddress, uint256 _amount) external;
 
     /**
-     * @notice Setter function to increase local hToken supply.
-     *   @param _recipient hToken receiver.
-     *   @param _localAddress token address.
-     *   @param _amount amount of tokens.
-     *
+     * @notice Function to mint hToken amount to Branch Bridge Agent.
+     *   @param _recipient address of the hToken receiver.
+     *   @param _localAddress hToken address.
+     *   @param _amount amount of hTokens.
+     *   @dev must be called by the bridge agent itself. Matches the storage of global hTokens in root port.
      */
     function bridgeIn(address _recipient, address _localAddress, uint256 _amount) external;
 
     /**
-     * @notice Setter function to increase local hToken supply.
-     *   @param _recipient hToken receiver.
-     *   @param _localAddresses token addresses.
-     *   @param _amounts amount of tokens.
-     *
+     * @notice Function to withdraw underlying / native tokens and mint local hTokens to Branch Bridge Agent.
+     *   @param _recipient address of the token receiver.
+     *   @param _localAddresses local hToken addresses.
+     *   @param _underlyingAddresses underlying token addresses.
+     *   @param _amounts total amount of tokens.
+     *   @param _deposits amount of underlying tokens.
      */
     function bridgeInMultiple(
         address _recipient,
@@ -109,11 +108,12 @@ interface IBranchPort {
     ) external;
 
     /**
-     * @notice Setter function to decrease local hToken supply.
-     *   @param _localAddress token address.
-     *   @param _amount amount of tokens.
+     * @notice Function to deposit underlying / native tokens in Port and burn hTokens.
+     *   @param _depositor address of the token depositor.
+     *   @param _localAddress local hToken addresses.
+     *   @param _underlyingAddress underlying token addresses.
+     *   @param _amount total amount of tokens.
      *   @param _deposit amount of underlying tokens.
-     *
      */
     function bridgeOut(
         address _depositor,
@@ -125,12 +125,11 @@ interface IBranchPort {
 
     /**
      * @notice Setter function to decrease local hToken supply.
-     *   @param _depositor user to deduct balance from.
-     *   @param _localAddresses local token addresses.
-     *   @param _underlyingAddresses local token address.
-     *   @param _amounts amount of local tokens.
+     *   @param _depositor address of the token depositor.
+     *   @param _localAddresses local hToken addresses.
+     *   @param _underlyingAddresses underlying token addresses.
+     *   @param _amounts total amount of tokens.
      *   @param _deposits amount of underlying tokens.
-     *
      */
     function bridgeOutMultiple(
         address _depositor,
@@ -142,7 +141,7 @@ interface IBranchPort {
 
     /*///////////////////////////////////////////////////////////////
                         ADMIN FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Adds a new bridge agent address to the branch port.
@@ -217,19 +216,17 @@ interface IBranchPort {
 
     /*///////////////////////////////////////////////////////////////
                             EVENTS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
-    // TODO: Add Natspec documentation for events
-
+    /// @notice Event emitted when a Port Strategy manages more reserves increasing its debt for a given token.
     event DebtCreated(address indexed _strategy, address indexed _token, uint256 _amount);
+    /// @notice Event emitted when a Port Strategy replenishes reserves decreasing its debt for a given token.
     event DebtRepaid(address indexed _strategy, address indexed _token, uint256 _amount);
 
+    /// @notice Event emitted when Strategy Token has its details updated.
     event StrategyTokenUpdated(address indexed _token, uint256 indexed _minimumReservesRatio);
 
-    event PortStrategyAdded(
-        address indexed _portStrategy, address indexed _token, uint256 indexed _dailyManagementLimit
-    );
-    event PortStrategyToggled(address indexed _portStrategy, address indexed _token);
+    /// @notice Event emitted when a Port Strategy has its details updated.
     event PortStrategyUpdated(
         address indexed _portStrategy,
         address indexed _token,
@@ -237,32 +234,43 @@ interface IBranchPort {
         uint256 _reserveRatioManagementLimit
     );
 
-    event BridgeAgentFactoryAdded(address indexed _bridgeAgentFactory);
+    /// @notice Event emitted when a Branch Bridge Agent Factory is toggled on or off.
     event BridgeAgentFactoryToggled(address indexed _bridgeAgentFactory);
 
+    /// @notice Event emitted when a Bridge Agent is toggled on or off.
     event BridgeAgentToggled(address indexed _bridgeAgent);
 
+    /// @notice Event emitted when a Core Branch Router and Bridge Agent are set.
     event CoreBranchSet(address indexed _coreBranchRouter, address indexed _coreBranchBridgeAgent);
 
     /*///////////////////////////////////////////////////////////////
                             ERRORS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
-    // TODO: Add Natspec documentation for errors
-
+    /// @notice Error emitted when Bridge Agent is already added.
     error AlreadyAddedBridgeAgent();
-    error AlreadyAddedBridgeAgentFactory();
-    error InvalidMinimumReservesRatio();
-    error InvalidInputArrays();
-    error InsufficientReserves();
-    error ExceedsReserveRatioManagementLimit();
-    error UnrecognizedCore();
-    error UnrecognizedBridgeAgent();
-    error UnrecognizedBridgeAgentFactory();
-    error UnrecognizedPortStrategy();
-    error UnrecognizedStrategyToken();
-    error NotEnoughDebtToRepay();
 
+    /// @notice Error emitted when Port Strategy request would exceed the Branch Port's minimum reserves.
+    error InsufficientReserves();
+
+    /// @notice Error emitted when Port Strategy request would exceed it's reserve ratio management limit.
+    error ExceedsReserveRatioManagementLimit();
+
+    /// @notice Error emitted when minimum reserves ratio is set too low.
+    error InvalidMinimumReservesRatio();
+    /// @notice Error emitted when token deposit arrays have different lengths.
+    error InvalidInputArrays();
     /// @notice Error emitted when an invalid underlying token address is provided.
     error InvalidUnderlyingAddress();
+
+    /// @notice Error emitted when caller is not the Core Branch Router.
+    error UnrecognizedCore();
+    /// @notice Error emitted when caller is not an active Branch Bridge Agent.
+    error UnrecognizedBridgeAgent();
+    /// @notice Error emitted when caller is not an active Branch Bridge Agent Factory.
+    error UnrecognizedBridgeAgentFactory();
+    /// @notice Error emitted when caller is not an active Port Strategy.
+    error UnrecognizedPortStrategy();
+    /// @notice Error emitted when caller is not an active Strategy Token.
+    error UnrecognizedStrategyToken();
 }

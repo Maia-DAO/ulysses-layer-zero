@@ -21,7 +21,7 @@ import {
 interface IBranchRouter {
     /*///////////////////////////////////////////////////////////////
                             VIEW / STATE
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice External function to return the Branch Chain's Local Port Address.
     function localPortAddress() external view returns (address);
@@ -32,9 +32,13 @@ interface IBranchRouter {
     /// @notice Local Bridge Agent Executor Address.
     function bridgeAgentExecutorAddress() external view returns (address);
 
+    /// @notice External function that returns a given deposit entry.
+    /// @param depositNonce Identifier for user deposit.
+    function getDepositEntry(uint32 depositNonce) external view returns (Deposit memory);
+
     /*///////////////////////////////////////////////////////////////
                         EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function to perform a call to the Root Omnichain Router without token deposit.
@@ -72,13 +76,6 @@ interface IBranchRouter {
     ) external payable;
 
     /**
-     * @notice External function that returns a given deposit entry.
-     *   @param depositNonce Identifier for user deposit.
-     *
-     */
-    function getDepositEntry(uint32 depositNonce) external view returns (Deposit memory);
-
-    /**
      * @notice Function to retry a deposit that has failed.
      *   @param _depositNonce Identifier for user deposit.
      *   @param _params encoded router parameters to execute on the root chain.
@@ -88,7 +85,7 @@ interface IBranchRouter {
 
     /*///////////////////////////////////////////////////////////////
                         LAYERZERO EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function responsible of executing a branch router response.
@@ -116,9 +113,11 @@ interface IBranchRouter {
 
     /*///////////////////////////////////////////////////////////////
                              ERRORS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
+    /// @notice Error emitted when the Branch Router does not recognize the function ID.
     error UnrecognizedFunctionId();
 
+    /// @notice Error emitted when caller is not the Branch Bridge Agent Executor.
     error UnrecognizedBridgeAgentExecutor();
 }

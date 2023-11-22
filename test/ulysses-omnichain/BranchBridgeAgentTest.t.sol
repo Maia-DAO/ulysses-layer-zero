@@ -64,16 +64,53 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
 
     receive() external payable {}
 
-    // function testFallbackGasAmount() public {
-    //     // Encode Fallback message
-    //     bytes memory fallbackData = abi.encodePacked(bytes1(0x04), uint32(1));
+    function test_fuzz_lzReceive_UnknownFlag(bytes1 _depositFlag) public {
+        // If the deposit flag is larger than 0x00
+        if (_depositFlag > 0x00) {
+            // If the deposit flag is less than 0x0A, set it to 0x0A
+            if (_depositFlag < 0x06) {
+                _depositFlag = 0x06;
+            }
+            // If the fallback flag is set, set the second bit to 0 to ensure the flag is unknown
+            // Acceptable fallback deposit flags are 0x82 and 0x83
+            else if (_depositFlag & 0x80 == 0x80 && (_depositFlag == 0x82 || _depositFlag == 0x83)) {
+                _depositFlag = _depositFlag | 0x8d;
+            }
+        }
 
-    //     // Call 'Fallback'
-    //     vm.prank(lzEndpointAddress);
-    //     uint256 gasStart = gasleft();
-    //     bAgent.lzReceive(rootChainId, abi.encodePacked(bAgent, rootBridgeAgentAddress), 1, fallbackData);
-    //     console2.log("gas used: ", gasStart - gasleft());
-    // }
+        vm.expectRevert(IBranchBridgeAgent.UnknownFlag.selector);
+        vm.prank(address(bAgent));
+        bAgent.lzReceiveNonBlocking(lzEndpointAddress, rootChainId, rootBridgeAgentPath, abi.encodePacked(_depositFlag));
+    }
+
+    function test_fuzz_forceResumeReceive(uint16 _srcChainId, bytes memory _srcAddress) public {
+        vm.expectCall(
+            lzEndpointAddress,
+            0,
+            abi.encodeWithSelector(
+                // "forceResumeReceive(uint16,bytes)",
+                ILayerZeroUserApplicationConfig.forceResumeReceive.selector,
+                _srcChainId,
+                _srcAddress
+            )
+        );
+        vm.mockCall(
+            lzEndpointAddress,
+            abi.encodeWithSelector(
+                // "forceResumeReceive(uint16,bytes)",
+                ILayerZeroUserApplicationConfig.forceResumeReceive.selector,
+                _srcChainId,
+                _srcAddress
+            ),
+            ""
+        );
+
+        bAgent.forceResumeReceive(_srcChainId, _srcAddress);
+    }
+
+    function test_forceResumeReceive() public {
+        test_fuzz_forceResumeReceive(0, abi.encodePacked(address(0)));
+    }
 
     function _getAdapterParams(uint256 _gasLimit, uint256 _remoteBranchExecutionGas)
         internal

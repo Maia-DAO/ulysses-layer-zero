@@ -26,15 +26,16 @@ library DeployArbitrumBranchBridgeAgent {
 /**
  * @title  Arbitrum Branch Bridge Agent Contract.
  * @author MaiaDAO
- * @notice This contract is used for interfacing with Users/Routers acting as a middleman
- *         to access LayerZero cross-chain messaging and Port communication for asset management
- *         connecting Arbitrum Branch Chain contracts and the root omnichain environment.
+ * @notice This contract is used for interfacing with Users/Routers acting as a middleman to access LayerZero
+ *         cross-chain messaging and Port communication for asset management connecting Arbitrum Branch Chain
+ *         contracts and the root omnichain environment.
  */
 contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
     using SafeTransferLib for address payable;
+
     /*///////////////////////////////////////////////////////////////
                             CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Constructor for Arbitrum Branch Bridge Agent.
@@ -61,13 +62,12 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
 
     /*///////////////////////////////////////////////////////////////
                         USER EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function to deposit a single asset to the local Port.
      *  @param underlyingAddress address of the underlying asset to be deposited.
      *  @param amount amount to be deposited.
-     *
      */
     function depositToPort(address underlyingAddress, uint256 amount) external payable lock {
         IArbPort(localPortAddress).depositToPort(msg.sender, msg.sender, underlyingAddress, amount);
@@ -77,7 +77,6 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
      * @notice Function to withdraw a single asset from the local Port.
      *  @param globalAddress local hToken to be withdrawn.
      *  @param amount amount to be withdrawn.
-     *
      */
     function withdrawFromPort(address globalAddress, uint256 amount) external payable lock {
         IArbPort(localPortAddress).withdrawFromPort(msg.sender, msg.sender, globalAddress, amount);
@@ -85,7 +84,7 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
 
     /*///////////////////////////////////////////////////////////////
                     SETTLEMENT EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchBridgeAgent
     /// @dev This functionality should be accessed from Root environment
@@ -95,7 +94,7 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
 
     /*///////////////////////////////////////////////////////////////
                     LAYER ZERO INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Internal function performs the call to LayerZero messaging layer Endpoint for cross-chain messaging.
@@ -109,7 +108,7 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
     }
 
     /**
-     * @notice Internal function performs the call to Layerzero Endpoint Contract for cross-chain messaging.
+     * @notice Internal function performs a fallback call to Layerzero Endpoint Contract for cross-chain messaging.
      *  @param _refundee address to refund gas to.
      *  @param _settlementNonce root settlement nonce to fallback.
      */
@@ -127,7 +126,7 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
 
     /*///////////////////////////////////////////////////////////////
                         MODIFIER INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Verifies the caller is the Root Bridge Agent.

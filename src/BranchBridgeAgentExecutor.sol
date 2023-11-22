@@ -15,18 +15,18 @@ import {BranchBridgeAgent} from "./BranchBridgeAgent.sol";
 
 /// @title Library for Branch Bridge Agent Executor Deployment
 library DeployBranchBridgeAgentExecutor {
-    function deploy(address _branchRouterAddress) external returns (address) {
-        return address(new BranchBridgeAgentExecutor(_branchRouterAddress));
+    function deploy(address _branchRouter) external returns (address) {
+        return address(new BranchBridgeAgentExecutor(_branchRouter));
     }
 }
 
 /**
  * @title  Branch Bridge Agent Executor Contract
  * @author MaiaDAO
- * @notice This contract is used for requesting token deposit clearance and
- *         executing transactions in response to requests from the root environment.
- * @dev    Execution is "sandboxed" meaning upon tx failure both token deposits
- *         and interactions with external contracts should be reverted and caught.
+ * @notice This contract is used for requesting token deposit clearance and executing transactions in response to
+ *         requests from the root environment.
+ * @dev    Execution is "sandboxed" meaning upon tx failure both token deposits and interactions with external
+ *         contracts should be reverted and caught by the Branch Bridge Agent.
  */
 contract BranchBridgeAgentExecutor is Ownable, BridgeAgentConstants {
     using SafeTransferLib for address;
@@ -37,7 +37,7 @@ contract BranchBridgeAgentExecutor is Ownable, BridgeAgentConstants {
     ///////////////////////////////////////////////////////////////*/
 
     /// @notice Router that is responsible for executing the cross-chain requests forwarded by this contract.
-    address public immutable branchRouterAddress;
+    IRouter public immutable branchRouter;
 
     /*///////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -45,11 +45,11 @@ contract BranchBridgeAgentExecutor is Ownable, BridgeAgentConstants {
 
     /**
      * @notice Constructor for Branch Bridge Agent Executor.
-     * @param _branchRouterAddress router that will execute the cross-chain requests forwarded by this contract.
+     * @param _branchRouter router that will execute the cross-chain requests forwarded by this contract.
      * @dev    Sets the owner of the contract to the Branch Bridge Agent that deploys it.
      */
-    constructor(address _branchRouterAddress) {
-        branchRouterAddress = _branchRouterAddress;
+    constructor(address _branchRouter) {
+        branchRouter = IRouter(_branchRouter);
         _initializeOwner(msg.sender);
     }
 
@@ -60,11 +60,11 @@ contract BranchBridgeAgentExecutor is Ownable, BridgeAgentConstants {
     /**
      * @notice Function to execute a cross-chain request without any settlement.
      * @param _payload Data received from the messaging layer.
-     * @dev SETTLEMENT FLAG: 0 (No settlement)
+     * @dev SETTLEMENT FLAG: 1 (No settlement)
      */
     function executeNoSettlement(bytes calldata _payload) external payable onlyOwner {
         // Execute Calldata if there is code in the destination router
-        IRouter(branchRouterAddress).executeNoSettlement{value: msg.value}(_payload[PARAMS_TKN_START_SIGNED:]);
+        branchRouter.executeNoSettlement{value: msg.value}(_payload[PARAMS_TKN_START_SIGNED:]);
     }
 
     /**
@@ -72,7 +72,7 @@ contract BranchBridgeAgentExecutor is Ownable, BridgeAgentConstants {
      * @param _recipient Address of the recipient of the settlement.
      * @param _payload Data received from the messaging layer.
      * @dev Router is responsible for managing the msg.value either using it for more remote calls or sending to user.
-     * @dev SETTLEMENT FLAG: 1 (Single Settlement)
+     * @dev SETTLEMENT FLAG: 2 (Single Settlement)
      */
     function executeWithSettlement(address _recipient, bytes calldata _payload) external payable onlyOwner {
         // Clear Token / Execute Settlement
@@ -87,18 +87,16 @@ contract BranchBridgeAgentExecutor is Ownable, BridgeAgentConstants {
 
         // Bridge In Assets
         BranchBridgeAgent(payable(msg.sender)).bridgeIn(
-            sParams.recipient, sParams.hToken, sParams.token, sParams.amount, sParams.deposit
+            _recipient, sParams.hToken, sParams.token, sParams.amount, sParams.deposit
         );
 
         // Execute Calldata if there is any
         if (_payload.length > PARAMS_SETTLEMENT_OFFSET) {
             // Execute remote request
-            IRouter(branchRouterAddress).executeSettlement{value: msg.value}(
-                _payload[PARAMS_SETTLEMENT_OFFSET:], sParams
-            );
-        } else if (sParams.recipient == branchRouterAddress) {
+            branchRouter.executeSettlement{value: msg.value}(_payload[PARAMS_SETTLEMENT_OFFSET:], sParams);
+        } else if (_recipient == address(branchRouter)) {
             // Execute remote request
-            IRouter(branchRouterAddress).executeSettlement{value: msg.value}("", sParams);
+            branchRouter.executeSettlement{value: msg.value}("", sParams);
         } else {
             // Send remaininig native / gas token to recipient
             _recipient.safeTransferETH(address(this).balance);
@@ -110,7 +108,7 @@ contract BranchBridgeAgentExecutor is Ownable, BridgeAgentConstants {
      * @param _recipient Address of the recipient of the settlement.
      * @param _payload Data received from the messaging layer.
      * @dev Router is responsible for managing the msg.value either using it for more remote calls or sending to user.
-     * @dev SETTLEMENT FLAG: 2 (Multiple Settlements)
+     * @dev SETTLEMENT FLAG: 3 (Multiple Settlements)
      */
     function executeWithSettlementMultiple(address _recipient, bytes calldata _payload) external payable onlyOwner {
         // Parse Values
@@ -124,12 +122,10 @@ contract BranchBridgeAgentExecutor is Ownable, BridgeAgentConstants {
         // Execute Calldata if there is any
         if (_payload.length > settlementEndOffset) {
             // Execute remote request
-            IRouter(branchRouterAddress).executeSettlementMultiple{value: msg.value}(
-                _payload[settlementEndOffset:], sParams
-            );
-        } else if (sParams.recipient == branchRouterAddress) {
+            branchRouter.executeSettlementMultiple{value: msg.value}(_payload[settlementEndOffset:], sParams);
+        } else if (_recipient == address(branchRouter)) {
             // Execute remote request
-            IRouter(branchRouterAddress).executeSettlementMultiple{value: msg.value}("", sParams);
+            branchRouter.executeSettlementMultiple{value: msg.value}("", sParams);
         } else {
             // Send remaininig native / gas token to recipient
             _recipient.safeTransferETH(address(this).balance);
@@ -147,7 +143,7 @@ contract BranchBridgeAgentExecutor is Ownable, BridgeAgentConstants {
      *     4. Token related information starts at index PARAMS_TKN_START is encoded as follows:
      *         1. N * 32 bytes for the hToken address.
      *         2. N * 32 bytes for the underlying token address.
-     *         3. N * 32 bytes for the amount of hTokens to be bridged in.
+     *         3. N * 32 bytes for the amount of tokens to be bridged in.
      *         4. N * 32 bytes for the amount of underlying tokens to be bridged in.
      *     5. Each of the 4 token related arrays are of length N and start at the following indexes:
      *         1. PARAMS_TKN_START [hToken address has no offset from token information start].

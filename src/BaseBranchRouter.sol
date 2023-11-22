@@ -27,7 +27,7 @@ contract BaseBranchRouter is IBranchRouter, Ownable {
 
     /*///////////////////////////////////////////////////////////////
                     BASE BRANCH ROUTER STATE
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchRouter
     address public localPortAddress;
@@ -43,15 +43,16 @@ contract BaseBranchRouter is IBranchRouter, Ownable {
 
     /*///////////////////////////////////////////////////////////////
                             CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
+    /// @notice Constructor for Base Branch Router.
     constructor() {
         _initializeOwner(msg.sender);
     }
 
     /*///////////////////////////////////////////////////////////////
-                    INITIALIZATION FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+                       INITIALIZATION FUNCTIONS
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Initializes the Base Branch Router.
@@ -67,8 +68,8 @@ contract BaseBranchRouter is IBranchRouter, Ownable {
     }
 
     /*///////////////////////////////////////////////////////////////
-                        VIEW FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+                            VIEW FUNCTIONS
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchRouter
     function getDepositEntry(uint32 _depositNonce) external view override returns (Deposit memory) {
@@ -76,8 +77,8 @@ contract BaseBranchRouter is IBranchRouter, Ownable {
     }
 
     /*///////////////////////////////////////////////////////////////
-                        EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+                           EXTERNAL FUNCTIONS
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchRouter
     function callOut(bytes calldata _params, GasParams calldata _gParams) external payable override lock {
@@ -128,8 +129,8 @@ contract BaseBranchRouter is IBranchRouter, Ownable {
     }
 
     /*///////////////////////////////////////////////////////////////
-                BRIDGE AGENT EXECUTOR EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+                 BRIDGE AGENT EXECUTOR EXTERNAL FUNCTIONS
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchRouter
     function executeNoSettlement(bytes calldata) external payable virtual override requiresAgentExecutor {
@@ -159,8 +160,8 @@ contract BaseBranchRouter is IBranchRouter, Ownable {
     }
 
     /*///////////////////////////////////////////////////////////////
-                            INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+                           INTERNAL FUNCTIONS
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Internal function to transfer token into a contract.
@@ -211,7 +212,7 @@ contract BaseBranchRouter is IBranchRouter, Ownable {
 
     /*///////////////////////////////////////////////////////////////
                                 MODIFIERS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Modifier that verifies msg sender is the Bridge Agent Executor.
     modifier requiresAgentExecutor() {

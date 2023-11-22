@@ -12,7 +12,7 @@ pragma solidity ^0.8.0;
 interface IPortStrategy {
     /*///////////////////////////////////////////////////////////////
                           TOKEN MANAGEMENT
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function to withdraw underlying/native token amount back into Branch Port.
@@ -21,10 +21,4 @@ interface IPortStrategy {
      *   @param _amount amount of tokens.
      */
     function withdraw(address _recipient, address _token, uint256 _amount) external;
-
-    /*///////////////////////////////////////////////////////////////
-                            ERRORS
-    //////////////////////////////////////////////////////////////*/
-
-    error UnrecognizedPort();
 }

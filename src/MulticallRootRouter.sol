@@ -14,29 +14,31 @@ import {
 import {IRootRouter, DepositParams, DepositMultipleParams} from "./interfaces/IRootRouter.sol";
 import {IVirtualAccount, Call} from "./interfaces/IVirtualAccount.sol";
 
+/// @notice Multicall Root Router parameters with token output information.
+/// @param settlementOwner settlement owner and excess gas receiver, can retry/retrieve/redeem.
+/// @param recipient Address to receive the output assets in the destination chain.
+/// @param outputToken Address of the output hToken.
+/// @param amountOut Amount of output hTokens to send to destination.
+/// @param depositOut Amount of underlying tokens to clear in destination.
 struct OutputParams {
-    // Address to retry/retrieve/redeem the output assets.
     address settlementOwner;
-    // Address to receive the output assets.
     address recipient;
-    // Address of the output hToken.
     address outputToken;
-    // Amount of output hTokens to send.
     uint256 amountOut;
-    // Amount of output underlying token to send.
     uint256 depositOut;
 }
 
+/// @notice Multicall Root Router parameters with multiple token output information.
+/// @param settlementOwner settlement owner and excess gas receiver, can retry/retrieve/redeem.
+/// @param recipient Address to receive the output assets in the destination chain.
+/// @param outputTokens Addresses of the output hTokens.
+/// @param amountsOut Total amount of tokens to send to destination.
+/// @param depositsOut Amounts of underlying tokens to clear in destination.
 struct OutputMultipleParams {
-    // Address to retry/retrieve/redeem the output assets.
     address settlementOwner;
-    // Address to receive the output assets.
     address recipient;
-    // Addresses of the output hTokens.
     address[] outputTokens;
-    // Amounts of output hTokens to send.
     uint256[] amountsOut;
-    // Amounts of output underlying tokens to send.
     uint256[] depositsOut;
 }
 
@@ -59,7 +61,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
 
     /*///////////////////////////////////////////////////////////////
                             CONSTANTS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @dev Used for identifying cases when this contract's balance of a token is to be used as an input
     /// This value is equivalent to 1<<255, i.e. a singular 1 in the most significant bit.
@@ -67,7 +69,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
 
     /*///////////////////////////////////////////////////////////////
                     MULTICALL ROOT ROUTER STATE
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Root Chain Layer Zero Identifier.
     uint256 public immutable localChainId;
@@ -89,7 +91,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
 
     /*///////////////////////////////////////////////////////////////
                             CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Constructor for Multicall Root Router.
@@ -109,7 +111,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
 
     /*///////////////////////////////////////////////////////////////
                         INITIALIZATION FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
     /**
      * @notice Initializes the Multicall Root Router.
      * @param _bridgeAgentAddress The address of the Bridge Agent.
@@ -196,7 +198,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
     }
 
     /*///////////////////////////////////////////////////////////////
-                        LAYERZERO FUNCTIONS
+                           LAYERZERO FUNCTIONS
     ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IRootRouter
@@ -424,7 +426,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
     }
 
     /*///////////////////////////////////////////////////////////////
-                        MULTICALL FUNCTIONS
+                          MULTICALL FUNCTIONS
     ///////////////////////////////////////////////////////////////*/
 
     /**
@@ -440,8 +442,9 @@ contract MulticallRootRouter is IRootRouter, Ownable {
     }
 
     /*///////////////////////////////////////////////////////////////
-                        INTERNAL HOOKS
-    ////////////////////////////////////////////////////////////*/
+                              INTERNAL HOOKS
+    ///////////////////////////////////////////////////////////////*/
+
     /**
      *  @notice Function to approve token spend before Bridge Agent interaction to Bridge Out of omnichain environment.
      *  @param settlementOwner settlement owner and excess gas receiver.
@@ -518,13 +521,18 @@ contract MulticallRootRouter is IRootRouter, Ownable {
                             DECODING FUNCTIONS
     ///////////////////////////////////////////////////////////////*/
 
+    /**
+     *  @notice Function hook to decode bytes data.
+     *  @param data to be decoded.
+     *  @return decoded data.
+     */
     function _decode(bytes calldata data) internal pure virtual returns (bytes memory) {
         return data;
     }
 
     /*///////////////////////////////////////////////////////////////
-                            MODIFIERS
-    ////////////////////////////////////////////////////////////*/
+                                MODIFIERS
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Modifier for a simple re-entrancy check.
     modifier lock() {

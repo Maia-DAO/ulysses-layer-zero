@@ -37,62 +37,49 @@ import {ILayerZeroReceiver} from "./ILayerZeroReceiver.sol";
  *              by the Router led to an invalid state change in both the token deposit clearances as well as
  *              the external interactions will be reverted and caught by the `RootBridgeAgent`.
  *
- *          Func IDs for calling these  functions through the messaging layer:
+ *         **ROOT BRIDGE AGENT DEPOSIT FLAGS** Func IDs for calling these  functions through the messaging layer
  *
- *       ROOT BRIDGE AGENT DEPOSIT FLAGS
- *       ------------------------------
- *       ID   | DESCRIPTION
- *       -----+------------------------
- *       0x01 | Call to Root Router without Deposit.
- *       0x02 | Call to Root Router with Deposit.
- *       0x03 | Call to Root Router with Deposit of Multiple Tokens.
- *       0x04 | Call to Root Router without Deposit + signed message.
- *       0x05 | Call to Root Router with Deposit + signed message.
- *       0x06 | Call to Root Router with Deposit of Multiple Tokens + signed message.
- *       0x07 | Call to `retrySettlement()´. (retries sending a settlement w/ new calldata for execution + new gas)
- *       0x08 | Call to `retrieveDeposit()´. (clears a deposit that has not been executed yet triggering `_fallback`)
- *       0x09 | Call to `_fallback()`. (reopens a settlement for asset redemption)
+ *         | ID   | DESCRIPTION                                                                                           |
+ *         |------|-------------------------------------------------------------------------------------------------------|
+ *         | 0x01 | Call to Root Router without Deposit.                                                                  |
+ *         | 0x02 | Call to Root Router with Deposit.                                                                     |
+ *         | 0x03 | Call to Root Router with Deposit of Multiple Tokens.                                                  |
+ *         | 0x04 | Call to Root Router without Deposit + signed message.                                                 |
+ *         | 0x05 | Call to Root Router with Deposit + signed message.                                                    |
+ *         | 0x06 | Call to Root Router with Deposit of Multiple Tokens + signed message.                                 |
+ *         | 0x07 | Call to `retrySettlement()`. (retries sending a settlement w/ new calldata for execution + new gas)   |
+ *         | 0x08 | Call to `retrieveDeposit()`. (clears a deposit that has not been executed yet triggering `_fallback`) |
+ *         | 0x09 | Call to `_fallback()`. (reopens a settlement for asset redemption)                                    |
  *
  *
- *          Encoding Scheme for different Root Bridge Agent Deposit Flags:
+ *            Encoding Scheme for different Root Bridge Agent Deposit Flags:
  *
- *           - ht = hToken
- *           - t = Token
- *           - A = Amount
- *           - D = Deposit
- *           - b = bytes
- *           - n = number of assets
- *       _____________________________________________________________________________________________________________
- *      |            Flag               |        Deposit Info        |             Token Info             |   DATA   |
- *      |           1 byte              |         4-25 bytes         |       104 or (128 * n) bytes       |   ---	 |
- *      |                               |                            |           hT - t - A - D           |          |
- *      |_______________________________|____________________________|____________________________________|__________|
- *      | callOut = 0x01                |                 4b(nonce)  |            -------------           |   ---	 |
- *      | callOutSingle = 0x02          |                 4b(nonce)  |        20b + 20b + 32b + 32b       |   ---	 |
- *      | callOutMulti = 0x03           |         1b(n) + 4b(nonce)  |   	  32b + 32b + 32b + 32b       |   ---	 |
- *      | callOutSigned = 0x04          |    20b(recip) + 4b(nonce)  |   	      -------------           |   ---    |
- *      | callOutSignedSingle = 0x05    |           20b + 4b(nonce)  |        20b + 20b + 32b + 32b       |   ---	 |
- *      | callOutSignedMultiple = 0x06  |   20b + 1b(n) + 4b(nonce)  |        32b + 32b + 32b + 32b       |   ---	 |
- *      |_______________________________|____________________________|____________________________________|__________|
+ *             - ht = hToken
+ *             - t = Token
+ *             - A = Amount
+ *             - D = Deposit
+ *             - b = bytes
+ *             - n = number of assets
  *
- *          Generic Contract Interaction Flow:
+ *         |            Flag               |        Deposit Info        |             Token Info             |   DATA   |
+ *         |-------------------------------|----------------------------|------------------------------------|----------|
+ *         |           1 byte              |         4-25 bytes         |       104 or (128 * n) bytes       |   ...	|
+ *         |                               |                            |           hT - t - A - D           |          |
+ *         | callOut = 0x01                |                 4b(nonce)  |                 ---                |   ...	|
+ *         | callOutSingle = 0x02          |                 4b(nonce)  |        20b + 20b + 32b + 32b       |   ...	|
+ *         | callOutMulti = 0x03           |         1b(n) + 4b(nonce)  |   	  32b + 32b + 32b + 32b      |   ...	|
+ *         | callOutSigned = 0x04          |    20b(recip) + 4b(nonce)  |   	          ---                |   ...    |
+ *         | callOutSignedSingle = 0x05    |           20b + 4b(nonce)  |        20b + 20b + 32b + 32b       |   ...	|
+ *         | callOutSignedMultiple = 0x06  |   20b + 1b(n) + 4b(nonce)  |        32b + 32b + 32b + 32b       |   ...	|
  *
- *                 BridgeAgent.lzReceive()
- *                           |
- *                           V
- *              BridgeAgentExecutor.execute**()
- *                           |
- *                           V
- *                   Router.execute**()
- *                           |
- *                           V
- *            BridgeAgentExecutor (txExecuted)
+ *         **Generic Contract Interaction Flow:**
+ *         BridgeAgent.lzReceive() -> BridgeAgentExecutor.execute() -> Router.execute()
  *
  */
 interface IRootBridgeAgent is ILayerZeroReceiver {
     /*///////////////////////////////////////////////////////////////
                             VIEW FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function that returns the current settlement nonce.
@@ -137,7 +124,7 @@ interface IRootBridgeAgent is ILayerZeroReceiver {
 
     /*///////////////////////////////////////////////////////////////
                         ROOT ROUTER CALL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice External function performs call to LayerZero Endpoint Contract for cross-chain messaging.
@@ -205,7 +192,7 @@ interface IRootBridgeAgent is ILayerZeroReceiver {
 
     /*///////////////////////////////////////////////////////////////
                         SETTLEMENT FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function to retry a user's Settlement balance.
@@ -243,7 +230,7 @@ interface IRootBridgeAgent is ILayerZeroReceiver {
 
     /*///////////////////////////////////////////////////////////////
                     TOKEN MANAGEMENT FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function to move assets from branch chain to root omnichain environment.
@@ -282,7 +269,7 @@ interface IRootBridgeAgent is ILayerZeroReceiver {
 
     /*///////////////////////////////////////////////////////////////
                             ADMIN FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Adds a new branch bridge agent to a given branch chainId
@@ -310,48 +297,79 @@ interface IRootBridgeAgent is ILayerZeroReceiver {
 
     /*///////////////////////////////////////////////////////////////
                              EVENTS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     event LogExecute(uint256 indexed depositNonce, uint256 indexed srcChainId);
     event LogFallback(uint256 indexed settlementNonce, uint256 indexed dstChainId);
 
     /*///////////////////////////////////////////////////////////////
                             ERRORS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
+    /// @notice Error emitted when the provided Root Router Address is invalid.
+    error InvalidRootRouterAddress();
+    /// @notice Error emitted when the provided Branch Port Address is invalid.
+    error InvalidRootPortAddress();
+    /// @notice Error emitted when the provided Layer Zero Endpoint Address is invalid.
+    error InvalidEndpointAddress();
+
+    /// @notice Error emitted execution of a transaction fails.
     error ExecutionFailure();
-    error GasErrorOrRepeatedTx();
+    /// @notice Error emitted when the provided deposit nonce has already been executed.
     error AlreadyExecutedTransaction();
+
+    /// @notice Error emitted when the Bridge Agent does not recognize the provided action flag.
     error UnknownFlag();
 
+    /// @notice Error emitted when caller is not the DAO address.
     error NotDao();
 
+    /// @notice Error emitted when caller is not the Layer Zero Endpoint.
     error LayerZeroUnauthorizedEndpoint();
+    /// @notice Error emitted when remote caller is not the chain's connected Branch Bridge Agent.
     error LayerZeroUnauthorizedCaller();
 
+    /// @notice Error emitted when the Root Bridge Agent already has a Branch Bridge Agent for a given chain.
     error AlreadyAddedBridgeAgent();
+
+    /// @notice Error emitted when the caller is not the connected Root Bridge Agent Executor.
     error UnrecognizedExecutor();
+    /// @notice Error emitted when the caller is not the Root Port.
     error UnrecognizedPort();
+    /// @notice Error emitted when the caller is not the connected Root Bridge Agent.
     error UnrecognizedBridgeAgent();
+    /// @notice Error emitted when the caller is not the connected Arbitrum Branch Bridge Agent.
     error UnrecognizedLocalBridgeAgent();
+    /// @notice Error emitted when the caller is not the Root Bridge Agent's Manager.
     error UnrecognizedBridgeAgentManager();
+    /// @notice Error emitted when the caller is not the connected Root Router.
     error UnrecognizedRouter();
 
+    /// @notice Error emitted when the requested token does not have an underlying address is the destiantion chain.
     error UnrecognizedUnderlyingAddress();
+    /// @notice Error emitted when the requested token is not recognized in the destination chain.
     error UnrecognizedLocalAddress();
 
+    /// @notice Error emitted when the settlement is not available for retry.
     error SettlementRetryUnavailable();
+    /// @notice Error emitted when the settlement action flag is no retryable.
     error SettlementRetryUnavailableUseCallout();
+    /// @notice Error emitted when the settlement is not available for redemption.
     error SettlementRedeemUnavailable();
+    /// @notice Error emitted when the settlement is not available for retrieval.
     error SettlementRetrieveUnavailable();
+
+    /// @notice Error emitted when caller is not the settlement owner.
     error NotSettlementOwner();
+
+    /// @notice Error emitted when Virtual Account caller is not the owner or the approved router.
     error ContractsVirtualAccountNotAllowed();
 
+    /// @notice Error emitted when there is not enough balance to serve a request, meaning request is invalid.
     error InsufficientBalanceForSettlement();
-    error InsufficientGasForFees();
-    error InvalidInputParams();
-    error InvalidInputParamsLength();
 
-    error CallerIsNotPool();
-    error AmountsAreZero();
+    /// @notice Error emitted when the token info is invalid.
+    error InvalidInputParams();
+    /// @notice Error emitted when the token info are not of the same length.
+    error InvalidInputParamsLength();
 }

@@ -11,6 +11,8 @@ library DecodeBridgeInMultipleParams {
                    PAYLOAD DECODING POSITIONAL CONSTANTS
     ///////////////////////////////////////////////////////////////*/
 
+    // TODO: Cleanup constants
+
     // Defines the position in bytes where the payload starts after the flag byte.
     // Also used to offset number of assets in the payload.
     uint256 internal constant PARAMS_START = 1;

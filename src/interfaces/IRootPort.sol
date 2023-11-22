@@ -31,20 +31,13 @@ interface ICoreRootRouter {
 interface IRootPort {
     /*///////////////////////////////////////////////////////////////
                         VIEW FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
     /**
      * @notice View Function returns True if the chain Id has been added to the system.
      *  @param _chainId The Layer Zero chainId of the chain.
      * @return bool True if the chain Id has been added to the system.
      */
     function isChainId(uint256 _chainId) external view returns (bool);
-
-    /**
-     * @notice View Function returns bridge agent manager for a given root bridge agent.
-     *  @param _rootBridgeAgent address of the root bridge agent.
-     * @return address address of the bridge agent manager.
-     */
-    function getBridgeAgentManager(address _rootBridgeAgent) external view returns (address);
 
     /**
      * @notice View Function returns True if the bridge agent factory has been added to the system.
@@ -155,13 +148,6 @@ interface IRootPort {
     function isUnderlyingToken(address _underlyingToken, uint256 _srcChainId) external view returns (bool);
 
     /**
-     * @notice View Function returns Virtual Account of a given user.
-     *  @param _user The address of the user.
-     * @return VirtualAccount user virtual account.
-     */
-    function getUserAccount(address _user) external view returns (VirtualAccount);
-
-    /**
      * @notice View Function returns True if the router is approved by user request to use their virtual account.
      *  @param _userAccount The virtual account of the user.
      *  @param _router The address of the router.
@@ -169,9 +155,23 @@ interface IRootPort {
      */
     function isRouterApproved(VirtualAccount _userAccount, address _router) external returns (bool);
 
+    /**
+     * @notice View Function returns Virtual Account of a given user.
+     *  @param _user The address of the user.
+     * @return VirtualAccount user virtual account.
+     */
+    function getUserAccount(address _user) external view returns (VirtualAccount);
+
+    /**
+     * @notice View Function returns bridge agent manager for a given root bridge agent.
+     *  @param _rootBridgeAgent address of the root bridge agent.
+     * @return address address of the bridge agent manager.
+     */
+    function getBridgeAgentManager(address _rootBridgeAgent) external view returns (address);
+
     /*///////////////////////////////////////////////////////////////
                         BRIDGE AGENT MANAGER FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
     /**
      * @notice Allows a root bridge agent to update it's bridge agent manager address.
      *  @param _newManager address of the new bridge agent manager.
@@ -180,13 +180,13 @@ interface IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                         hTOKEN ACCOUTING FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Updates root port state to match a new deposit.
      *   @param _to recipient of bridged tokens.
      *   @param _hToken address of the hToken to bridge.
-     *   @param _amount amount of hTokens to bridge.
+     *   @param _amount total amount of tokens to bridge.
      *   @param _deposit amount of underlying tokens to deposit.
      *   @param _srcChainId chainId of the chain where the tokens are being bridged from.
      */
@@ -197,7 +197,7 @@ interface IRootPort {
      * @notice Updates root port state to match hTokens being bridged to branch.
      *   @param _from depositor of the hTokens to bridge.
      *   @param _hToken address of the hToken to bridge.
-     *   @param _amount amount of hTokens to bridge.
+     *   @param _amount total amount of tokens to bridge.
      *   @param _deposit amount of underlying tokens to deposit.
      *   @param _dstChainId chainId of the chain where the tokens are being bridged to.
      */
@@ -238,7 +238,7 @@ interface IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                         hTOKEN MANAGEMENT FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Setter function to add a new underlying token to the system. Includes the creation of a new local hToken
@@ -284,7 +284,7 @@ interface IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                     BRIDGE AGENT MANAGEMENT FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Adds a new bridge agent to the system.
@@ -303,8 +303,8 @@ interface IRootPort {
         external;
 
     /*///////////////////////////////////////////////////////////////
-                        ADMIN FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+                            ADMIN FUNCTIONS
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Toggles the status of a bridge agent factory.
@@ -378,10 +378,13 @@ interface IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                             EVENTS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Emitted when a new chain is added to the system.
     event NewChainAdded(uint256 indexed chainId);
+
+    /// @notice Emitted when a new bridge agent manager is set for a Root Bridge Agent.
+    event BridgeAgentManagerSet(address indexed bridgeAgent, address indexed manager);
 
     /// @notice Emitted when a new bridge agent factory is added or removed.
     event BridgeAgentFactoryToggled(address indexed bridgeAgentFactory);
@@ -415,7 +418,7 @@ interface IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                             ERRORS  
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Error emitted when owner tries to renounce ownership.
     error RenounceOwnershipNotAllowed();
@@ -471,6 +474,7 @@ interface IRootPort {
     error AlreadyAddedBridgeAgent();
     /// @notice Error emitted when trying to add a Bridge Agent Factory that already exists.
     error AlreadyAddedBridgeAgentFactory();
+
     /// @notice Error emitted when trying to add a chain to a Root Bridge Agent without a Bridge Agent Manager allowing.
     error BridgeAgentNotAllowed();
 }

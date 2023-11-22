@@ -25,6 +25,10 @@ struct PayableCall {
  *         objects if any of the performed calls is invalid the whole batch should revert.
  */
 interface IVirtualAccount is IERC721Receiver {
+    /*///////////////////////////////////////////////////////////////
+                                VIEW FUNCTIONS
+    ///////////////////////////////////////////////////////////////*/
+
     /**
      * @notice Returns the address of the user that owns the VirtualAccount.
      * @return The address of the user that owns the VirtualAccount.
@@ -36,6 +40,10 @@ interface IVirtualAccount is IERC721Receiver {
      * @return The address of the local port.
      */
     function localPortAddress() external view returns (address);
+
+    /*///////////////////////////////////////////////////////////////
+                            WITHDRAW FUNCTIONS
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Withdraws native tokens from the VirtualAccount.
@@ -57,6 +65,10 @@ interface IVirtualAccount is IERC721Receiver {
      */
     function withdrawERC721(address _token, uint256 _tokenId) external;
 
+    /*///////////////////////////////////////////////////////////////
+                              CALL FUNCTIONS
+    ///////////////////////////////////////////////////////////////*/
+
     /**
      * @notice Aggregate calls ensuring each call is successful. Inspired by `Multicall2` contract.
      * @param callInput The call to make.
@@ -74,9 +86,11 @@ interface IVirtualAccount is IERC721Receiver {
 
     /*///////////////////////////////////////////////////////////////
                                 ERRORS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
+    /// @notice Error thrown when a call is not successfull.
     error CallFailed();
 
+    /// @notice Error thrown when caller is not an approved Virtual Account caller.
     error UnauthorizedCaller();
 }

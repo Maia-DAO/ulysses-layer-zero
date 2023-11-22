@@ -20,13 +20,12 @@ import {ILayerZeroReceiver} from "./ILayerZeroReceiver.sol";
 /**
  * @title  Branch Bridge Agent Contract
  * @author MaiaDAO
- * @notice Contract for deployment in Branch Chains of Omnichain System, responsible for
- *         interfacing with Users and Routers acting as a middleman to access LayerZero cross-chain
- *         messaging and requesting/depositing assets in the Branch Chain's Ports.
- * @dev    Bridge Agents allow for the encapsulation of business logic as well as the standardized
- *         cross-chain communication, allowing for the creation of custom Routers to perform
- *         actions as a response to remote user requests. This contract for deployment in the Branch
- *         Chains of the Ulysses Omnichain Liquidity System.
+ * @notice Contract for deployment in Branch Chains of Omnichain System, responsible for interfacing with
+ *         Users and Routers acting as a middleman to access LayerZero cross-chain messaging and requesting/depositing
+ *         assets in the Branch Chain's Ports.
+ * @dev    Bridge Agents allow for the encapsulation of business logic as well as standardize cross-chain communication,
+ *         allowing for the creation of custom Routers to perform actions in response to local / remote user requests.
+ *         This contract is designed for deployment in the Branch Chains of the Ulysses Omnichain Liquidity System.
  *         The Branch Bridge Agent is responsible for sending/receiving requests to/from the LayerZero Messaging Layer
  *         for execution, as well as requests tokens clearances and tx execution to the `BranchBridgeAgentExecutor`.
  *         Remote execution is "sandboxed" within 2 different layers/nestings:
@@ -38,18 +37,15 @@ import {ILayerZeroReceiver} from "./ILayerZeroReceiver.sol";
  *              to an invalid state change both the token deposit clearances as well as the external interactions
  *              will be reverted and caught by the `BranchBridgeAgent`.
  *
- *         Func IDs for calling these functions through the messaging layer:
+ *         **BRANCH BRIDGE AGENT SETTLEMENT FLAGs** Func IDs for calling these functions through the messaging layer
  *
- *         BRANCH BRIDGE AGENT SETTLEMENT FLAGS
- *         ------------------------------
- *         ID   | DESCRIPTION
- *         -----+------------------------
- *         0x01 | Call to Branch without Settlement.
- *         0x02 | Call to Branch with Settlement.
- *         0x03 | Call to Branch with Settlement of Multiple Tokens.
- *         0x04 | Call to `retrieveSettlement()´. (trigger `_fallback` for a settlement that has not been executed)
- *         0x05 | Call to `_fallback()`. (reopens a deposit for asset redemption)
- *
+ *         | ID   | DESCRIPTION                                                                                       |
+ *         | ---- | ------------------------------------------------------------------------------------------------- |
+ *         | 0x01 | Call to Branch without Settlement.                                                                |
+ *         | 0x02 | Call to Branch with Settlement.                                                                   |
+ *         | 0x03 | Call to Branch with Settlement of Multiple Tokens.                                                |
+ *         | 0x04 | Call to `retrieveSettlement()`. (trigger `_fallback` for a settlement that has not been executed) |
+ *         | 0x05 | Call to `_fallback()`. (reopens a deposit for asset redemption)                                   |
  *
  *         Encoding Scheme for different Root Bridge Agent Deposit Flags:
  *
@@ -59,44 +55,33 @@ import {ILayerZeroReceiver} from "./ILayerZeroReceiver.sol";
  *           - D = Deposit
  *           - b = bytes
  *           - n = number of assets
- *   __________________________________________________________________________________________________________________
- *  |            Flag               |           Deposit Info           |             Token Info             |   DATA   |
- *  |           1 byte              |            4-25 bytes            |        104 or (128 * n) bytes      |   ---	   |
- *  |                               |                                  |            hT - t - A - D          |          |
- *  |_______________________________|__________________________________|____________________________________|__________|
- *  | callOut = 0x0                 |  20b(recipient) + 4b(nonce)      |            -------------           |   ---	   |
- *  | callOutSingle = 0x1           |  20b(recipient) + 4b(nonce)      |         20b + 20b + 32b + 32b      |   ---	   |
- *  | callOutMultiple0x2            |  1b(n) + 20b(recipient) + 4b     |   	     32b + 32b + 32b + 32b      |   ---	   |
- *  |_______________________________|__________________________________|____________________________________|__________|
  *
- *          Generic Contract Interaction Flow:
+ *         | Flag   | Deposit Info                | Token Info              | DATA |
+ *         | ------ | --------------------------- | ----------------------- | ---- |
+ *         | 1 byte | 4-25 bytes                  | 104 or (128 * n) bytes  |      |
+ *         |        |                             | hT - t - A - D          | ...  |
+ *         | 0x1    | 20b(recipient) + 4b(nonce)  |          ---            | ...  |
+ *         | 0x2    | 20b(recipient) + 4b(nonce)  | 20b + 20b + 32b + 32b   | ...  |
+ *         | 0x3    | 1b(n) + 20b(recipient) + 4b | 32b + 32b + 32b + 32b   | ...  |
  *
- *                 BridgeAgent.lzReceive()
- *                           |
- *                           V
- *              BridgeAgentExecutor.execute**()
- *                           |
- *                           V
- *                   Router.execute**()
- *                           |
- *                           V
- *            BridgeAgentExecutor (txExecuted)
+ *         **Generic Contract Interaction Flow:**
+ *         BridgeAgent.lzReceive() -> BridgeAgentExecutor.execute() -> Router.execute()
  *
  */
 interface IBranchBridgeAgent is ILayerZeroReceiver {
     /*///////////////////////////////////////////////////////////////
                         VIEW FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice External function to return the Branch Chain's Local Port Address.
      * @return address of the Branch Chain's Local Port.
      */
     function localPortAddress() external view returns (address);
+
     /**
      * @notice External function to return the Branch Bridge Agent Executor Address.
      * @return address of the Branch Bridge Agent Executor.
-     *
      */
     function bridgeAgentExecutorAddress() external view returns (address);
 
@@ -108,7 +93,7 @@ interface IBranchBridgeAgent is ILayerZeroReceiver {
 
     /*///////////////////////////////////////////////////////////////
                     USER AND BRANCH ROUTER FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function to perform a call to the Root Omnichain Router without token deposit.
@@ -195,7 +180,7 @@ interface IBranchBridgeAgent is ILayerZeroReceiver {
 
     /*///////////////////////////////////////////////////////////////
                     DEPOSIT EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function to perform a call to the Root Omnichain Environment
@@ -249,7 +234,7 @@ interface IBranchBridgeAgent is ILayerZeroReceiver {
 
     /*///////////////////////////////////////////////////////////////
                     SETTLEMENT EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice External function to retry a failed Settlement entry on the root chain.
@@ -268,14 +253,14 @@ interface IBranchBridgeAgent is ILayerZeroReceiver {
 
     /*///////////////////////////////////////////////////////////////
                     TOKEN MANAGEMENT EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function to request balance clearance from a Port to a given user.
      *  @param recipient token receiver.
      *  @param hToken  local hToken addresse to clear balance for.
      *  @param token  native / underlying token addresse to clear balance for.
-     *  @param amount amounts of hToken to clear balance for.
+     *  @param amount amounts of token to clear balance for.
      *  @param deposit amount of native / underlying tokens to clear balance for.
      */
     function bridgeIn(address recipient, address hToken, address token, uint256 amount, uint256 deposit) external;
@@ -289,38 +274,54 @@ interface IBranchBridgeAgent is ILayerZeroReceiver {
 
     /*///////////////////////////////////////////////////////////////
                                 EVENTS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
-    // TODO: Add natspec comments
-
+    /// @notice Event emitted when a settlement nonce is executed successfully.
     event LogExecute(uint256 indexed nonce);
+
+    /// @notice Event emitted when fallback is received for a failed deposit nonce.
     event LogFallback(uint256 indexed nonce);
 
     /*///////////////////////////////////////////////////////////////
                                 ERRORS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
-    // TODO: Add natspec comments
+    /// @notice Error emitted when the provided Root Bridge Agent Address is invalid.
+    error InvalidRootBridgeAgentAddress();
+    /// @notice Error emitted when the provided Branch Port Address is invalid.
+    error InvalidBranchPortAddress();
+    /// @notice Error emitted when the provided Layer Zero Endpoint Address is invalid.
+    error InvalidEndpointAddress();
 
+    /// @notice Error emitted when the Branch Bridge Agent does not recognize the action flag.
     error UnknownFlag();
+    /// @notice Error emitted when a settlement nonce fails to execute and does not have fallback enabled.
     error ExecutionFailure();
 
+    /// @notice Error emitted when a Layer Zero remote caller in not recognized as the Root Bridge Agent.
     error LayerZeroUnauthorizedCaller();
+    /// @notice Error emitted when the caller is not the local Layer Zero Endpoint contract.
     error LayerZeroUnauthorizedEndpoint();
 
+    /// @notice Error emitted when the settlement nonce has already been executed.
     error AlreadyExecutedTransaction();
 
+    /// @notice Error emitted when the local hToken address is zero.
+    error InvalidLocalAddress();
+    /// @notice Error emitted when the deposit information is not valid.
     error InvalidInput();
-    error InsufficientGas();
 
+    /// @notice Error emitted when caller is not the deposit owner.
     error NotDepositOwner();
+    /// @notice Error emitted when the action of deposit nonce is not retryabable.
     error DepositRetryUnavailableUseCallout();
+    /// @notice Error emitted when the deposit nonce is not in a redeemable state.
     error DepositRedeemUnavailable();
-
+    /// @notice Error emitted when the deposit nonce is not in a retryable state.
     error DepositAlreadyRetrieved();
 
+    /// @notice Error emitted when the caller is not the Branch Bridge Agent's Router
     error UnrecognizedRouter();
+    /// @notice Error emitted when the caller is not the Branch Bridge Agent's Executors
     error UnrecognizedBridgeAgentExecutor();
-
-    error InvalidLocalAddress();
 }

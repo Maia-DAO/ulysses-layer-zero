@@ -12,18 +12,18 @@ import {RootBridgeAgent} from "./RootBridgeAgent.sol";
 
 /// @title Library for Root Bridge Agent Executor Deployment
 library DeployRootBridgeAgentExecutor {
-    function deploy(address _rootRouterAddress) external returns (address) {
-        return address(new RootBridgeAgentExecutor(_rootRouterAddress));
+    function deploy(address _rootRouter) external returns (address) {
+        return address(new RootBridgeAgentExecutor(_rootRouter));
     }
 }
 
 /**
  * @title  Root Bridge Agent Executor Contract
  * @author MaiaDAO
- * @notice This contract is used for requesting token settlement clearance and
- *         executing transaction requests from the branch chains.
- * @dev    Execution is "sandboxed" meaning upon tx failure both token settlements
- *         and interactions with external contracts should be reverted and caught.
+ * @notice This contract is used for requesting token settlement clearance and executing transaction requests from
+ *         the branch chains.
+ * @dev    Execution is "sandboxed" meaning upon tx failure both token settlements and interactions with external
+ *         contracts should be reverted and caught by the Root Bridge Agent.
  */
 contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
     using DecodeBridgeInMultipleParams for bytes;
@@ -33,7 +33,7 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
     ///////////////////////////////////////////////////////////////*/
 
     /// @notice Router that is responsible for executing the cross-chain requests forwarded by this contract.
-    IRouter public immutable rootRouterAddress;
+    IRouter public immutable rootRouter;
 
     /*///////////////////////////////////////////////////////////////
                                 CONSTRUCTOR
@@ -41,16 +41,16 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
 
     /**
      * @notice Constructor for Root Bridge Agent Executor.
-     * @param _rootRouterAddress router that will execute the cross-chain requests forwarded by this contract.
+     * @param _rootRouter router that will execute the cross-chain requests forwarded by this contract.
      */
-    constructor(address _rootRouterAddress) {
-        rootRouterAddress = IRouter(_rootRouterAddress);
+    constructor(address _rootRouter) {
+        rootRouter = IRouter(_rootRouter);
         _initializeOwner(msg.sender);
     }
 
     /*///////////////////////////////////////////////////////////////
                         EXECUTOR EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Execute a remote request from a remote chain
@@ -60,7 +60,7 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
      */
     function executeNoDeposit(bytes calldata _payload, uint16 _srcChainId) external payable onlyOwner {
         //Execute remote request
-        rootRouterAddress.execute{value: msg.value}(_payload[PARAMS_TKN_START:], _srcChainId);
+        rootRouter.execute{value: msg.value}(_payload[PARAMS_TKN_START:], _srcChainId);
     }
 
     /**
@@ -80,17 +80,15 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
         });
 
         // Bridge In Assets
-        _bridgeIn(address(rootRouterAddress), dParams, _srcChainId);
+        _bridgeIn(address(rootRouter), dParams, _srcChainId);
 
         // Check if there is additional calldata in the payload
         if (_payload.length > PARAMS_TKN_SET_SIZE) {
             //Execute remote request
-            rootRouterAddress.executeDepositSingle{value: msg.value}(
-                _payload[PARAMS_TKN_SET_SIZE:], dParams, _srcChainId
-            );
+            rootRouter.executeDepositSingle{value: msg.value}(_payload[PARAMS_TKN_SET_SIZE:], dParams, _srcChainId);
         } else {
             //Execute remote request
-            rootRouterAddress.executeDepositSingle{value: msg.value}("", dParams, _srcChainId);
+            rootRouter.executeDepositSingle{value: msg.value}("", dParams, _srcChainId);
         }
     }
 
@@ -103,7 +101,7 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
     function executeWithDepositMultiple(bytes calldata _payload, uint16 _srcChainId) external payable onlyOwner {
         //Bridge In Assets and Save Deposit Params
         DepositMultipleParams memory dParams = _bridgeInMultiple(
-            address(rootRouterAddress),
+            address(rootRouter),
             _payload[
                 PARAMS_START:
                     PARAMS_END_OFFSET + uint256(uint8(bytes1(_payload[PARAMS_START]))) * PARAMS_TKN_SET_SIZE_MULTIPLE
@@ -117,12 +115,12 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
         // Check if there is additional calldata in the payload
         if (length > PARAMS_END_OFFSET + (numOfAssets * PARAMS_TKN_SET_SIZE_MULTIPLE)) {
             //Try to execute remote request
-            rootRouterAddress.executeDepositMultiple{value: msg.value}(
+            rootRouter.executeDepositMultiple{value: msg.value}(
                 _payload[PARAMS_END_OFFSET + uint256(numOfAssets) * PARAMS_TKN_SET_SIZE_MULTIPLE:], dParams, _srcChainId
             );
         } else {
             //Execute remote request
-            rootRouterAddress.executeDepositMultiple{value: msg.value}("", dParams, _srcChainId);
+            rootRouter.executeDepositMultiple{value: msg.value}("", dParams, _srcChainId);
         }
     }
 
@@ -139,7 +137,7 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
         onlyOwner
     {
         //Execute remote request
-        rootRouterAddress.executeSigned{value: msg.value}(_payload[PARAMS_TKN_START_SIGNED:], _account, _srcChainId);
+        rootRouter.executeSigned{value: msg.value}(_payload[PARAMS_TKN_START_SIGNED:], _account, _srcChainId);
     }
 
     /**
@@ -169,12 +167,12 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
         // Check if there is additional calldata in the payload
         if (_payload.length > PARAMS_SETTLEMENT_OFFSET) {
             //Execute remote request
-            rootRouterAddress.executeSignedDepositSingle{value: msg.value}(
+            rootRouter.executeSignedDepositSingle{value: msg.value}(
                 _payload[PARAMS_SETTLEMENT_OFFSET:], dParams, _account, _srcChainId
             );
         } else {
             //Execute remote request
-            rootRouterAddress.executeSignedDepositSingle{value: msg.value}("", dParams, _account, _srcChainId);
+            rootRouter.executeSignedDepositSingle{value: msg.value}("", dParams, _account, _srcChainId);
         }
     }
 
@@ -208,7 +206,7 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
                     + uint256(uint8(bytes1(_payload[PARAMS_START_SIGNED]))) * PARAMS_TKN_SET_SIZE_MULTIPLE
         ) {
             //Execute remote request
-            rootRouterAddress.executeSignedDepositMultiple{value: msg.value}(
+            rootRouter.executeSignedDepositMultiple{value: msg.value}(
                 _payload[
                     PARAMS_END_SIGNED_OFFSET
                         + uint256(uint8(bytes1(_payload[PARAMS_START_SIGNED]))) * PARAMS_TKN_SET_SIZE_MULTIPLE:
@@ -219,13 +217,13 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
             );
         } else {
             //Execute remote request
-            rootRouterAddress.executeSignedDepositMultiple{value: msg.value}("", dParams, _account, _srcChainId);
+            rootRouter.executeSignedDepositMultiple{value: msg.value}("", dParams, _account, _srcChainId);
         }
     }
 
     /**
      * @notice Internal function to move assets from branch chain to root omnichain environment.
-     *   @param _dParams Cross-Chain Deposit of Multiple Tokens Params.
+     *   @param _dParams Cross-Chain Deposit Params.
      *   @param _srcChainId chain to bridge from.
      */
     function _bridgeIn(address _recipient, DepositParams memory _dParams, uint16 _srcChainId) internal {
@@ -244,7 +242,7 @@ contract RootBridgeAgentExecutor is Ownable, BridgeAgentConstants {
      *     4. Token related information starts at index PARAMS_TKN_START is encoded as follows:
      *         1. N * 32 bytes for the hToken address.
      *         2. N * 32 bytes for the underlying token address.
-     *         3. N * 32 bytes for the amount of hTokens to be bridged in.
+     *         3. N * 32 bytes for the amount of tokens to be bridged in.
      *         4. N * 32 bytes for the amount of underlying tokens to be bridged in.
      *     5. Each of the 4 token related arrays are of length N and start at the following indexes:
      *         1. PARAMS_TKN_START [hToken address has no offset from token information start].

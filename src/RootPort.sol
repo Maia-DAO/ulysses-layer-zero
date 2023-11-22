@@ -18,7 +18,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                             SETUP STATE
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice True if setup is still ongoing, false otherwise.
     bool internal _setup;
@@ -28,7 +28,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                           ROOT PORT STATE
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Local Chain Id
     uint256 public immutable localChainId;
@@ -44,7 +44,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                             VIRTUAL ACCOUNT
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Mapping from user address to Virtual Account.
     mapping(address user => VirtualAccount account) public getUserAccount;
@@ -55,7 +55,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                             BRIDGE AGENTS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Mapping from address to Bridge Agent.
     mapping(uint256 chainId => bool isActive) public isChainId;
@@ -71,7 +71,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                         BRIDGE AGENT FACTORIES
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Mapping from Underlying Address to isUnderlying (bool).
     mapping(address bridgeAgentFactory => bool isActive) public isBridgeAgentFactory;
@@ -81,7 +81,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                                 hTOKENS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Mapping with all global hTokens deployed in the system.
     mapping(address token => bool isGlobalToken) public isGlobalAddress;
@@ -102,7 +102,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                             hTOKEN ACCOUNTING
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Mapping from global address to total hToken supply allocated to branches.
     mapping(address globalAddress => uint256 totalSupplyBranches) public getTotalSupplyBranches;
@@ -112,7 +112,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                                 CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Constructor for Root Port.
@@ -129,13 +129,13 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                         FALLBACK FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     receive() external payable {}
 
     /*///////////////////////////////////////////////////////////////
                     INITIALIZATION FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      *  @notice Function to initialize the Root Port.
@@ -201,7 +201,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                         EXTERNAL VIEW FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IRootPort
     function getLocalToken(address _localAddress, uint256 _srcChainId, uint256 _dstChainId)
@@ -265,7 +265,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                         hTOKEN MANAGEMENT FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IRootPort
     function setAddresses(
@@ -305,7 +305,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                         hTOKEN ACCOUNTING FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IRootPort
     function bridgeToRoot(address _to, address _hToken, uint256 _amount, uint256 _deposit, uint256 _srcChainId)
@@ -385,7 +385,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                 hTOKEN ACCOUNTING FUNCTIONS (ARB BRANCH)
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IRootPort
     function bridgeToRootFromLocalBranch(address _from, address _hToken, uint256 _amount)
@@ -433,7 +433,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                     VIRTUAL ACCOUNT MANAGEMENT FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IRootPort
     function fetchVirtualAccount(address _user) external override returns (VirtualAccount account) {
@@ -449,7 +449,7 @@ contract RootPort is Ownable, IRootPort {
     function _addVirtualAccount(address _user) internal returns (VirtualAccount newAccount) {
         if (_user == address(0)) revert InvalidUserAddress();
 
-        newAccount = new VirtualAccount{salt: bytes32(bytes20(_user))}(_user, address(this));
+        newAccount = new VirtualAccount{salt: bytes32(bytes20(_user))}(_user);
         getUserAccount[_user] = newAccount;
 
         emit VirtualAccountCreated(_user, address(newAccount));
@@ -466,7 +466,7 @@ contract RootPort is Ownable, IRootPort {
 
     /*///////////////////////////////////////////////////////////////
                     BRIDGE AGENT MANAGEMENT FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IRootPort
     function addBridgeAgent(address _manager, address _bridgeAgent) external override requiresBridgeAgentFactory {
@@ -505,6 +505,8 @@ contract RootPort is Ownable, IRootPort {
     /// @inheritdoc IRootPort
     function setBridgeAgentManager(address _newManager) external override requiresBridgeAgent {
         getBridgeAgentManager[msg.sender] = _newManager;
+
+        emit BridgeAgentManagerSet(msg.sender, _newManager);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -641,13 +643,13 @@ contract RootPort is Ownable, IRootPort {
     }
 
     /// @inheritdoc IRootPort
-    function sweep(address _to) external override onlyOwner {
+    function sweep(address _recipient) external override onlyOwner {
         // Safe Transfer All ETH
-        _to.safeTransferETH(address(this).balance);
+        _recipient.safeTransferAllETH();
     }
     /*///////////////////////////////////////////////////////////////
                                 MODIFIERS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Modifier that verifies global address is valid.
     modifier requiresGlobalAddress(address _globalAddress) {

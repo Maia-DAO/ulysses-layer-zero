@@ -21,30 +21,32 @@ import {CoreBranchRouter} from "./CoreBranchRouter.sol";
  *         is already in the same network as the Root Environment and all the global
  *         tokens.
  *
- *         Func IDs for calling these functions through messaging layer:
+ *         **CROSS-CHAIN MESSAGING FUNCIDs**
+ *         Func IDs for calling these functions through messaging layer
  *
- *         CROSS-CHAIN MESSAGING FUNCIDs
- *         -----------------------------
- *         FUNC ID      | FUNC NAME
- *         -------------+---------------
- *         0x02         | addBridgeAgent
- *         0x03         | toggleBranchBridgeAgentFactory
- *         0x04         | removeBranchBridgeAgent
- *         0x05         | manageStrategyToken
- *         0x06         | managePortStrategy
+ *         | FUNC ID | FUNC NAME                      |
+ *         | ------- | ------------------------------ |
+ *         | 0x02    | addBridgeAgent                 |
+ *         | 0x03    | toggleBranchBridgeAgentFactory |
+ *         | 0x04    | toggleStrategyToken            |
+ *         | 0x05    | updateStrategyToken            |
+ *         | 0x06    | togglePortStrategy             |
+ *         | 0x07    | updatePortStrategy             |
+ *         | 0x08    | setCoreBranchRouter            |
+ *         | 0x09    | sweep                          |
  *
  */
 contract ArbitrumCoreBranchRouter is CoreBranchRouter {
     /*///////////////////////////////////////////////////////////////
                              CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Constructor for Arbitrum Core Branch Router.
     constructor() CoreBranchRouter(address(0)) {}
 
     /*///////////////////////////////////////////////////////////////
                     TOKEN MANAGEMENT EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     ///@inheritdoc CoreBranchRouter
     function addLocalToken(address _underlyingAddress, GasParams calldata) external payable override {
@@ -66,7 +68,7 @@ contract ArbitrumCoreBranchRouter is CoreBranchRouter {
 
     /*///////////////////////////////////////////////////////////////
                 BRIDGE AGENT MANAGEMENT INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function to deploy/add a token already active in the global environment in the Root Chain.
@@ -117,10 +119,11 @@ contract ArbitrumCoreBranchRouter is CoreBranchRouter {
 
     /*///////////////////////////////////////////////////////////////
                     LAYERZERO EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     ///@inheritdoc CoreBranchRouter
     function executeNoSettlement(bytes calldata _params) external payable override requiresAgentExecutor {
+        /// _receiveAddBridgeAgent
         if (_params[0] == 0x02) {
             (
                 address newBranchRouter,

@@ -13,9 +13,12 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {IVirtualAccount, Call, PayableCall} from "./interfaces/IVirtualAccount.sol";
 import {IRootPort} from "./interfaces/IRootPort.sol";
 
+import {AddressCodeSize} from "./lib/AddressCodeSize.sol";
+
 /// @title VirtualAccount - Contract for managing a virtual user account on the Root Chain
 contract VirtualAccount is IVirtualAccount, ERC1155Receiver {
     using SafeTransferLib for address;
+    using AddressCodeSize for address;
 
     /// @inheritdoc IVirtualAccount
     address public immutable override userAddress;
@@ -25,27 +28,26 @@ contract VirtualAccount is IVirtualAccount, ERC1155Receiver {
 
     /*//////////////////////////////////////////////////////////////
                             CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Constructor for Virtual Account.
-     * @param _userAddress Address of the user account.
-     * @param _localPortAddress Address of the root port contract.
+     * @param _userAddress Address of the user/owner.
      */
-    constructor(address _userAddress, address _localPortAddress) {
+    constructor(address _userAddress) {
+        localPortAddress = msg.sender;
         userAddress = _userAddress;
-        localPortAddress = _localPortAddress;
     }
 
     /*//////////////////////////////////////////////////////////////
                             FALLBACK FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     receive() external payable {}
 
     /*//////////////////////////////////////////////////////////////
                             EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IVirtualAccount
     function withdrawNative(uint256 _amount) external override requiresApprovedCaller {
@@ -71,7 +73,7 @@ contract VirtualAccount is IVirtualAccount, ERC1155Receiver {
             bool success;
             Call calldata _call = calls[i];
 
-            if (isContract(_call.target)) (success, returnData[i]) = _call.target.call(_call.callData);
+            if (_call.target.isContract()) (success, returnData[i]) = _call.target.call(_call.callData);
 
             if (!success) revert CallFailed();
 
@@ -104,7 +106,7 @@ contract VirtualAccount is IVirtualAccount, ERC1155Receiver {
 
             bool success;
 
-            if (isContract(_call.target)) (success, returnData[i]) = _call.target.call{value: val}(_call.callData);
+            if (_call.target.isContract()) (success, returnData[i]) = _call.target.call{value: val}(_call.callData);
 
             if (!success) revert CallFailed();
 
@@ -119,7 +121,7 @@ contract VirtualAccount is IVirtualAccount, ERC1155Receiver {
 
     /*//////////////////////////////////////////////////////////////
                             EXTERNAL HOOKS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IERC721Receiver
     function onERC721Received(address, address, uint256, bytes calldata) external pure override returns (bytes4) {
@@ -146,21 +148,9 @@ contract VirtualAccount is IVirtualAccount, ERC1155Receiver {
         return this.onERC1155BatchReceived.selector;
     }
 
-    /*//////////////////////////////////////////////////////////////
-                            INTERNAL HELPERS
-    //////////////////////////////////////////////////////////////*/
-
-    function isContract(address addr) internal view returns (bool) {
-        uint256 size;
-        assembly {
-            size := extcodesize(addr)
-        }
-        return size > 0;
-    }
-
     /*///////////////////////////////////////////////////////////////
                                 MODIFIERS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Modifier that verifies msg sender is the approved to use the virtual account. Either the owner or an approved router.
     modifier requiresApprovedCaller() {

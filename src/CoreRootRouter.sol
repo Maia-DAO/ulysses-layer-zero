@@ -38,7 +38,7 @@ import {IRootPort as IPort} from "./interfaces/IRootPort.sol";
 contract CoreRootRouter is IRootRouter, Ownable {
     /*///////////////////////////////////////////////////////////////
                     CORE ROOT ROUTER STATE
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Boolean to indicate if the contract is in set up mode.
     bool internal _setup;
@@ -61,7 +61,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
 
     /*///////////////////////////////////////////////////////////////
                             CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Constructor for Core Root Router.
@@ -78,7 +78,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
 
     /*///////////////////////////////////////////////////////////////
                     INITIALIZATION FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     function initialize(address _bridgeAgentAddress, address _hTokenFactory) external onlyOwner {
         require(_setup, "Contract is already initialized");
@@ -90,7 +90,7 @@ contract CoreRootRouter is IRootRouter, Ownable {
 
     /*///////////////////////////////////////////////////////////////
                     BRIDGE AGENT MANAGEMENT FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Add a new Chain (Branch Bridge Agent and respective Router) to a Root Bridge Agent.
@@ -533,11 +533,10 @@ contract CoreRootRouter is IRootRouter, Ownable {
      *   @param _globalAddress global token to be updated.
      *   @param _localAddress local token to be added.
      *   @param _dstChainId local token's chain.
-     *
      */
     function _setLocalToken(address _globalAddress, address _localAddress, uint16 _dstChainId) internal {
-        // Verify if the token already added
-        if (IPort(rootPortAddress).isLocalToken(_localAddress, _dstChainId)) revert TokenAlreadyAdded();
+        // Verify if the token is already added
+        if (IPort(rootPortAddress).isGlobalToken(_globalAddress, _dstChainId)) revert TokenAlreadyAdded();
 
         // Set the global token's new branch chain address
         IPort(rootPortAddress).setLocalAddress(_globalAddress, _localAddress, _dstChainId);
@@ -552,7 +551,6 @@ contract CoreRootRouter is IRootRouter, Ownable {
      *   @param _newBranchBridgeAgent new branch bridge agent address
      *   @param _rootBridgeAgent new branch bridge agent address
      *   @param _srcChainId branch chain id.
-     *
      */
     function _syncBranchBridgeAgent(address _newBranchBridgeAgent, address _rootBridgeAgent, uint256 _srcChainId)
         internal
@@ -574,15 +572,23 @@ contract CoreRootRouter is IRootRouter, Ownable {
                                 ERRORS
     ///////////////////////////////////////////////////////////////*/
 
+    // TODO: Add natspec and ICoreRootRouter interface
+
+    /// @notice Error emitted when an invalid chain id is provided.
     error InvalidChainId();
 
+    /// @notice Error emitted when a chain id not approved by the Bridge Agent Manager is provided for chain addition.
     error UnauthorizedChainId();
 
+    /// @notice Error emitted when the caller is not the Bridge Agent Manager.
     error UnauthorizedCallerNotManager();
 
+    /// @notice Error emitted when the global token has already been added to a given chain.
     error TokenAlreadyAdded();
 
+    /// @notice Error emitted when the provided token is not recognized as a global token.
     error UnrecognizedGlobalToken();
 
+    /// @notice Error emitted when the caller is not the Bridge Agent Factory.
     error UnrecognizedBridgeAgentFactory();
 }

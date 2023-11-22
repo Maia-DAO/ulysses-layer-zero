@@ -52,7 +52,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                          BRIDGE AGENT STATE
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Chain Id for Root Chain where liquidity is virtualized(e.g. 4).
     uint16 public immutable rootChainId;
@@ -83,7 +83,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                             DEPOSITS STATE
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Deposit nonce used for identifying the transaction.
     uint32 public depositNonce;
@@ -93,21 +93,21 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                         SETTLEMENT EXECUTION STATE
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice If true, the bridge agent has already served a request with this nonce from a given chain.
     mapping(uint256 settlementNonce => uint256 state) public executionState;
 
     /*///////////////////////////////////////////////////////////////
                            REENTRANCY STATE
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Re-entrancy lock modifier state.
     uint256 internal _unlocked = 1;
 
     /*///////////////////////////////////////////////////////////////
                              CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Constructor for Branch Bridge Agent.
@@ -127,12 +127,9 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         address _localRouterAddress,
         address _localPortAddress
     ) {
-        require(_rootBridgeAgentAddress != address(0), "Root Bridge Agent Address cannot be the zero address.");
-        require(
-            _lzEndpointAddress != address(0) || _rootChainId == _localChainId,
-            "Layerzero Endpoint Address cannot be the zero address."
-        );
-        require(_localPortAddress != address(0), "Local Port Address cannot be the zero address.");
+        if (_rootBridgeAgentAddress == address(0)) revert InvalidRootBridgeAgentAddress();
+        if (_localPortAddress == address(0)) revert InvalidBranchPortAddress();
+        if (_lzEndpointAddress == address(0)) if (_rootChainId != _localChainId) revert InvalidEndpointAddress();
 
         localChainId = _localChainId;
         rootChainId = _rootChainId;
@@ -149,13 +146,13 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                         FALLBACK FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     receive() external payable {}
 
     /*///////////////////////////////////////////////////////////////
                         VIEW FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchBridgeAgent
     function getDepositEntry(uint32 _depositNonce) external view override returns (Deposit memory) {
@@ -164,7 +161,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                     USER / BRANCH ROUTER EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchBridgeAgent
     function callOut(address payable _depositOwnerAndGasRefundee, bytes calldata _params, GasParams calldata _gParams)
@@ -336,7 +333,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                     DEPOSIT EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchBridgeAgent
     function retryDeposit(address _owner, uint32 _depositNonce, bytes calldata _params, GasParams calldata _gParams)
@@ -560,7 +557,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                     SETTLEMENT EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchBridgeAgent
     function retrySettlement(
@@ -581,7 +578,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                 TOKEN MANAGEMENT EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchBridgeAgent
     function bridgeIn(address _recipient, address _hToken, address _token, uint256 _amount, uint256 _deposit)
@@ -605,7 +602,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                     LAYER ZERO EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc ILayerZeroReceiver
     function lzReceive(uint16 _srcChainId, bytes calldata _srcAddress, uint64, bytes calldata _payload)
@@ -633,7 +630,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         bytes calldata _payload
     ) public payable override requiresEndpoint(_srcChainId, _endpoint, _srcAddress) {
         //Save Action Flag
-        bytes1 flag = _payload[0] & 0x7F;
+        bytes1 flag = _payload[0];
 
         // Save settlement nonce
         uint32 nonce;
@@ -646,32 +643,32 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
             //Check if tx has already been executed
             if (executionState[nonce] != STATUS_READY) revert AlreadyExecutedTransaction();
 
-            //Try to execute the remote request
-            //Flag 0 - BranchBridgeAgentExecutor(bridgeAgentExecutorAddress).executeNoSettlement(_payload)
+            // Try to execute the remote request
+            // Flag 0 - BranchBridgeAgentExecutor(bridgeAgentExecutorAddress).executeNoSettlement(_payload)
             _execute(nonce, abi.encodeWithSelector(BranchBridgeAgentExecutor.executeNoSettlement.selector, _payload));
 
             // DEPOSIT FLAG: 2 (Single Asset Settlement)
-        } else if (flag == 0x02) {
+        } else if (flag & 0x7F == 0x02) {
             // Parse recipient
             address payable recipient = payable(address(uint160(bytes20(_payload[PARAMS_START:PARAMS_START_SIGNED]))));
 
             // Parse Settlement Nonce
             nonce = uint32(bytes4(_payload[PARAMS_START_SIGNED:PARAMS_TKN_START_SIGNED]));
 
-            //Check if tx has already been executed
+            // Check if tx has already been executed
             if (executionState[nonce] != STATUS_READY) revert AlreadyExecutedTransaction();
 
-            //Try to execute the remote request
-            //Flag 1 - BranchBridgeAgentExecutor(bridgeAgentExecutorAddress).executeWithSettlement(recipient, _payload)
+            // Try to execute the remote request
+            // Flag 1 - BranchBridgeAgentExecutor(bridgeAgentExecutorAddress).executeWithSettlement(recipient, _payload)
             _execute(
-                _payload[0] == 0x82,
+                flag == 0x82,
                 nonce,
                 recipient,
                 abi.encodeWithSelector(BranchBridgeAgentExecutor.executeWithSettlement.selector, recipient, _payload)
             );
 
             // DEPOSIT FLAG: 3 (Multiple Settlement)
-        } else if (flag == 0x03) {
+        } else if (flag & 0x7F == 0x03) {
             // Parse recipient
             address payable recipient = payable(address(uint160(bytes20(_payload[PARAMS_START:PARAMS_START_SIGNED]))));
 
@@ -681,10 +678,10 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
             //Check if tx has already been executed
             if (executionState[nonce] != STATUS_READY) revert AlreadyExecutedTransaction();
 
-            //Try to execute remote request
+            // Try to execute remote request
             // Flag 2 - BranchBridgeAgentExecutor(bridgeAgentExecutorAddress).executeWithSettlementMultiple(recipient, _payload)
             _execute(
-                _payload[0] == 0x83,
+                flag == 0x83,
                 nonce,
                 recipient,
                 abi.encodeWithSelector(
@@ -692,27 +689,27 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
                 )
             );
 
-            //DEPOSIT FLAG: 4 (Retrieve Settlement)
+            // DEPOSIT FLAG: 4 (Retrieve Settlement)
         } else if (flag == 0x04) {
             // Parse recipient
             address payable recipient = payable(address(uint160(bytes20(_payload[PARAMS_START:PARAMS_START_SIGNED]))));
 
-            //Get nonce
+            // Get nonce
             nonce = uint32(bytes4(_payload[PARAMS_START_SIGNED:PARAMS_TKN_START_SIGNED]));
 
-            //Check if settlement is in retrieve mode
+            // Check if settlement is in retrieve mode
             if (executionState[nonce] == STATUS_DONE) {
                 revert AlreadyExecutedTransaction();
             } else {
-                //Set settlement to retrieve mode, if not already set.
+                // Set settlement to retrieve mode, if not already set.
                 if (executionState[nonce] == STATUS_READY) executionState[nonce] = STATUS_RETRIEVE;
-                //Trigger fallback/Retry failed fallback
+                // Trigger fallback/Retry failed fallback
                 _performFallbackCall(recipient, nonce);
             }
 
-            //DEPOSIT FLAG: 5 (Fallback)
+            // DEPOSIT FLAG: 5 (Fallback)
         } else if (flag == 0x05) {
-            //Get nonce
+            // Get nonce
             nonce = uint32(bytes4(_payload[PARAMS_START:PARAMS_TKN_START]));
 
             // Reopen Deposit for redemption
@@ -724,7 +721,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
             // Return to prevent unnecessary logic/emits
             return;
 
-            //Unrecognized Function Selector
+            // Unrecognized Function Selector
         } else {
             revert UnknownFlag();
         }
@@ -741,7 +738,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                     SETTLEMENT EXECUTION INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Internal function requests execution from Branch Bridge Agent Executor Contract.
@@ -749,10 +746,10 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
      *   @param _calldata Calldata to be executed by the Branch Bridge Agent Executor Contract.
      */
     function _execute(uint256 _settlementNonce, bytes memory _calldata) private {
-        //Update tx state as executed
+        // Update tx state as executed
         executionState[_settlementNonce] = STATUS_DONE;
 
-        //Try to execute the remote request
+        // Try to execute the remote request
         (bool success,) = bridgeAgentExecutorAddress.call{value: address(this).balance}(_calldata);
 
         //  No fallback is requested revert allowing for settlement retry.
@@ -762,11 +759,11 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
     function _execute(bool _hasFallbackToggled, uint32 _settlementNonce, address _gasRefundee, bytes memory _calldata)
         private
     {
-        //Update tx state as executed
+        // Update tx state as executed
         executionState[_settlementNonce] = STATUS_DONE;
 
         if (_hasFallbackToggled) {
-            //Try to execute the remote request
+            // Try to execute the remote request
             /// @dev If fallback is requested, subtract 50k gas to allow for fallback call.
             (bool success,) =
                 bridgeAgentExecutorAddress.call{gas: gasleft() - 50_000, value: address(this).balance}(_calldata);
@@ -789,7 +786,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                     LAYER ZERO INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Internal function to encode the Adapter Params for LayerZero Endpoint.
@@ -822,7 +819,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         GasParams calldata _gParams,
         uint256 _baseExecutionGas
     ) internal virtual {
-        //Sends message to LayerZero messaging layer
+        // Sends message to LayerZero messaging layer
         ILayerZeroEndpoint(lzEndpointAddress).send{value: msg.value}(
             rootChainId,
             rootBridgeAgentPath,
@@ -839,7 +836,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
      *   @param _settlementNonce root settlement nonce to fallback.
      */
     function _performFallbackCall(address payable _gasRefundee, uint32 _settlementNonce) internal virtual {
-        //Sends message to LayerZero messaging layer
+        // Sends message to LayerZero messaging layer
         ILayerZeroEndpoint(lzEndpointAddress).send{value: address(this).balance}(
             rootChainId,
             rootBridgeAgentPath,
@@ -852,7 +849,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                 LOCAL USER DEPOSIT INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Internal function to move assets from branch chain to root omnichain environment.
@@ -962,7 +959,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                 REMOTE USER DEPOSIT INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function to request balance clearance from a Port to a given user.
@@ -989,7 +986,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /*///////////////////////////////////////////////////////////////
                                 MODIFIERS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Modifier for a simple re-entrancy check.
     modifier lock() {

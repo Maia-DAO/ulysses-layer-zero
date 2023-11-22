@@ -6,7 +6,7 @@ import {DepositParams, DepositMultipleParams, GasParams} from "../interfaces/IRo
 /**
  * @title  Root Router Contract
  * @author MaiaDAO
- * @notice Base Branch Contract for interfacing with Root Bridge Agents.
+ * @notice Base Root Contract for interfacing with Root Bridge Agents.
  *         This contract for deployment in the Root Chain of the Ulysses Omnichain System,
  *         additional logic can be implemented to perform actions before sending cross-chain
  *         requests to Branch Chains, as well as in response to remote requests.
@@ -124,11 +124,12 @@ interface IRootRouter {
 
     /*///////////////////////////////////////////////////////////////
                              ERRORS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
-    // TODO: Add natspec
-
+    /// @notice Error emitted when function ID is not recognized by the router.
     error UnrecognizedFunctionId();
+    /// @notice Error emitted when the caller is not the connected Root Bridge Agent.
     error UnrecognizedBridgeAgent();
+    /// @notice Error emitted when the caller is not the connected Root Bridge Agent Executor.
     error UnrecognizedBridgeAgentExecutor();
 }

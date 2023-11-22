@@ -19,7 +19,7 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
 
     /*///////////////////////////////////////////////////////////////
                     ARBITRUM BRANCH PORT STATE
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /// @notice Local Network Identifier.
     uint16 public immutable override rootChainId;
@@ -29,13 +29,13 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
 
     /*///////////////////////////////////////////////////////////////
                             CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Constructor for Arbitrum Branch Port.
-     * @param _owner owner of the contract.
      * @param _rootChainId arbitrum layer zero chain id.
      * @param _rootPortAddress address of the Root Port.
+     * @param _owner owner of the contract.
      */
     constructor(uint16 _rootChainId, address _rootPortAddress, address _owner) BranchPort(_owner) {
         require(_rootPortAddress != address(0), "Root Port Address cannot be 0");
@@ -46,7 +46,7 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
 
     /*///////////////////////////////////////////////////////////////
                         EXTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     ///@inheritdoc IArbitrumBranchPort
     function depositToPort(address _depositor, address _recipient, address _underlyingAddress, uint256 _deposit)
@@ -93,14 +93,16 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
         // Check if the underlying token exists
         if (_underlyingAddress == address(0)) revert UnknownUnderlyingToken();
 
+        // Burn deposited hTokens
         IRootPort(_rootPortAddress).burnFromLocalBranch(_depositor, _globalAddress, _amount);
 
+        // Transfer underlying tokens to recipient
         _underlyingAddress.safeTransfer(_recipient, _amount);
     }
 
     /*///////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Internal function to bridge in assets from the Root Chain.

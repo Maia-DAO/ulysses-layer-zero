@@ -17,7 +17,7 @@ import {BranchBridgeAgentFactory} from "./BranchBridgeAgentFactory.sol";
 contract ArbitrumBranchBridgeAgentFactory is BranchBridgeAgentFactory {
     /*///////////////////////////////////////////////////////////////
                              CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Constructor for Bridge Agent Factory Contract.
@@ -47,7 +47,7 @@ contract ArbitrumBranchBridgeAgentFactory is BranchBridgeAgentFactory {
 
     /*///////////////////////////////////////////////////////////////
                 BRIDGE AGENT FACTORY INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Internal function to deploy a new arbitrum branch bridge agent.

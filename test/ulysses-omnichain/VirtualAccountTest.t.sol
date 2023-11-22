@@ -33,7 +33,8 @@ contract VirtualAccountTest is DSTestPlus {
     //////////////////////////////////////////////////////////////*/
 
     function _deployVirtualAccount(address _userAddress, address _localPortAddress) internal returns (VirtualAccount) {
-        return new VirtualAccount(_userAddress, _localPortAddress);
+        hevm.prank(_localPortAddress);
+        return new VirtualAccount(_userAddress);
     }
 
     function test_constructor(address _userAddress, address _localPortAddress)
@@ -120,13 +121,7 @@ contract VirtualAccountTest is DSTestPlus {
     {
         virtualAccount = _deployVirtualAccount(_userAddress, _localPortAddress);
 
-        hevm.deal(address(this), _depositAmount);
-
-        assertEq(address(virtualAccount).balance, 0);
-
-        address(virtualAccount).safeTransferETH(_depositAmount);
-
-        assertEq(address(virtualAccount).balance, _depositAmount);
+        _testSendEth(address(virtualAccount), _depositAmount);
     }
 
     function test_withdrawNative(address _userAddress, uint256 _depositAmount, uint256 _withdrawAmount)
@@ -160,6 +155,137 @@ contract VirtualAccountTest is DSTestPlus {
                               TEST ERC20
     //////////////////////////////////////////////////////////////*/
 
+    function test_receiveERC20() public {
+        test_receiveERC20(address(this), localPortAddress, 0, 100 ether);
+    }
+
+    function test_receiveERC20(
+        address _userAddress,
+        address _localPortAddress,
+        bytes32 _tokenSalt,
+        uint256 _depositAmount
+    ) public returns (VirtualAccount virtualAccount) {
+        address token = address(new MockERC20{salt: _tokenSalt}("Test Token","TTK",18));
+
+        virtualAccount = _test_receiveERC20(_userAddress, _localPortAddress, token, _depositAmount);
+    }
+
+    function _test_receiveERC20(address _userAddress, address _localPortAddress, address _token, uint256 _depositAmount)
+        internal
+        returns (VirtualAccount virtualAccount)
+    {
+        virtualAccount = _deployVirtualAccount(_userAddress, _localPortAddress);
+
+        _testSendERC20(address(virtualAccount), _token, _depositAmount);
+    }
+
+    function test_withdrawERC20(
+        address _userAddress,
+        bytes32 _tokenSalt,
+        uint256 _depositAmount,
+        uint256 _withdrawAmount
+    ) public returns (VirtualAccount virtualAccount) {
+        (_depositAmount, _withdrawAmount) = _parseDepositAndWithdrawAmounts(_depositAmount, _withdrawAmount);
+
+        address token = address(new MockERC20{salt: _tokenSalt}("Test Token","TTK",18));
+
+        virtualAccount = _test_receiveERC20(_userAddress, localPortAddress, token, _depositAmount);
+
+        MockRootPort(localPortAddress).setRouterApproved(virtualAccount, address(this), true);
+        virtualAccount.withdrawERC20(token, _withdrawAmount);
+
+        assertEq(token.balanceOf(address(virtualAccount)), _depositAmount - _withdrawAmount);
+    }
+
+    function test_withdrawERC20_Unautharized(
+        address _userAddress,
+        bytes32 _tokenSalt,
+        uint256 _depositAmount,
+        uint256 _withdrawAmount
+    ) public returns (VirtualAccount virtualAccount) {
+        if (_userAddress == address(this)) _userAddress = address(1);
+        (_depositAmount, _withdrawAmount) = _parseDepositAndWithdrawAmounts(_depositAmount, _withdrawAmount);
+
+        address token = address(new MockERC20{salt: _tokenSalt}("Test Token","TTK",18));
+
+        virtualAccount = _test_receiveERC20(_userAddress, localPortAddress, token, _depositAmount);
+
+        hevm.expectRevert(IVirtualAccount.UnauthorizedCaller.selector);
+        virtualAccount.withdrawERC20(token, _withdrawAmount);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                              TEST CALLS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_payableCall() public {
+        address userAddress = address(this);
+
+        address targetAddress = userAddress;
+
+        PayableCall memory call = PayableCall(targetAddress, "", 1 ether);
+
+        PayableCall[] memory calls = new PayableCall[](1);
+
+        calls[0] = call;
+
+        VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
+
+        hevm.deal(userAddress, 1 ether);
+
+        hevm.prank(userAddress);
+
+        hevm.expectCall(targetAddress, "");
+
+        virtualAccount.payableCall{value: 1 ether}(calls);
+
+        require(address(virtualAccount).balance == 0, "Balance wasn't cleared!");
+    }
+
+    function test_payableCall_isEOA() public {
+        address userAddress = address(this);
+
+        address targetAddress = address(1);
+
+        PayableCall memory call = PayableCall(targetAddress, "", 1 ether);
+
+        PayableCall[] memory calls = new PayableCall[](1);
+
+        calls[0] = call;
+
+        VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
+
+        hevm.deal(userAddress, 1 ether);
+
+        hevm.startPrank(userAddress);
+
+        hevm.expectRevert(abi.encodeWithSignature("CallFailed()"));
+
+        virtualAccount.payableCall{value: 1 ether}(calls);
+    }
+
+    function test_payableCall_notAllSpent() public {
+        address userAddress = address(this);
+
+        address targetAddress = userAddress;
+
+        PayableCall memory call = PayableCall(targetAddress, "", 1 ether);
+
+        PayableCall[] memory calls = new PayableCall[](1);
+
+        calls[0] = call;
+
+        VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
+
+        hevm.deal(userAddress, 2 ether);
+
+        hevm.startPrank(userAddress);
+
+        hevm.expectRevert(abi.encodeWithSignature("CallFailed()"));
+
+        virtualAccount.payableCall{value: 2 ether}(calls);
+    }
+
     /*//////////////////////////////////////////////////////////////
                              TEST HELPERS
     //////////////////////////////////////////////////////////////*/
@@ -173,5 +299,25 @@ contract VirtualAccountTest is DSTestPlus {
         if (depositAmount == 0) return (0, 0);
 
         return (depositAmount, withdrawAmount % depositAmount);
+    }
+
+    function _testSendEth(address _to, uint256 _amount) internal {
+        hevm.deal(address(this), _amount);
+
+        uint256 oldBalance = _to.balance;
+
+        _to.safeTransferETH(_amount);
+
+        assertEq(_to.balance, _amount + oldBalance);
+    }
+
+    function _testSendERC20(address _to, address _token, uint256 _amount) internal {
+        MockERC20(_token).mint(address(this), _amount);
+
+        uint256 oldBalance = _token.balanceOf(_to);
+
+        _token.safeTransfer(_to, _amount);
+
+        assertEq(_token.balanceOf(_to), _amount + oldBalance);
     }
 }
