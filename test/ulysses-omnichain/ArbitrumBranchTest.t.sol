@@ -754,7 +754,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         _amount %= type(uint256).max / 1 ether;
 
         uint256 size;
-        assembly {
+        assembly ("memory-safe") {
             size := extcodesize(_user)
         }
 

@@ -13,7 +13,7 @@ library AddressCodeSize {
 
     function isContract(address addr) internal view returns (bool) {
         uint256 size;
-        assembly {
+        assembly ("memory-safe") {
             size := extcodesize(addr)
         }
         return size > 0;
@@ -21,7 +21,7 @@ library AddressCodeSize {
 
     function isEOA(address addr) internal view returns (bool) {
         uint256 size;
-        assembly {
+        assembly ("memory-safe") {
             size := extcodesize(addr)
         }
         return size == 0;

@@ -1618,7 +1618,7 @@ contract RootForkTest is LzForkTest {
         _amount %= type(uint128).max;
 
         uint256 size;
-        assembly {
+        assembly ("memory-safe") {
             size := extcodesize(_user)
         }
 
