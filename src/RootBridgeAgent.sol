@@ -223,6 +223,11 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
         GasParams calldata _gParams,
         bool _hasFallbackToggled
     ) external payable override lock requiresRouter {
+        // Calculate Base Execution Gas before creating Settlement to avoid stack too deep
+        uint256 baseExecutionGas = _hasFallbackToggled
+            ? ROOT_BASE_CALL_OUT_DEPOSIT_MULTIPLE_GAS + BASE_FALLBACK_GAS
+            : ROOT_BASE_CALL_OUT_DEPOSIT_MULTIPLE_GAS;
+
         // Create Settlement and Perform call
         bytes memory payload = _createSettlementMultiple(
             settlementNonce,
@@ -237,15 +242,7 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
         );
 
         // Perform Call to destination Branch Chain.
-        _performCall(
-            _dstChainId,
-            _settlementOwnerAndGasRefundee,
-            payload,
-            _gParams,
-            _hasFallbackToggled
-                ? ROOT_BASE_CALL_OUT_DEPOSIT_MULTIPLE_GAS + BASE_FALLBACK_GAS
-                : ROOT_BASE_CALL_OUT_DEPOSIT_MULTIPLE_GAS
-        );
+        _performCall(_dstChainId, _settlementOwnerAndGasRefundee, payload, _gParams, baseExecutionGas);
     }
 
     /*///////////////////////////////////////////////////////////////
