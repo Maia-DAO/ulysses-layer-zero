@@ -6,19 +6,6 @@ import {GasParams} from "../interfaces/IRootBridgeAgent.sol";
 
 import {VirtualAccount} from "../VirtualAccount.sol";
 
-/// @title TODO: set in separate file Core Root Router Interface
-interface ICoreRootRouter {
-    function bridgeAgentAddress() external view returns (address);
-    function hTokenFactoryAddress() external view returns (address);
-    function setCoreBranch(
-        address _gasRefundee,
-        address _coreBranchRouter,
-        address _coreBranchBridgeAgent,
-        uint16 _dstChainId,
-        GasParams calldata _gParams
-    ) external payable;
-}
-
 /**
  * @title  Root Port - Omnichain Token Management Contract
  * @author MaiaDAO
