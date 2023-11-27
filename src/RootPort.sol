@@ -5,9 +5,10 @@ pragma solidity ^0.8.0;
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
+import {ICoreRootRouter, GasParams} from "./interfaces/ICoreRootRouter.sol";
 import {IERC20hTokenRootFactory} from "./interfaces/IERC20hTokenRootFactory.sol";
 import {IRootBridgeAgent as IBridgeAgent} from "./interfaces/IRootBridgeAgent.sol";
-import {IRootPort, ICoreRootRouter, GasParams, VirtualAccount} from "./interfaces/IRootPort.sol";
+import {IRootPort, VirtualAccount} from "./interfaces/IRootPort.sol";
 
 import {ERC20hToken} from "./token/ERC20hToken.sol";
 
