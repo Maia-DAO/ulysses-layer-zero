@@ -92,11 +92,8 @@ contract BridgeAgentConstants {
                     MINIMUM EXECUTION GAS CONSTANTS
     ///////////////////////////////////////////////////////////////*/
 
-    /// @notice Minimum gas required to safely fail execution.
-    uint256 internal constant BASE_EXECUTION_FAILED_GAS = 15_000;
-
     /// @notice Minimum gas required for a fallback request.
-    uint256 internal constant BASE_FALLBACK_GAS = 140_000;
+    uint256 internal constant BASE_FALLBACK_GAS = 50_000;
 
     //--------------------BRANCH: Deposit------------------------------
 
@@ -124,8 +121,8 @@ contract BridgeAgentConstants {
     uint256 internal constant ROOT_BASE_CALL_OUT_GAS = 100_000;
 
     /// @notice Minimum gas required for a callOutDepositSingle request.
-    uint256 internal constant ROOT_BASE_CALL_OUT_SETTLEMENT_SINGLE_GAS = 150_000;
+    uint256 internal constant ROOT_BASE_CALL_OUT_DEPOSIT_SINGLE_GAS = 150_000;
 
     /// @notice Minimum gas required for a callOutDepositMultiple request.
-    uint256 internal constant ROOT_BASE_CALL_OUT_SETTLEMENT_MULTIPLE_GAS = 200_000;
+    uint256 internal constant ROOT_BASE_CALL_OUT_DEPOSIT_MULTIPLE_GAS = 200_000;
 }

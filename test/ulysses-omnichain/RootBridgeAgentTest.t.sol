@@ -250,24 +250,4 @@ contract RootBridgeAgentTest is Test {
         address virtualAccount = address(rootPort.fetchVirtualAccount(user));
         test_fuzz_checkSettlementOwner(virtualAccount, user);
     }
-
-    /*///////////////////////////////////////////////////////////////
-                          TEST GAS LIMITS
-    ///////////////////////////////////////////////////////////////*/
-
-    function test_gasLimits(bytes memory payload) public {
-        vm.assume(payload.length < 10_000);
-
-        mockRootBridgeAgent.lzReceive{gas: 16_000}(1, abi.encodePacked(address(this), address(this)), 0, payload);
-
-        //Should not fail.
-    }
-
-    function testFail_gasLimits(bytes memory payload) public {
-        vm.assume(payload.length < 10_000);
-
-        mockRootBridgeAgent.lzReceive{gas: 14_000}(1, abi.encodePacked(address(this), address(this)), 0, payload);
-
-        //Should fail.
-    }
 }

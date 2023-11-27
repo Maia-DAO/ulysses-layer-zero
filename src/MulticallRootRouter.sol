@@ -187,13 +187,13 @@ contract MulticallRootRouter is IRootRouter, Ownable {
     function retrySettlement(
         uint32 _settlementNonce,
         address _recipient,
-        bytes calldata,
+        bytes calldata _params,
         GasParams calldata _gParams,
         bool _hasFallbackToggled
     ) external payable override {
         // Perform call to bridge agent.
         IBridgeAgent(bridgeAgentAddress).retrySettlement{value: msg.value}(
-            msg.sender, _settlementNonce, _recipient, "", _gParams, _hasFallbackToggled
+            msg.sender, _settlementNonce, _recipient, _params, _gParams, _hasFallbackToggled
         );
     }
 
@@ -206,14 +206,14 @@ contract MulticallRootRouter is IRootRouter, Ownable {
         address _owner,
         uint32 _settlementNonce,
         address _recipient,
-        bytes calldata,
+        bytes calldata _params,
         GasParams calldata _gParams,
         bool _hasFallbackToggled,
         uint16
     ) public payable override requiresBridgeAgent {
         // Perform call to bridge agent.
         IBridgeAgent(bridgeAgentAddress).retrySettlement{value: msg.value}(
-            _owner, _settlementNonce, _recipient, "", _gParams, _hasFallbackToggled
+            _owner, _settlementNonce, _recipient, _params, _gParams, _hasFallbackToggled
         );
     }
 
@@ -474,7 +474,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
             "",
             SettlementInput(outputToken, amountOut, depositOut),
             gasParams,
-            false
+            true
         );
     }
 
@@ -513,7 +513,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
             "",
             SettlementMultipleInput(outputTokens, amountsOut, depositsOut),
             gasParams,
-            false
+            true
         );
     }
 

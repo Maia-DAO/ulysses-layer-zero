@@ -2283,7 +2283,7 @@ contract RootForkTest is LzForkTest {
         require(MockERC20(newAvaxAssetFtmLocalToken).balanceOf(address(18)) == 99 ether, "Tokens should be received");
     }
 
-    function testRetryDepositUnexpectedSettlementFailure() public {
+    function testRetryDepositNotEnoughGasForSettlement() public {
         //Set up
         testCallOutWithDepositNotEnoughGasForRootRetryMode();
 
@@ -2330,12 +2330,6 @@ contract RootForkTest is LzForkTest {
             packedData = abi.encodePacked(bytes1(0x02), data);
         }
 
-        switchToLzChainWithoutExecutePendingOrPacketUpdate(ftmChainId);
-
-        bytes memory bytecode = address(newAvaxAssetFtmLocalToken).code;
-
-        vm.etch(address(newAvaxAssetFtmLocalToken), "");
-
         switchToLzChainWithoutExecutePendingOrPacketUpdate(avaxChainId);
 
         //Get some ether.
@@ -2362,8 +2356,6 @@ contract RootForkTest is LzForkTest {
 
         switchToLzChain(rootChainId);
 
-        console2.log("prev root nonce", prevNonceRoot);
-        console2.log("curr root nonce", multicallRootBridgeAgent.settlementNonce());
         require(prevNonceRoot == multicallRootBridgeAgent.settlementNonce() - 1, "Root should be updated");
 
         require(
@@ -2375,10 +2367,9 @@ contract RootForkTest is LzForkTest {
 
         //ExecutionStatus should be 0
         require(
-            ftmMulticallBridgeAgent.executionState(prevNonceRoot + 1) == 0, "Settlement status should not be executed."
+            ftmMulticallBridgeAgent.executionState(prevNonceBranch + 1) == 0,
+            "Settlement status should not be executed."
         );
-
-        vm.etch(address(newAvaxAssetFtmLocalToken), bytecode);
 
         // check this address balance
         require(MockERC20(newAvaxAssetFtmLocalToken).balanceOf(address(18)) == 0, "Tokens should not be received");
@@ -2386,7 +2377,7 @@ contract RootForkTest is LzForkTest {
 
     function testRetrySettlement() public {
         //Set up
-        testRetryDepositUnexpectedSettlementFailure();
+        testRetryDepositNotEnoughGasForSettlement();
 
         switchToLzChainWithoutExecutePendingOrPacketUpdate(avaxChainId);
 
@@ -2409,7 +2400,7 @@ contract RootForkTest is LzForkTest {
 
         //Call Deposit function
         avaxMulticallBridgeAgent.retrySettlement{value: 100 ether}(
-            prevNonceBranch - 1, "", [GasParams(1_000_000, 0.1 ether), GasParams(0, 0)], false
+            prevNonceBranch - 1, "", [GasParams(1_000_000, 0.1 ether), GasParams(150_000, 0)], false
         );
 
         //Stop prank
@@ -2434,59 +2425,80 @@ contract RootForkTest is LzForkTest {
         require(MockERC20(newAvaxAssetFtmLocalToken).balanceOf(address(18)) == 99 ether, "Tokens should be received");
     }
 
-    // Branch Removed
-    // function testRetrySettlementTriggerFallback() public {
-    //     //Set up
-    //     testRetryDepositUnexpectedSettlementFailure();
+    function testRetrySettlementTriggerFallback() public {
+        //Set up
+        testRetryDepositNotEnoughGasForSettlement();
 
-    //     switchToLzChainWithoutExecutePendingOrPacketUpdate(avaxChainId);
+        switchToLzChainWithoutExecutePendingOrPacketUpdate(avaxChainId);
 
-    //     prevNonceBranch = avaxMulticallBridgeAgent.depositNonce();
+        prevNonceBranch = avaxMulticallBridgeAgent.depositNonce();
 
-    //     //Switch to avax
-    //     switchToLzChainWithoutExecutePendingOrPacketUpdate(rootChainId);
-    //     prevNonceRoot = multicallRootBridgeAgent.settlementNonce();
+        //Switch to avax
+        switchToLzChainWithoutExecutePendingOrPacketUpdate(rootChainId);
+        prevNonceRoot = multicallRootBridgeAgent.settlementNonce();
 
-    //     switchToLzChainWithoutExecutePendingOrPacketUpdate(avaxChainId);
+        switchToLzChainWithoutExecutePendingOrPacketUpdate(avaxChainId);
 
-    //     //Get some ether.
-    //     vm.deal(address(18), 100 ether);
+        //Get some ether.
+        vm.deal(address(18), 100 ether);
 
-    //     //Prank address 18
-    //     vm.startPrank(address(18));
+        //Prank address 18
+        vm.startPrank(address(18));
 
-    //     //Call Deposit function
-    //     avaxMulticallBridgeAgent.retrySettlement{value: 100 ether}(
-    //         prevNonceBranch - 1, "a", [GasParams(1_000_000, 0.1 ether), GasParams(300_000, 5 ether)], true
-    //     );
+        //Call Deposit function
+        avaxMulticallBridgeAgent.retrySettlement{value: 100 ether}(
+            prevNonceBranch - 1, "a", [GasParams(1_000_000, 0.1 ether), GasParams(300_000, 5 ether)], true
+        );
 
-    //     //Stop prank
-    //     vm.stopPrank();
+        //Stop prank
+        vm.stopPrank();
 
-    //     require(prevNonceBranch == avaxMulticallBridgeAgent.depositNonce(), "Branch should not be udpated");
+        require(prevNonceBranch == avaxMulticallBridgeAgent.depositNonce(), "Branch should not be udpated");
 
-    //     switchToLzChain(rootChainId);
+        switchToLzChain(rootChainId);
 
-    //     require(prevNonceRoot == multicallRootBridgeAgent.settlementNonce(), "Root should not be updated");
+        require(prevNonceRoot == multicallRootBridgeAgent.settlementNonce(), "Root should not be updated");
 
-    //     require(
-    //         multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == 0,
-    //         "Settlement status should be success."
-    //     );
+        require(
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == 0,
+            "Settlement status should be success."
+        );
 
-    //     switchToLzChain(ftmChainId);
+        switchToLzChain(ftmChainId);
 
-    //     switchToLzChain(rootChainId);
+        switchToLzChain(rootChainId);
 
-    //     require(
-    //         multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot - 1).status == 1,
-    //         "Settlement status should be failed after fallback."
-    //     );
-    // }
+        require(
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot - 1).status == 1,
+            "Settlement status should be failed after fallback."
+        );
+    }
+
+    function testRedeemSettlement() public {
+        //Set up
+        testRetrySettlementTriggerFallback();
+
+        //Get some ether.
+        vm.deal(address(18), 10 ether);
+
+        //Prank address 18
+        vm.startPrank(address(18));
+
+        //Call Deposit function
+        multicallRootBridgeAgent.redeemSettlement(prevNonceRoot - 1, address(18));
+
+        //Stop prank
+        vm.stopPrank();
+
+        require(
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).owner == address(0),
+            "Settlement should have vanished."
+        );
+    }
 
     function testRetrySettlementNoFallback() public {
         //Set up
-        testRetryDepositUnexpectedSettlementFailure();
+        testRetryDepositNotEnoughGasForSettlement();
 
         switchToLzChainWithoutExecutePendingOrPacketUpdate(avaxChainId);
 
@@ -2529,12 +2541,6 @@ contract RootForkTest is LzForkTest {
             packedData = abi.encodePacked(bytes1(0x02), data);
         }
 
-        switchToLzChainWithoutExecutePendingOrPacketUpdate(ftmChainId);
-
-        bytes memory bytecode = address(newAvaxAssetFtmLocalToken).code;
-
-        vm.etch(address(newAvaxAssetFtmLocalToken), "");
-
         switchToLzChainWithoutExecutePendingOrPacketUpdate(avaxChainId);
 
         //Get some ether.
@@ -2552,7 +2558,7 @@ contract RootForkTest is LzForkTest {
 
         //Call Deposit function
         avaxMulticallBridgeAgent.retrySettlement{value: 100 ether}(
-            prevNonceBranch - 1, "", [GasParams(1_000_000, 0.1 ether), GasParams(300_000, 0)], false
+            prevNonceBranch - 1, "jkladsjkldsajklads", [GasParams(1_000_000, 0.1 ether), GasParams(300_000, 0)], false
         );
 
         //Stop prank
@@ -2570,8 +2576,6 @@ contract RootForkTest is LzForkTest {
         );
 
         switchToLzChain(ftmChainId);
-
-        vm.etch(address(newAvaxAssetFtmLocalToken), bytecode);
 
         switchToLzChain(rootChainId);
 
@@ -2609,28 +2613,6 @@ contract RootForkTest is LzForkTest {
         require(
             multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot - 1).status == 1,
             "Settlement status should be ready for redemption."
-        );
-    }
-
-    function testRedeemSettlement() public {
-        //Set up
-        testRetrieveSettlement();
-
-        //Get some ether.
-        vm.deal(address(18), 10 ether);
-
-        //Prank address 18
-        vm.startPrank(address(18));
-
-        //Call Deposit function
-        multicallRootBridgeAgent.redeemSettlement(prevNonceRoot - 1, address(18));
-
-        //Stop prank
-        vm.stopPrank();
-
-        require(
-            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).owner == address(0),
-            "Settlement should have vanished."
         );
     }
 
