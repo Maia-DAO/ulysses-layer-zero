@@ -613,7 +613,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
     {
         // Perform Excessively Safe Call
         (success,) = address(this).excessivelySafeCall(
-            gasleft() - 40349, // TODO: Subtract minimum gas
+            gasleft() - BASE_EXECUTION_FAILED_GAS,
             0,
             abi.encodeWithSelector(this.lzReceiveNonBlocking.selector, msg.sender, _srcChainId, _srcAddress, _payload)
         );
@@ -765,8 +765,10 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         if (_hasFallbackToggled) {
             // Try to execute the remote request
             /// @dev If fallback is requested, subtract 50k gas to allow for fallback call.
-            (bool success,) =
-                bridgeAgentExecutorAddress.call{gas: gasleft() - 50_000, value: address(this).balance}(_calldata);
+            (bool success,) = bridgeAgentExecutorAddress.call{
+                gas: gasleft() - BASE_FALLBACK_GAS,
+                value: address(this).balance
+            }(_calldata);
 
             // Update tx state if execution failed
             if (!success) {
