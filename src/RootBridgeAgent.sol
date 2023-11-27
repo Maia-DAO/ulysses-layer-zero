@@ -208,8 +208,8 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
             payload,
             _gParams,
             _hasFallbackToggled
-                ? ROOT_BASE_CALL_OUT_DEPOSIT_SINGLE_GAS + BASE_FALLBACK_GAS
-                : ROOT_BASE_CALL_OUT_DEPOSIT_SINGLE_GAS
+                ? ROOT_BASE_CALL_OUT_SETTLEMENT_SINGLE_GAS + BASE_FALLBACK_GAS
+                : ROOT_BASE_CALL_OUT_SETTLEMENT_SINGLE_GAS
         );
     }
 
@@ -225,8 +225,8 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
     ) external payable override lock requiresRouter {
         // Calculate Base Execution Gas before creating Settlement to avoid stack too deep
         uint256 baseExecutionGas = _hasFallbackToggled
-            ? ROOT_BASE_CALL_OUT_DEPOSIT_MULTIPLE_GAS + BASE_FALLBACK_GAS
-            : ROOT_BASE_CALL_OUT_DEPOSIT_MULTIPLE_GAS;
+            ? ROOT_BASE_CALL_OUT_SETTLEMENT_MULTIPLE_GAS + BASE_FALLBACK_GAS
+            : ROOT_BASE_CALL_OUT_SETTLEMENT_MULTIPLE_GAS;
 
         // Create Settlement and Perform call
         bytes memory payload = _createSettlementMultiple(
@@ -423,7 +423,7 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
     {
         // Perform Excessively Safe Call
         (success,) = address(this).excessivelySafeCall(
-            gasleft() - 40349, // TODO: Subtract minimum gas
+            gasleft() - BASE_EXECUTION_FAILED_GAS,
             0,
             abi.encodeWithSelector(this.lzReceiveNonBlocking.selector, msg.sender, _srcChainId, _srcAddress, _payload)
         );
@@ -723,8 +723,10 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
 
         if (_hasFallbackToggled) {
             //Try to execute the remote request
-            (bool success,) =
-                bridgeAgentExecutorAddress.call{gas: gasleft() - 50_000, value: address(this).balance}(_calldata);
+            (bool success,) = bridgeAgentExecutorAddress.call{
+                gas: gasleft() - BASE_FALLBACK_GAS,
+                value: address(this).balance
+            }(_calldata);
 
             // Update tx state if execution failed
             if (!success) {
@@ -1048,8 +1050,8 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
                 payload,
                 _gParams,
                 hasFallbackToggled
-                    ? ROOT_BASE_CALL_OUT_DEPOSIT_SINGLE_GAS + BASE_FALLBACK_GAS
-                    : ROOT_BASE_CALL_OUT_DEPOSIT_SINGLE_GAS
+                    ? ROOT_BASE_CALL_OUT_SETTLEMENT_SINGLE_GAS + BASE_FALLBACK_GAS
+                    : ROOT_BASE_CALL_OUT_SETTLEMENT_SINGLE_GAS
             );
 
             // Check if it's mulitple asset settlement
@@ -1077,8 +1079,8 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
                 payload,
                 _gParams,
                 hasFallbackToggled
-                    ? ROOT_BASE_CALL_OUT_DEPOSIT_MULTIPLE_GAS + BASE_FALLBACK_GAS
-                    : ROOT_BASE_CALL_OUT_DEPOSIT_MULTIPLE_GAS
+                    ? ROOT_BASE_CALL_OUT_SETTLEMENT_MULTIPLE_GAS + BASE_FALLBACK_GAS
+                    : ROOT_BASE_CALL_OUT_SETTLEMENT_MULTIPLE_GAS
             );
         }
     }
