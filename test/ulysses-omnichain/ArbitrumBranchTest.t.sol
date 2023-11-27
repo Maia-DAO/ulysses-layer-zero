@@ -682,6 +682,100 @@ contract ArbitrumBranchTest is DSTestPlus {
         );
     }
 
+    function testCallOutWithDepositWithHTokens() public {
+        // Set up
+        testCallOutWithDeposit();
+
+        console2.log(MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(this)));
+
+        //Get gas
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+
+        //Prepare data
+        address outputToken;
+        uint256 amountOut;
+        uint256 depositOut;
+        bytes memory packedData;
+
+        {
+            outputToken = newArbitrumAssetGlobalAddress;
+            amountOut = 98 ether;
+            depositOut = 98 ether;
+
+            Multicall2.Call[] memory calls = new Multicall2.Call[](1);
+
+            // Prepare call to transfer 100 hAVAX form virtual account to Mock App
+            calls[0] = Multicall2.Call({
+                target: newArbitrumAssetGlobalAddress,
+                callData: abi.encodeWithSelector(bytes4(0xa9059cbb), mockApp, 1 ether)
+            });
+
+            // Output Params
+            OutputParams memory outputParams =
+                OutputParams(address(this), address(this), outputToken, amountOut, depositOut);
+
+            //dstChainId
+            uint16 dstChainId = rootChainId;
+
+            // RLP Encode Calldata
+            bytes memory data = abi.encode(calls, outputParams, dstChainId);
+
+            // Pack FuncId
+            packedData = abi.encodePacked(bytes1(0x02), data);
+        }
+
+        // Get some gas.
+        hevm.deal(address(this), 1 ether);
+
+        // Approve spend by router
+        ERC20hToken(newArbitrumAssetGlobalAddress).approve(address(rootPort), 49 ether);
+
+        console2.log(MockERC20(arbitrumNativeToken).balanceOf(address(this)));
+
+        // Approve spend by router
+        arbitrumNativeToken.approve(address(localPortAddress), 50 ether);
+
+        // Prepare deposit info
+        DepositInput memory depositInput = DepositInput({
+            hToken: address(newArbitrumAssetGlobalAddress),
+            token: address(arbitrumNativeToken),
+            amount: 99 ether,
+            deposit: 50 ether
+        });
+
+        console2.log("round 2");
+
+        //Call Deposit function
+        arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(packedData, depositInput, gasParams, true);
+
+        // Test If Deposit was successful
+        testCreateDepositSingle(
+            arbitrumMulticallBridgeAgent,
+            uint32(2),
+            address(this),
+            address(newArbitrumAssetGlobalAddress),
+            address(arbitrumNativeToken),
+            99 ether,
+            50 ether,
+            1 ether,
+            0.5 ether
+        );
+
+        console2.log("LocalPort Balance:", MockERC20(arbitrumNativeToken).balanceOf(address(localPortAddress)));
+        require(
+            MockERC20(arbitrumNativeToken).balanceOf(address(localPortAddress)) == 2 ether,
+            "LocalPort should have 2 tokens difference"
+        );
+
+        console2.log("User Balance:", MockERC20(arbitrumNativeToken).balanceOf(address(this)));
+        require(MockERC20(arbitrumNativeToken).balanceOf(address(this)) == 98 ether, "User should have 98 tokens");
+
+        console2.log("User Global Balance:", MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(this)));
+        require(
+            MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(this)) == 0, "User should have spent all hTokens"
+        );
+    }
+
     function testCallOutWithDepositExecutionFailed() public {
         // Set up
         testAddLocalTokenArbitrum();
@@ -892,7 +986,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         uint128,
         uint128
     ) private view {
-        // Cast to Dynamic TODO clean up
+        // Cast to Dynamic
         address[] memory hTokens = new address[](1);
         hTokens[0] = _hToken;
         address[] memory tokens = new address[](1);
@@ -904,10 +998,6 @@ contract ArbitrumBranchTest is DSTestPlus {
 
         // Get Deposit
         Deposit memory deposit = _bridgeAgent.getDepositEntry(_depositNonce);
-
-        console2.logUint(1);
-        console2.log(deposit.hTokens[0], hTokens[0]);
-        console2.log(deposit.tokens[0], tokens[0]);
 
         // Check deposit
         require(deposit.owner == _user, "Deposit owner doesn't match");
