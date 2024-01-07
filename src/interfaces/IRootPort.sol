@@ -428,6 +428,8 @@ interface IRootPort {
     error InvalidUnderlyingAddress();
     /// @notice Error emitted when zero address is provided for Virtual Account creation.
     error InvalidUserAddress();
+    /// @notice Error emitted when zero address is provided for sweep recipient.
+    error InvalidRecipientAddress();
     /// @notice Error emitted when zero address is provided for CoreRootRouter.
     error InvalidCoreRootRouter();
     /// @notice Error emitted when zero address is provided for CoreRootBridgeAgent.

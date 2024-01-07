@@ -36,12 +36,7 @@ library DeployRootBridgeAgent {
         address _rootPortAddress,
         address _rootRouterAddress
     ) external returns (RootBridgeAgent) {
-        return new RootBridgeAgent(
-            _localChainId,
-            _lzEndpointAddress,
-            _rootPortAddress,
-            _rootRouterAddress
-        );
+        return new RootBridgeAgent(_localChainId, _lzEndpointAddress, _rootPortAddress, _rootRouterAddress);
     }
 }
 
@@ -188,6 +183,9 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
         GasParams calldata _gParams,
         bool _hasFallbackToggled
     ) external payable override lock requiresRouter {
+        // Check if `_settlementOwnerAndGasRefundee` is not zero address
+        if (_settlementOwnerAndGasRefundee == address(0)) revert InvalidInputParams();
+
         // Create Settlement and Perform call
         bytes memory payload = _createSettlement(
             settlementNonce,
@@ -223,6 +221,9 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
         GasParams calldata _gParams,
         bool _hasFallbackToggled
     ) external payable override lock requiresRouter {
+        // Check if `_settlementOwnerAndGasRefundee` is not zero address
+        if (_settlementOwnerAndGasRefundee == address(0)) revert InvalidInputParams();
+
         // Calculate Base Execution Gas before creating Settlement to avoid stack too deep
         uint256 baseExecutionGas = _hasFallbackToggled
             ? ROOT_BASE_CALL_OUT_SETTLEMENT_MULTIPLE_GAS + BASE_FALLBACK_GAS
@@ -307,7 +308,7 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
         Settlement storage settlement = getSettlement[_settlementNonce];
 
         // Check if Settlement is redeemable.
-        if (settlement.status == STATUS_SUCCESS) revert SettlementRedeemUnavailable();
+        if (settlement.status != STATUS_FAILED) revert SettlementRedeemUnavailable();
 
         // Check if Settlement is not already redeemed and if caller is allowed to retry settlement.
         _checkSettlementOwner(msg.sender, settlement.owner);
@@ -624,11 +625,17 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
             bool hasFallbackToggled = _payload[0] == 0x87;
             uint16 srcChainId = _srcChainId;
 
+            // Get storage reference
+            Settlement storage settlement = getSettlement[nonce];
+
+            // Check if deposit is not failed and in redeem mode
+            if (settlement.status == STATUS_FAILED) revert SettlementRetryUnavailable();
+
             // Try to execute remote retry Settlement
             IRouter(rootRouterAddress).executeRetrySettlement{value: address(this).balance}(
                 address(IPort(rootPortAddress).fetchVirtualAccount(owner)),
                 nonce,
-                getSettlement[nonce].recipient,
+                settlement.recipient,
                 params,
                 gParams,
                 hasFallbackToggled,
@@ -1006,7 +1013,6 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
      *   @param _dstChainId Chain ID of destination chain.
      *   @param _gParams Gas parameters for cross-chain message execution.
      */
-
     function _retrySettlement(
         bool _hasFallbackToggled,
         address[] memory _hTokens,

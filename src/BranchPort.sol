@@ -164,6 +164,9 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
 
     /// @inheritdoc IBranchPort
     function replenishReserves(address _token, uint256 _amount) external override lock {
+        // Check if `_amount` is greater than zero.
+        if (_amount == 0) revert InvalidAmount();
+
         // Update Port Strategy Token Debt. Will underflow if not enough debt to repay.
         getPortStrategyTokenDebt[msg.sender][_token] -= _amount;
 
@@ -196,6 +199,9 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
 
         // Cache Port Strategy Token Debt
         uint256 portStrategyTokenDebt = getPortStrategyTokenDebt[_strategy][_token];
+
+        // Check if `portStrategyTokenDebt` is greater than zero.
+        if (portStrategyTokenDebt == 0) revert InvalidAmount();
 
         // Calculate amount to withdraw. The lesser of reserves lacking or Strategy Token Global Debt.
         uint256 amountToWithdraw = portStrategyTokenDebt < reservesLacking ? portStrategyTokenDebt : reservesLacking;
@@ -236,6 +242,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
     function bridgeIn(address _recipient, address _localAddress, uint256 _amount)
         external
         override
+        lock
         requiresBridgeAgent
     {
         _bridgeIn(_recipient, _localAddress, _amount);
@@ -248,7 +255,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
         address[] memory _underlyingAddresses,
         uint256[] memory _amounts,
         uint256[] memory _deposits
-    ) external override requiresBridgeAgent {
+    ) external override lock requiresBridgeAgent {
         // Cache Length
         uint256 length = _localAddresses.length;
 

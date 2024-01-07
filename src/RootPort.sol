@@ -5,6 +5,8 @@ pragma solidity ^0.8.0;
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
+import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
+
 import {ICoreRootRouter, GasParams} from "./interfaces/ICoreRootRouter.sol";
 import {IERC20hTokenRootFactory} from "./interfaces/IERC20hTokenRootFactory.sol";
 import {IRootBridgeAgent as IBridgeAgent} from "./interfaces/IRootBridgeAgent.sol";
@@ -14,7 +16,7 @@ import {ERC20hToken} from "./token/ERC20hToken.sol";
 
 /// @title Root Port - Omnichain Token Management Contract
 /// @author MaiaDAO
-contract RootPort is Ownable, IRootPort {
+contract RootPort is Ownable, ReentrancyGuard, IRootPort {
     using SafeTransferLib for address;
 
     /*///////////////////////////////////////////////////////////////
@@ -312,6 +314,7 @@ contract RootPort is Ownable, IRootPort {
     function bridgeToRoot(address _to, address _hToken, uint256 _amount, uint256 _deposit, uint256 _srcChainId)
         external
         override
+        nonReentrant
         requiresBridgeAgent
         requiresGlobalAddress(_hToken)
     {
@@ -351,6 +354,7 @@ contract RootPort is Ownable, IRootPort {
     /// @inheritdoc IRootPort
     function bridgeToBranch(address _from, address _hToken, uint256 _amount, uint256 _deposit, uint256 _dstChainId)
         external
+        nonReentrant
         requiresBridgeAgent
         requiresGlobalAddress(_hToken)
     {
@@ -392,6 +396,7 @@ contract RootPort is Ownable, IRootPort {
     function bridgeToRootFromLocalBranch(address _from, address _hToken, uint256 _amount)
         external
         override
+        nonReentrant
         requiresLocalBranchPort
         requiresGlobalAddress(_hToken)
     {
@@ -401,6 +406,7 @@ contract RootPort is Ownable, IRootPort {
     function bridgeToLocalBranchFromRoot(address _to, address _hToken, uint256 _amount)
         external
         override
+        nonReentrant
         requiresLocalBranchPort
         requiresGlobalAddress(_hToken)
     {
@@ -416,6 +422,7 @@ contract RootPort is Ownable, IRootPort {
     function burnFromLocalBranch(address _from, address _hToken, uint256 _amount)
         external
         override
+        nonReentrant
         requiresLocalBranchPort
         requiresGlobalAddress(_hToken)
     {
@@ -426,6 +433,7 @@ contract RootPort is Ownable, IRootPort {
     function mintToLocalBranch(address _to, address _hToken, uint256 _amount)
         external
         override
+        nonReentrant
         requiresLocalBranchPort
         requiresGlobalAddress(_hToken)
     {
@@ -645,6 +653,8 @@ contract RootPort is Ownable, IRootPort {
 
     /// @inheritdoc IRootPort
     function sweep(address _recipient) external override onlyOwner {
+        // Check if recipient is not zero address
+        if (_recipient == address(0)) revert InvalidRecipientAddress();
         // Safe Transfer All ETH
         _recipient.safeTransferAllETH();
     }

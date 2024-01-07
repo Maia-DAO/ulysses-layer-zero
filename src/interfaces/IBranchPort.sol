@@ -256,6 +256,8 @@ interface IBranchPort {
     /// @notice Error emitted when Port Strategy request would exceed it's reserve ratio management limit.
     error ExceedsReserveRatioManagementLimit();
 
+    /// @notice Error emitted when amount requested is zero.
+    error InvalidAmount();
     /// @notice Error emitted when minimum reserves ratio is set too low.
     error InvalidMinimumReservesRatio();
     /// @notice Error emitted when token deposit arrays have different lengths.

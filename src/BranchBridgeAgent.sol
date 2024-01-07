@@ -566,6 +566,9 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         GasParams[2] calldata _gParams,
         bool _hasFallbackToggled
     ) external payable virtual override lock {
+        // Check and revert if settlement nonce is not STATUS_READY
+        if (executionState[_settlementNonce] != STATUS_READY) revert AlreadyExecutedTransaction();
+
         // Encode Retry Settlement Params
         bytes memory params = abi.encode(_settlementNonce, msg.sender, _params, _gParams[1]);
 
