@@ -252,6 +252,8 @@ interface IBranchPort {
 
     /// @notice Error emitted when Port Strategy request would exceed the Branch Port's minimum reserves.
     error InsufficientReserves();
+    /// @notice Error emitted when not enough debt.
+    error InsufficientDebt();
 
     /// @notice Error emitted when Port Strategy request would exceed it's reserve ratio management limit.
     error ExceedsReserveRatioManagementLimit();

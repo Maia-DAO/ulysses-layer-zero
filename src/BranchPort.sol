@@ -138,7 +138,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
     ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchPort
-    function manage(address _token, uint256 _amount) external override requiresPortStrategy(_token) {
+    function manage(address _token, uint256 _amount) external override lock requiresPortStrategy(_token) {
         // Cache Strategy Token Global Debt
         uint256 _strategyTokenDebt = getStrategyTokenDebt[_token];
         uint256 _portStrategyTokenDebt = getPortStrategyTokenDebt[msg.sender][_token];
@@ -167,11 +167,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
         // Check if `_amount` is greater than zero.
         if (_amount == 0) revert InvalidAmount();
 
-        // Update Port Strategy Token Debt. Will underflow if not enough debt to repay.
-        getPortStrategyTokenDebt[msg.sender][_token] -= _amount;
-
-        // Update Strategy Token Global Debt. Will underflow if not enough debt to repay.
-        getStrategyTokenDebt[_token] -= _amount;
+        if (getPortStrategyTokenDebt[msg.sender][_token] < _amount) revert InsufficientDebt();
 
         // Get current balance of _token
         uint256 currBalance = ERC20(_token).balanceOf(address(this));
@@ -181,6 +177,12 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
 
         // Check if _token balance has increased by _amount
         require(ERC20(_token).balanceOf(address(this)) - currBalance == _amount, "Port Strategy Withdraw Failed");
+
+        // Update Port Strategy Token Debt. Will underflow if not enough debt to repay.
+        getPortStrategyTokenDebt[msg.sender][_token] -= _amount;
+
+        // Update Strategy Token Global Debt. Will underflow if not enough debt to repay.
+        getStrategyTokenDebt[_token] -= _amount;
 
         // Emit DebtRepaid event
         emit DebtRepaid(msg.sender, _token, _amount);
@@ -201,19 +203,21 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
         uint256 portStrategyTokenDebt = getPortStrategyTokenDebt[_strategy][_token];
 
         // Check if `portStrategyTokenDebt` is greater than zero.
-        if (portStrategyTokenDebt == 0) revert InvalidAmount();
+        if (portStrategyTokenDebt == 0) revert InsufficientDebt();
 
         // Calculate amount to withdraw. The lesser of reserves lacking or Strategy Token Global Debt.
         uint256 amountToWithdraw = portStrategyTokenDebt < reservesLacking ? portStrategyTokenDebt : reservesLacking;
 
-        // Update Port Strategy Token Debt
-        getPortStrategyTokenDebt[_strategy][_token] = portStrategyTokenDebt - amountToWithdraw;
-        // Update Strategy Token Global Debt
-        getStrategyTokenDebt[_token] = strategyTokenDebt - amountToWithdraw;
+        // Check if amountToWithdraw is greater than zero.
+        if (amountToWithdraw == 0) revert InvalidAmount();
 
         // Withdraw tokens from startegy
         IPortStrategy(_strategy).withdraw(address(this), _token, amountToWithdraw);
 
+        // Update Port Strategy Token Debt
+        getPortStrategyTokenDebt[_strategy][_token] -= amountToWithdraw;
+        // Update Strategy Token Global Debt
+        getStrategyTokenDebt[_token] = strategyTokenDebt - amountToWithdraw;
         // Check if _token balance has increased by _amount
         require(
             ERC20(_token).balanceOf(address(this)) - currBalance == amountToWithdraw, "Port Strategy Withdraw Failed"
