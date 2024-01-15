@@ -2089,7 +2089,7 @@ contract RootForkTest is LzForkTest {
         switchToLzChain(avaxChainId);
 
         // Check if status failed
-        avaxMulticallBridgeAgent.getDepositEntry(prevNonceBranch).status = 1;
+        require (avaxMulticallBridgeAgent.getDepositEntry(prevNonceBranch).status == 1, "Fallback should have ocurred");
     }
 
     //////////////////////////////////////
@@ -2119,7 +2119,7 @@ contract RootForkTest is LzForkTest {
 
     function testRetrieveDeposit() public {
         //Set up
-        testCallOutWithDepositNotEnoughGasForRootFallbackMode();
+        testCallOutWithDepositWrongCalldataForRootRetryMode();
 
         switchToLzChain(avaxChainId);
 

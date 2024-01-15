@@ -294,6 +294,7 @@ abstract contract LzForkTest is Test {
     /// @param lzChainId the chain to switch to.
     function switchToLzChain(uint16 lzChainId) public {
         vm.selectFork(forkChainIds[lzChainId]);
+        vm.pauseGasMetering();
         updatePackets();
         vm.resumeGasMetering();
         executePackets(lzChainId);
