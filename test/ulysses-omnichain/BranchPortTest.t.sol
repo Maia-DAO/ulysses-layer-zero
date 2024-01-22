@@ -38,19 +38,14 @@ contract BranchPortTest is Test, BridgeAgentConstants {
 
         localPortAddress = address(new BranchPort(owner));
 
-        testToken = new ERC20hToken(address(this), "Test Ulysses Hermes underlying token", "test-uhUNDER",18);
+        testToken = new ERC20hToken(address(this), "Test Ulysses Hermes underlying token", "test-uhUNDER", 18);
 
         bRouter = new BaseBranchRouter();
 
         BranchPort(payable(localPortAddress)).initialize(address(bRouter), address(this));
 
         bAgent = new BranchBridgeAgent(
-            rootChainId,
-            localChainId,
-            rootBridgeAgentAddress,
-            lzEndpointAddress,
-            address(bRouter),
-            localPortAddress
+            rootChainId, localChainId, rootBridgeAgentAddress, lzEndpointAddress, address(bRouter), localPortAddress
         );
 
         bRouter.initialize(address(bAgent));
@@ -438,258 +433,60 @@ contract BranchPortTest is Test, BridgeAgentConstants {
         BranchPort(payable(localPortAddress)).replenishReserves(address(mockStrategyToken), 300 ether);
     }
 
-    // function expectLayerZeroSend(
-    //     uint256 msgValue,
-    //     bytes memory data,
-    //     address refundee,
-    //     GasParams memory gasParams,
-    //     uint256 _baseGasCost
-    // ) internal {
-    //     vm.expectCall(
-    //         lzEndpointAddress,
-    //         msgValue,
-    //         abi.encodeWithSelector(
-    //             // "send(uint16,bytes,bytes,address,address,bytes)",
-    //             ILayerZeroEndpoint.send.selector,
-    //             rootChainId,
-    //             rootBridgeAgentPath,
-    //             data,
-    //             refundee,
-    //             address(0),
-    //             _getAdapterParams(gasParams.gasLimit + _baseGasCost, gasParams.remoteBranchExecutionGas)
-    //         )
-    //     );
-    // }
+    function testReentrancy() public {
+        testAddStrategyToken();
 
-    // function testCreateDeposit(
-    //     uint32 _depositNonce,
-    //     address _user,
-    //     address[] memory _hTokens,
-    //     address[] memory _tokens,
-    //     uint256[] memory _amounts,
-    //     uint256[] memory _deposits
-    // ) private view {
-    //     // Get Deposit.
-    //     Deposit memory deposit = bRouter.getDepositEntry(_depositNonce);
+        // Deploy Mock Reentrancy Strategy
+        mockPortStrategyAddress = address(new MockPortStrategyReentrancy(localPortAddress, address(mockStrategyToken)));
 
-    //     // Check deposit
-    //     require(deposit.owner == _user, "Deposit owner doesn't match");
+        vm.prank(address(bRouter));
+        BranchPort(payable(localPortAddress)).togglePortStrategy(
+            mockPortStrategyAddress, address(mockStrategyToken), 250 ether, 7000
+        );
+        vm.warp(1700495386);
+        mockStrategyToken.mint(address(localPortAddress), 1000 ether);
 
-    //     require(
-    //         keccak256(abi.encodePacked(deposit.hTokens)) == keccak256(abi.encodePacked(_hTokens)),
-    //         "Deposit local hToken doesn't match"
-    //     );
-    //     require(
-    //         keccak256(abi.encodePacked(deposit.tokens)) == keccak256(abi.encodePacked(_tokens)),
-    //         "Deposit underlying token doesn't match"
-    //     );
-    //     require(
-    //         keccak256(abi.encodePacked(deposit.amounts)) == keccak256(abi.encodePacked(_amounts)),
-    //         "Deposit amount doesn't match"
-    //     );
-    //     require(
-    //         keccak256(abi.encodePacked(deposit.deposits)) == keccak256(abi.encodePacked(_deposits)),
-    //         "Deposit deposit doesn't match"
-    //     );
+        vm.startPrank(mockPortStrategyAddress);
+        // 1. Perform first manage call
+        BranchPort(payable(localPortAddress)).manage(address(mockStrategyToken), 150 ether);
 
-    //     require(deposit.status == 0, "Deposit status should be success");
+        // 2. Skip a day to update daily limits
+        vm.warp(1700495386 + 86400);
 
-    //     for (uint256 i = 0; i < _hTokens.length; i++) {
-    //         if (_amounts[i] - _deposits[i] > 0 && _deposits[i] == 0) {
-    //             require(MockERC20(_hTokens[i]).balanceOf(_user) == 0);
-    //         } else if (_amounts[i] - _deposits[i] > 0 && _deposits[i] > 0) {
-    //             require(MockERC20(_hTokens[i]).balanceOf(_user) == 0);
-    //             require(MockERC20(_tokens[i]).balanceOf(_user) == 0);
-    //             require(MockERC20(_tokens[i]).balanceOf(localPortAddress) == _deposits[i]);
-    //         } else {
-    //             require(MockERC20(_tokens[i]).balanceOf(_user) == 0);
-    //             require(MockERC20(_tokens[i]).balanceOf(localPortAddress) == _deposits[i]);
-    //         }
-    //     }
-    // }
-
-    // function testCreateDepositSingle(
-    //     uint32 _depositNonce,
-    //     address _user,
-    //     address _hToken,
-    //     address _token,
-    //     uint256 _amount,
-    //     uint256 _deposit
-    // ) private {
-    //     delete hTokens;
-    //     delete tokens;
-    //     delete amounts;
-    //     delete deposits;
-    //     // Cast to Dynamic TODO clean up
-    //     hTokens = new address[](1);
-    //     hTokens[0] = _hToken;
-    //     tokens = new address[](1);
-    //     tokens[0] = _token;
-    //     amounts = new uint256[](1);
-    //     amounts[0] = _amount;
-    //     deposits = new uint256[](1);
-    //     deposits[0] = _deposit;
-
-    //     // Get Deposit
-    //     Deposit memory deposit = bRouter.getDepositEntry(_depositNonce);
-
-    //     // Check deposit
-    //     require(deposit.owner == _user, "Deposit owner doesn't match");
-
-    //     if (_amount != 0 || _deposit != 0) {
-    //         require(
-    //             keccak256(abi.encodePacked(deposit.hTokens)) == keccak256(abi.encodePacked(hTokens)),
-    //             "Deposit local hToken doesn't match"
-    //         );
-    //         require(
-    //             keccak256(abi.encodePacked(deposit.tokens)) == keccak256(abi.encodePacked(tokens)),
-    //             "Deposit underlying token doesn't match"
-    //         );
-    //         require(
-    //             keccak256(abi.encodePacked(deposit.amounts)) == keccak256(abi.encodePacked(amounts)),
-    //             "Deposit amount doesn't match"
-    //         );
-    //         require(
-    //             keccak256(abi.encodePacked(deposit.deposits)) == keccak256(abi.encodePacked(deposits)),
-    //             "Deposit deposit doesn't match"
-    //         );
-    //     }
-
-    //     require(deposit.status == 0, "Deposit status should be succesful.");
-
-    //     console2.log("TEST DEPOSIT");
-
-    //     console2.logUint(amounts[0]);
-    //     console2.logUint(deposits[0]);
-
-    //     if (hTokens[0] != address(0) || tokens[0] != address(0)) {
-    //         if (amounts[0] > 0 && deposits[0] == 0) {
-    //             require(MockERC20(hTokens[0]).balanceOf(_user) == 0, "Deposit hToken balance doesn't match");
-
-    //             require(MockERC20(hTokens[0]).balanceOf(localPortAddress) == 0, "Deposit hToken balance doesn't match");
-    //         } else if (amounts[0] - deposits[0] > 0 && deposits[0] > 0) {
-    //             console2.log(_user);
-    //             console2.log(localPortAddress);
-
-    //             require(MockERC20(hTokens[0]).balanceOf(_user) == 0, "Deposit hToken balance doesn't match");
-
-    //             require(MockERC20(tokens[0]).balanceOf(_user) == 0, "Deposit token balance doesn't match");
-    //             require(
-    //                 MockERC20(tokens[0]).balanceOf(localPortAddress) == _deposit, "Deposit token balance doesn't match"
-    //             );
-    //         } else {
-    //             require(MockERC20(tokens[0]).balanceOf(_user) == 0, "Deposit token balance doesn't match");
-    //             require(
-    //                 MockERC20(tokens[0]).balanceOf(localPortAddress) == _deposit, "Deposit token balance doesn't match"
-    //             );
-    //         }
-    //     }
-    // }
-
-    // function makeTestCallWithDeposit(
-    //     address _user,
-    //     address _hToken,
-    //     address _token,
-    //     uint256 _amount,
-    //     uint256 _deposit,
-    //     GasParams memory _gasParams
-    // ) private {
-    //     // Prepare deposit info
-    //     DepositInput memory depositInput =
-    //         DepositInput({hToken: _hToken, token: _token, amount: _amount, deposit: _deposit});
-
-    //     // Prank into user account
-    //     vm.startPrank(_user);
-
-    //     // Get some gas.
-    //     vm.deal(_user, 1 ether);
-
-    //     // Approve spend by router
-    //     ERC20hToken(_hToken).approve(address(bRouter), _amount - _deposit);
-    //     MockERC20(_token).approve(address(bRouter), _deposit);
-
-    //     //Call Deposit function
-    //     IBranchRouter(bRouter).callOutAndBridge{value: 1 ether}(bytes("testdata"), depositInput, _gasParams);
-
-    //     // Prank out of user account
-    //     vm.stopPrank();
-
-    //     // Test If Deposit was successful
-    //     testCreateDepositSingle(uint32(1), _user, address(_hToken), address(_token), _amount, _deposit);
-    // }
-
-    // function makeTestCallWithDepositSigned(
-    //     address _user,
-    //     address _hToken,
-    //     address _token,
-    //     uint256 _amount,
-    //     uint256 _deposit,
-    //     GasParams memory _gasParams,
-    //     bool _hasFallbackToggled
-    // ) private {
-    //     // Prepare deposit info
-    //     DepositInput memory depositInput =
-    //         DepositInput({hToken: _hToken, token: _token, amount: _amount, deposit: _deposit});
-
-    //     // Prank into user account
-    //     vm.startPrank(_user);
-
-    //     // Get some gas.
-    //     vm.deal(_user, 1 ether);
-
-    //     // Approve spend by router
-    //     ERC20hToken(_hToken).approve(localPortAddress, _amount - _deposit);
-    //     MockERC20(_token).approve(localPortAddress, _deposit);
-
-    //     //Call Deposit function
-    //     bAgent.callOutSignedAndBridge{value: 1 ether}(bytes("testdata"), depositInput, _gasParams, _hasFallbackToggled);
-
-    //     // Prank out of user account
-    //     vm.stopPrank();
-
-    //     // Test If Deposit was successful
-    //     testCreateDepositSingle(uint32(1), _user, address(_hToken), address(_token), _amount, _deposit);
-    // }
-
-    // function makeTestCallWithDepositMultiple(
-    //     address _user,
-    //     address[] memory _hTokens,
-    //     address[] memory _tokens,
-    //     uint256[] memory _amounts,
-    //     uint256[] memory _deposits,
-    //     GasParams memory _gasParams
-    // ) private {
-    //     //Prepare deposit info
-    //     DepositMultipleInput memory depositInput =
-    //         DepositMultipleInput({hTokens: _hTokens, tokens: _tokens, amounts: _amounts, deposits: _deposits});
-
-    //     // Prank into user account
-    //     vm.startPrank(_user);
-
-    //     // Get some gas.
-    //     vm.deal(_user, 1 ether);
-
-    //     console2.log(_hTokens[0], _deposits[0]);
-
-    //     // Approve spend by router
-    //     MockERC20(_hTokens[0]).approve(address(bRouter), _amounts[0] - _deposits[0]);
-    //     MockERC20(_tokens[0]).approve(address(bRouter), _deposits[0]);
-    //     MockERC20(_hTokens[1]).approve(address(bRouter), _amounts[1] - _deposits[1]);
-    //     MockERC20(_tokens[1]).approve(address(bRouter), _deposits[1]);
-
-    //     //Call Deposit function
-    //     IBranchRouter(bRouter).callOutAndBridgeMultiple{value: 1 ether}(bytes("test"), depositInput, _gasParams);
-
-    //     // Prank out of user account
-    //     vm.stopPrank();
-
-    //     // Test If Deposit was successful
-    //     testCreateDeposit(uint32(1), _user, _hTokens, _tokens, _amounts, _deposits);
-    // }
+        // Will revert due to reeantrancy lock added in "withdraw" function
+        vm.expectRevert();
+        // 3. Return debt -> see MockPortStrategyReentrancy.withdraw()
+        BranchPort(payable(localPortAddress)).replenishReserves(address(mockStrategyToken), 150 ether);
+    }
 }
 
 contract MockPortStrategy {
     function withdraw(address port, address token, uint256 amount) public {
         MockERC20(token).transfer(port, amount);
+    }
+}
+
+interface IBranchPort {
+    function withdraw(address _recipient, address _underlyingAddress, uint256 _amount) external;
+    function manage(address _token, uint256 _amount) external;
+}
+
+contract MockPortStrategyReentrancy {
+    address localPortAddress;
+    address mockStrategyToken;
+
+    constructor(address _localPortAddress, address _mockStrategyToken) {
+        localPortAddress = _localPortAddress;
+        mockStrategyToken = _mockStrategyToken;
+    }
+
+    function withdraw(address port, address token, uint256 amount) public {
+        // 4. Before transferring the debt to the BranchPort contract, call manage again to obtain more debt tokens with updated getStrategyTokenDebt and getPortStrategyTokenDebt to exceed the debt limit
+        IBranchPort(payable(localPortAddress)).manage(address(mockStrategyToken), 100 ether);
+
+        // 5. Perform some actions
+
+        // 6. Return all debt funds to the BranchPort contract
+        MockERC20(token).transfer(port, amount + 100 ether);
     }
 }
