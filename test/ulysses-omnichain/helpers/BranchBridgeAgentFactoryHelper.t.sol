@@ -21,7 +21,7 @@ library BranchBridgeAgentFactoryHelper {
         address _owner
     ) internal returns (BranchBridgeAgentFactory _branchBridgeAgentFactory) {
         _branchBridgeAgentFactory = new BranchBridgeAgentFactory(
-             _branchChainId,
+            _branchChainId,
             _rootChainId,
             address(_rootBridgeAgentFactory),
             _lzEndpointAddress,

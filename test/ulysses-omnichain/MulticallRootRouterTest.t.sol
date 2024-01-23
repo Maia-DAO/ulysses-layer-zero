@@ -89,11 +89,7 @@ contract MulticallRootRouterTest is DSTestPlus {
     address dao = address(this);
 
     function setNewMulticallRootRouter() internal virtual {
-        rootMulticallRouter = new MulticallRootRouter(
-            rootChainId,
-            address(rootPort),
-            multicallAddress
-        );
+        rootMulticallRouter = new MulticallRootRouter(rootChainId, address(rootPort), multicallAddress);
     }
 
     function setUp() public {
@@ -108,11 +104,7 @@ contract MulticallRootRouterTest is DSTestPlus {
         // Deploy Root Contracts
         rootPort = new RootPort(rootChainId);
 
-        bridgeAgentFactory = new RootBridgeAgentFactory(
-            rootChainId,
-            lzEndpointAddress,
-            address(rootPort)
-        );
+        bridgeAgentFactory = new RootBridgeAgentFactory(rootChainId, lzEndpointAddress, address(rootPort));
 
         rootCoreRouter = new CoreRootRouter(rootChainId, address(rootPort));
 
@@ -145,11 +137,7 @@ contract MulticallRootRouterTest is DSTestPlus {
         arbitrumCoreRouter = new ArbitrumCoreBranchRouter();
 
         localBranchBridgeAgentFactory = new ArbitrumBranchBridgeAgentFactory(
-            rootChainId,
-            address(bridgeAgentFactory),
-            address(arbitrumCoreRouter),
-            address(localPortAddress),
-            owner
+            rootChainId, address(bridgeAgentFactory), address(arbitrumCoreRouter), address(localPortAddress), owner
         );
 
         localPortAddress.initialize(address(arbitrumCoreRouter), address(localBranchBridgeAgentFactory));
@@ -239,12 +227,7 @@ contract MulticallRootRouterTest is DSTestPlus {
 
         ftmGlobalToken = RootPort(rootPort).getGlobalTokenFromLocal(ftmLocalWrappedNativeTokenAddress, ftmChainId);
 
-        testToken = new ERC20hToken(
-            address(rootPort),
-            "Hermes Global hToken 1",
-            "hGT1",
-            18
-        );
+        testToken = new ERC20hToken(address(rootPort), "Hermes Global hToken 1", "hGT1", 18);
 
         // // Ensure there are gas tokens from each chain in the system.
         // hevm.startPrank(address(rootPort));

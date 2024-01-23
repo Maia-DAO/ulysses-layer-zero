@@ -19,11 +19,7 @@ library RootBridgeAgentFactoryHelper {
         internal
         returns (RootBridgeAgentFactory _rootBridgeAgentFactory)
     {
-        _rootBridgeAgentFactory = new RootBridgeAgentFactory(
-            _rootChainId,
-            _lzEndpointAddress,
-            address(_rootPort)
-        );
+        _rootBridgeAgentFactory = new RootBridgeAgentFactory(_rootChainId, _lzEndpointAddress, address(_rootPort));
 
         _rootBridgeAgentFactory.check_deploy(_rootChainId, _lzEndpointAddress, _rootPort);
     }

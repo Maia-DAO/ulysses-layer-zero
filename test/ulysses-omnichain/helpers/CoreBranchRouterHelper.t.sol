@@ -44,11 +44,9 @@ library CoreBranchRouterHelper {
                             INIT HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    function _init(
-        CoreBranchRouter _coreBranchRouter,
-        BranchBridgeAgent _coreBranchBridgeAgent,
-        BranchPort _branchPort
-    ) internal {
+    function _init(CoreBranchRouter _coreBranchRouter, BranchBridgeAgent _coreBranchBridgeAgent, BranchPort _branchPort)
+        internal
+    {
         BaseBranchRouter(_coreBranchRouter)._init(_coreBranchBridgeAgent, _branchPort);
     }
 }

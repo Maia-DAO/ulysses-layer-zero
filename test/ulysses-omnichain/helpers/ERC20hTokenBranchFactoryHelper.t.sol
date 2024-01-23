@@ -41,7 +41,7 @@ library ERC20hTokenBranchFactoryHelper {
 
     function check_chainName(ERC20hTokenBranchFactory _branchHTokenFactory, string memory _name) internal view {
         require(
-            keccak256(bytes(_branchHTokenFactory.chainName())) == keccak256(bytes(string.concat(_name, " Ulysses"))),
+            keccak256(bytes(_branchHTokenFactory.chainName())) == keccak256(bytes(string.concat(_name, " Ulysses "))),
             "Incorrect ERC20hTokenBranchFactory chain name"
         );
     }
@@ -90,7 +90,7 @@ library ERC20hTokenBranchFactoryHelper {
 
     function check_init(
         ERC20hTokenBranchFactory _branchHTokenFactory,
-        address _branchWrappedNativeToken,
+        address, // _branchWrappedNativeToken,
         CoreBranchRouter _coreBranchRouter
     ) internal view {
         _branchHTokenFactory.check_coreBranchRouter(_coreBranchRouter);

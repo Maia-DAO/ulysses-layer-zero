@@ -6,19 +6,19 @@ import "../helpers/ImportHelper.sol";
 contract ReservesRatioTest is DSTestPlus {
     using DecodeBridgeInMultipleParams for bytes;
 
-    uint256 private constant DIVISIONER = 100;
-    uint256 private constant MIN_RESERVE_RATIO = 70;
+    uint256 private constant DIVISIONER = 1e4;
+    uint256 private constant MIN_RESERVE_RATIO = 7e3;
 
     function test_checkReserveRatioLimit() public {
-        test_fuzz_checkReserveRatioLimit(80);
+        test_fuzz_checkReserveRatioLimit(8000);
     }
 
     function test_checkReserveRatioLimitTooHigh() public {
-        test_fuzz_checkReserveRatioLimit(101);
+        test_fuzz_checkReserveRatioLimit(10001);
     }
 
     function test_checkReserveRatioLimitTooLow() public {
-        test_fuzz_checkReserveRatioLimit(69);
+        test_fuzz_checkReserveRatioLimit(6999);
     }
 
     function test_fuzz_checkReserveRatioLimit(uint256 _reserveRatioManagementLimit) public {

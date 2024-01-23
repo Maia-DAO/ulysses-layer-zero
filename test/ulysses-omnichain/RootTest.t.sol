@@ -165,19 +165,11 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
         rootPort = new RootPort(rootChainId);
 
-        bridgeAgentFactory = new RootBridgeAgentFactory(
-            rootChainId,
-            lzEndpointAddress,
-            address(rootPort)
-        );
+        bridgeAgentFactory = new RootBridgeAgentFactory(rootChainId, lzEndpointAddress, address(rootPort));
 
         coreRootRouter = new CoreRootRouter(rootChainId, address(rootPort));
 
-        rootMulticallRouter = new MulticallRootRouter(
-            rootChainId,
-            address(rootPort),
-            multicallAddress
-        );
+        rootMulticallRouter = new MulticallRootRouter(rootChainId, address(rootPort), multicallAddress);
 
         hTokenFactory = new ERC20hTokenRootFactory(address(rootPort));
 
@@ -216,11 +208,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         arbitrumCoreRouter = new ArbitrumCoreBranchRouter();
 
         arbitrumBranchBridgeAgentFactory = new ArbitrumBranchBridgeAgentFactory(
-            rootChainId,
-            address(bridgeAgentFactory),
-            address(arbitrumCoreRouter),
-            address(arbitrumPort),
-            owner
+            rootChainId, address(bridgeAgentFactory), address(arbitrumCoreRouter), address(arbitrumPort), owner
         );
 
         arbitrumPort.initialize(address(arbitrumCoreRouter), address(arbitrumBranchBridgeAgentFactory));
@@ -745,11 +733,8 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         hevm.deal(address(this), 1 ether);
 
         // Create Root Bridge Agent
-        MulticallRootRouter testMulticallRouter = new MulticallRootRouter(
-            rootChainId,
-            address(rootPort),
-            multicallAddress
-        );
+        MulticallRootRouter testMulticallRouter =
+            new MulticallRootRouter(rootChainId, address(rootPort), multicallAddress);
 
         // Create Bridge Agent
         RootBridgeAgent testRootBridgeAgent = RootBridgeAgent(
@@ -833,11 +818,8 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         hevm.deal(address(this), 1 ether);
 
         // Create Root Bridge Agent
-        MulticallRootRouter testMulticallRouter = new MulticallRootRouter(
-            rootChainId,
-            address(rootPort),
-            multicallAddress
-        );
+        MulticallRootRouter testMulticallRouter =
+            new MulticallRootRouter(rootChainId, address(rootPort), multicallAddress);
 
         RootBridgeAgent testRootBridgeAgent = RootBridgeAgent(payable(rootPort.bridgeAgents(2)));
 
@@ -859,11 +841,8 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         hevm.deal(address(this), 1 ether);
 
         // Create Root Bridge Agent
-        MulticallRootRouter testMulticallRouter = new MulticallRootRouter(
-            rootChainId,
-            address(rootPort),
-            multicallAddress
-        );
+        MulticallRootRouter testMulticallRouter =
+            new MulticallRootRouter(rootChainId, address(rootPort), multicallAddress);
 
         // Create Bridge Agent
         RootBridgeAgent testRootBridgeAgent = RootBridgeAgent(
@@ -891,11 +870,8 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         hevm.deal(address(89), 1 ether);
 
         // Create Root Bridge Agent
-        MulticallRootRouter testMulticallRouter = new MulticallRootRouter(
-            rootChainId,
-            address(rootPort),
-            multicallAddress
-        );
+        MulticallRootRouter testMulticallRouter =
+            new MulticallRootRouter(rootChainId, address(rootPort), multicallAddress);
 
         // Create Bridge Agent
         RootBridgeAgent testRootBridgeAgent = RootBridgeAgent(
@@ -924,11 +900,8 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         hevm.deal(address(this), 1 ether);
 
         //Create Root Router
-        MulticallRootRouter testMulticallRouter = new MulticallRootRouter(
-            rootChainId,
-            address(rootPort),
-            multicallAddress
-        );
+        MulticallRootRouter testMulticallRouter =
+            new MulticallRootRouter(rootChainId, address(rootPort), multicallAddress);
 
         // Create Bridge Agent
         RootBridgeAgent testRootBridgeAgent = RootBridgeAgent(
@@ -968,13 +941,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         hevm.deal(address(this), 1 ether);
 
         newFtmBranchBridgeAgentFactory = new BranchBridgeAgentFactory(
-            ftmChainId,
-            rootChainId,
-            address(80),
-            lzEndpointAddress,
-            address(ftmCoreRouter),
-            address(ftmPort),
-            owner
+            ftmChainId, rootChainId, address(80), lzEndpointAddress, address(ftmCoreRouter), address(ftmPort), owner
         );
 
         console2.log("Core Router Owner", coreRootRouter.owner());
@@ -997,11 +964,8 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         hevm.deal(address(this), 1 ether);
 
         // Create Root Bridge Agent
-        MulticallRootRouter testMulticallRouter = new MulticallRootRouter(
-            rootChainId,
-            address(rootPort),
-            multicallAddress
-        );
+        MulticallRootRouter testMulticallRouter =
+            new MulticallRootRouter(rootChainId, address(rootPort), multicallAddress);
 
         // Create Bridge Agent
         RootBridgeAgent testRootBridgeAgent = RootBridgeAgent(
@@ -1084,7 +1048,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         // Get some gas
         hevm.deal(address(this), 1 ether);
 
-        // hevm.expectRevert(abi.encodeWithSignature("InvalidMinimumReservesRatio()"));
+        hevm.expectRevert(abi.encodeWithSignature("InvalidMinimumReservesRatio()"));
         coreRootRouter.toggleStrategyToken{value: 0.05 ether}(
             address(102), 30000, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
         );
@@ -1099,7 +1063,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         hevm.deal(address(this), 1 ether);
 
         coreRootRouter.toggleStrategyToken{value: 0.05 ether}(
-            address(102), 0, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
+            address(102), 10000, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
         );
 
         require(!ftmPort.isStrategyToken(address(102)), "Should be removed");
@@ -1167,12 +1131,14 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
         newFtmCoreBranchRouter = new CoreBranchRouter(address(newFtmHTokenFactory));
 
-        newFtmCoreBranchBridgeAgent = new BranchBridgeAgent(rootChainId,
-        ftmChainId,
-        address(newCoreRootBridgeAgent),
-        lzEndpointAddress,
-        address(newFtmCoreBranchRouter),
-        address(ftmPort));
+        newFtmCoreBranchBridgeAgent = new BranchBridgeAgent(
+            rootChainId,
+            ftmChainId,
+            address(newCoreRootBridgeAgent),
+            lzEndpointAddress,
+            address(newFtmCoreBranchRouter),
+            address(ftmPort)
+        );
 
         // Init new branch core
 
@@ -2328,6 +2294,45 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         }
     }
 
+    function test_renounceOwnership() public {
+        _test_renounceOwnership(address(this), rootPort);
+    }
+
+    function test_fuzz_renounceOwnership(bytes32 _salt, address _deployer, uint256 _localChainId) public {
+        hevm.prank(_deployer);
+        _test_renounceOwnership(_deployer, new RootPort{salt: _salt}(_localChainId));
+    }
+
+    function _test_renounceOwnership(address _deployer, RootPort _rootPort) public {
+        if (_deployer == address(this)) {
+            hevm.expectRevert(IRootPort.RenounceOwnershipNotAllowed.selector);
+        } else {
+            hevm.expectRevert(Ownable.Unauthorized.selector);
+        }
+        _rootPort.renounceOwnership();
+    }
+
+    function test_getLocalToken() public {
+        testAddGlobalToken(); // TODO: Veridy if this is actually adding an avax root token to ftm
+
+        _test_getLocalToken(rootPort, avaxLocalWrappedNativeToken, avaxChainId, ftmChainId);
+    }
+
+    function test_getLocalToken(address _localAddress, uint256 _srcChainId, uint256 _dstChainId) public {
+        _test_getLocalToken(rootPort, _localAddress, _srcChainId, _dstChainId);
+    }
+
+    function _test_getLocalToken(RootPort _rootPort, address _localAddress, uint256 _srcChainId, uint256 _dstChainId)
+        public
+    {
+        assertEq(
+            _rootPort.getLocalTokenFromGlobal(
+                _rootPort.getGlobalTokenFromLocal(_localAddress, _srcChainId), _dstChainId
+            ),
+            _rootPort.getLocalToken(_localAddress, _srcChainId, _dstChainId)
+        );
+    }
+
     //////////////////////////////////////   HELPERS   //////////////////////////////////////
 
     function testCreateDepositSingle(
@@ -2340,7 +2345,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint256 _deposit,
         GasParams memory
     ) private view {
-        // Cast to Dynamic TODO clean up
+        // Cast to Dynamic
         address[] memory hTokens = new address[](1);
         hTokens[0] = _hToken;
         address[] memory tokens = new address[](1);

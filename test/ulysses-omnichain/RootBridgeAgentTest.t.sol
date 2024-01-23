@@ -21,11 +21,7 @@ contract RootBridgeAgentTest is Test {
     function setUp() public {
         rootPort = new RootPort(rootChainId);
 
-        mockRootBridgeAgent = new MockRootBridgeAgent(
-        rootChainId,
-        endpoint,
-        address(rootPort),
-        router);
+        mockRootBridgeAgent = new MockRootBridgeAgent(rootChainId, endpoint, address(rootPort), router);
     }
 
     /*///////////////////////////////////////////////////////////////

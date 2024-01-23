@@ -165,7 +165,7 @@ contract VirtualAccountTest is DSTestPlus {
         bytes32 _tokenSalt,
         uint256 _depositAmount
     ) public returns (VirtualAccount virtualAccount) {
-        address token = address(new MockERC20{salt: _tokenSalt}("Test Token","TTK",18));
+        address token = address(new MockERC20{salt: _tokenSalt}("Test Token", "TTK", 18));
 
         virtualAccount = _test_receiveERC20(_userAddress, _localPortAddress, token, _depositAmount);
     }
@@ -187,7 +187,7 @@ contract VirtualAccountTest is DSTestPlus {
     ) public returns (VirtualAccount virtualAccount) {
         (_depositAmount, _withdrawAmount) = _parseDepositAndWithdrawAmounts(_depositAmount, _withdrawAmount);
 
-        address token = address(new MockERC20{salt: _tokenSalt}("Test Token","TTK",18));
+        address token = address(new MockERC20{salt: _tokenSalt}("Test Token", "TTK", 18));
 
         virtualAccount = _test_receiveERC20(_userAddress, localPortAddress, token, _depositAmount);
 
@@ -206,7 +206,7 @@ contract VirtualAccountTest is DSTestPlus {
         if (_userAddress == address(this)) _userAddress = address(1);
         (_depositAmount, _withdrawAmount) = _parseDepositAndWithdrawAmounts(_depositAmount, _withdrawAmount);
 
-        address token = address(new MockERC20{salt: _tokenSalt}("Test Token","TTK",18));
+        address token = address(new MockERC20{salt: _tokenSalt}("Test Token", "TTK", 18));
 
         virtualAccount = _test_receiveERC20(_userAddress, localPortAddress, token, _depositAmount);
 

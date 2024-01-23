@@ -38,19 +38,14 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
 
         localPortAddress = address(new BranchPort(owner));
 
-        testToken = new ERC20hToken(address(this), "Test Ulysses Hermes underlying token", "test-uhUNDER",18);
+        testToken = new ERC20hToken(address(this), "Test Ulysses Hermes underlying token", "test-uhUNDER", 18);
 
         bRouter = new BaseBranchRouter();
 
         BranchPort(payable(localPortAddress)).initialize(address(bRouter), address(this));
 
         bAgent = new BranchBridgeAgent(
-            rootChainId,
-            localChainId,
-            rootBridgeAgentAddress,
-            lzEndpointAddress,
-            address(bRouter),
-            localPortAddress
+            rootChainId, localChainId, rootBridgeAgentAddress, lzEndpointAddress, address(bRouter), localPortAddress
         );
 
         bRouter.initialize(address(bAgent));
@@ -390,7 +385,7 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         vm.startPrank(localPortAddress);
 
         // Mint Test tokens.
-        ERC20hToken fuzzToken = new ERC20hToken(localPortAddress, "Test Ulysses fuzz token", "test-uFUZZ",_decimals);
+        ERC20hToken fuzzToken = new ERC20hToken(localPortAddress, "Test Ulysses fuzz token", "test-uFUZZ", _decimals);
         fuzzToken.mint(_user, _amount - _deposit);
 
         // Mint under tokens.
@@ -517,12 +512,7 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         vm.startPrank(localPortAddress);
 
         // Mint Test tokens.
-        ERC20hToken fuzzToken = new ERC20hToken(
-            localPortAddress,
-            "Test Ulysses Hermes omni token",
-            "test-uhUNDER",
-            18
-        );
+        ERC20hToken fuzzToken = new ERC20hToken(localPortAddress, "Test Ulysses Hermes omni token", "test-uhUNDER", 18);
         fuzzToken.mint(_user, _amount - _deposit);
         MockERC20 underToken = new MockERC20("u token", "U", 18);
         underToken.mint(_user, _deposit);
@@ -575,7 +565,11 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         // Call retry Deposit
         bRouter.retryDeposit{value: 1 ether}(1, "", gasParams);
 
-        //TODO Check if still success (?)
+        // Get Deposit
+        Deposit memory deposit = bRouter.getDepositEntry(1);
+
+        // Test If Deposit was successful
+        testCreateDeposit(1, address(this), deposit.hTokens, deposit.tokens, deposit.amounts, deposit.deposits);
     }
 
     function testRetryDepositFailNotOwner() public {
@@ -643,12 +637,7 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         vm.startPrank(localPortAddress);
 
         // Mint Test tokens.
-        ERC20hToken fuzzToken = new ERC20hToken(
-            localPortAddress,
-            "Test Ulysses Hermes omni token",
-            "test-uhUNDER",
-            18
-        );
+        ERC20hToken fuzzToken = new ERC20hToken(localPortAddress, "Test Ulysses Hermes omni token", "test-uhUNDER", 18);
         fuzzToken.mint(_recipient, _amount - _deposit);
 
         MockERC20 underToken = new MockERC20("u token", "U", 18);
@@ -708,18 +697,10 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         vm.startPrank(localPortAddress);
 
         // Mint Test tokens.
-        ERC20hToken fuzzToken0 = new ERC20hToken(
-            localPortAddress,
-            "Test Ulysses Hermes omni token 0",
-            "test-uhToken0",
-            18
-        );
-        ERC20hToken fuzzToken1 = new ERC20hToken(
-            localPortAddress,
-            "Test Ulysses Hermes omni token 1",
-            "test-uhToken1",
-            18
-        );
+        ERC20hToken fuzzToken0 =
+            new ERC20hToken(localPortAddress, "Test Ulysses Hermes omni token 0", "test-uhToken0", 18);
+        ERC20hToken fuzzToken1 =
+            new ERC20hToken(localPortAddress, "Test Ulysses Hermes omni token 1", "test-uhToken1", 18);
 
         fuzzToken0.mint(_recipient, _amount0 - _deposit0);
         fuzzToken1.mint(_recipient, _amount1 - _deposit1);
@@ -765,14 +746,14 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         vm.prank(lzEndpointAddress);
         bAgent.lzReceive(rootChainId, abi.encodePacked(rootBridgeAgentAddress, bAgent), 1, settlementData);
 
-        require(fuzzToken0.balanceOf(localPortAddress) == 0);
-        require(fuzzToken1.balanceOf(localPortAddress) == 0);
-        require(fuzzToken0.balanceOf(_recipient) == _amount0 - _deposit0);
-        require(fuzzToken1.balanceOf(_recipient) == _amount1 - _deposit1);
-        require(underToken0.balanceOf(localPortAddress) == 0);
-        require(underToken1.balanceOf(localPortAddress) == 0);
-        require(underToken0.balanceOf(_recipient) == _deposit0);
-        require(underToken1.balanceOf(_recipient) == _deposit1);
+        assertEq(fuzzToken0.balanceOf(localPortAddress), 0);
+        assertEq(fuzzToken1.balanceOf(localPortAddress), 0);
+        assertEq(fuzzToken0.balanceOf(_recipient), _amount0 - _deposit0);
+        assertEq(fuzzToken1.balanceOf(_recipient), _amount1 - _deposit1);
+        assertEq(underToken0.balanceOf(localPortAddress), 0);
+        assertEq(underToken1.balanceOf(localPortAddress), 0);
+        assertEq(underToken0.balanceOf(_recipient), _deposit0);
+        assertEq(underToken1.balanceOf(_recipient), _deposit1);
     }
 
     function testCreateDeposit(
@@ -834,7 +815,7 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         delete tokens;
         delete amounts;
         delete deposits;
-        // Cast to Dynamic TODO clean up
+        // Cast to Dynamic
         hTokens = new address[](1);
         hTokens[0] = _hToken;
         tokens = new address[](1);

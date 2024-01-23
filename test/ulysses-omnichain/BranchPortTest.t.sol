@@ -96,7 +96,7 @@ contract BranchPortTest is Test, BridgeAgentConstants {
         vm.prank(address(bRouter));
 
         // Remove strategy token from port
-        BranchPort(payable(localPortAddress)).toggleStrategyToken(address(mockStrategyToken), 0);
+        BranchPort(payable(localPortAddress)).toggleStrategyToken(address(mockStrategyToken), 10000);
 
         require(!BranchPort(payable(localPortAddress)).isStrategyToken(address(mockStrategyToken)), "Should be removed");
     }
@@ -454,15 +454,9 @@ contract BranchPortTest is Test, BridgeAgentConstants {
         vm.warp(1700495386 + 86400);
 
         // Will revert due to reeantrancy lock added in "withdraw" function
-        vm.expectRevert();
+        vm.expectRevert("REENTRANCY");
         // 3. Return debt -> see MockPortStrategyReentrancy.withdraw()
         BranchPort(payable(localPortAddress)).replenishReserves(address(mockStrategyToken), 150 ether);
-    }
-}
-
-contract MockPortStrategy {
-    function withdraw(address port, address token, uint256 amount) public {
-        MockERC20(token).transfer(port, amount);
     }
 }
 

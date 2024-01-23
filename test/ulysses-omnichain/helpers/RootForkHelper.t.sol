@@ -7,6 +7,7 @@ import {ArbitrumBranchBridgeAgentFactoryHelper} from "./ArbitrumBranchBridgeAgen
 import {ArbitrumBranchPortHelper} from "./ArbitrumBranchPortHelper.t.sol";
 import {ArbitrumCoreBranchRouterHelper} from "./ArbitrumCoreBranchRouterHelper.t.sol";
 import {BaseBranchRouterHelper} from "./BaseBranchRouterHelper.t.sol";
+import {BranchBridgeAgentHelper} from "./BranchBridgeAgentHelper.t.sol";
 import {BranchBridgeAgentFactoryHelper} from "./BranchBridgeAgentFactoryHelper.t.sol";
 import {BranchPortHelper} from "./BranchPortHelper.t.sol";
 import {CoreBranchRouterHelper} from "./CoreBranchRouterHelper.t.sol";
@@ -23,6 +24,7 @@ library RootForkHelper {
     using ArbitrumBranchPortHelper for ArbitrumBranchPort;
     using ArbitrumCoreBranchRouterHelper for ArbitrumCoreBranchRouter;
     using BaseBranchRouterHelper for BaseBranchRouter;
+    using BranchBridgeAgentHelper for BranchBridgeAgent;
     using BranchBridgeAgentFactoryHelper for BranchBridgeAgentFactory;
     using BranchPortHelper for BranchPort;
     using CoreBranchRouterHelper for CoreBranchRouter;

@@ -101,19 +101,11 @@ contract MulticallRootBridgeAgentTest is Test {
         // Deploy Root Contracts
         rootPort = new RootPort(rootChainId);
 
-        bridgeAgentFactory = new RootBridgeAgentFactory(
-            rootChainId,
-            lzEndpointAddress,
-            address(rootPort)
-        );
+        bridgeAgentFactory = new RootBridgeAgentFactory(rootChainId, lzEndpointAddress, address(rootPort));
 
         rootCoreRouter = new CoreRootRouter(rootChainId, address(rootPort));
 
-        rootMulticallRouter = new MulticallRootRouter(
-            rootChainId,
-            address(rootPort),
-            multicallAddress
-        );
+        rootMulticallRouter = new MulticallRootRouter(rootChainId, address(rootPort), multicallAddress);
 
         hTokenFactory = new ERC20hTokenRootFactory(address(rootPort));
 
@@ -142,11 +134,7 @@ contract MulticallRootBridgeAgentTest is Test {
         arbitrumCoreRouter = new ArbitrumCoreBranchRouter();
 
         localBranchBridgeAgentFactory = new ArbitrumBranchBridgeAgentFactory(
-            rootChainId,
-            address(bridgeAgentFactory),
-            address(arbitrumCoreRouter),
-            address(localPortAddress),
-            owner
+            rootChainId, address(bridgeAgentFactory), address(arbitrumCoreRouter), address(localPortAddress), owner
         );
 
         localPortAddress.initialize(address(arbitrumCoreRouter), address(localBranchBridgeAgentFactory));
@@ -240,12 +228,7 @@ contract MulticallRootBridgeAgentTest is Test {
         ERC20hToken(ftmGlobalToken).mint(address(rootPort), 1 ether);
         vm.stopPrank();
 
-        testToken = new ERC20hToken(
-            address(rootPort),
-            "Hermes Global hToken 1",
-            "hGT1",
-            18
-        );
+        testToken = new ERC20hToken(address(rootPort), "Hermes Global hToken 1", "hGT1", 18);
 
         avaxNativeAssethToken = new MockERC20("hTOKEN-AVAX", "LOCAL hTOKEN FOR TOKEN IN AVAX", 18);
 

@@ -195,11 +195,11 @@ library RootPortHelper {
 
     function check_addNewChain(
         RootPort _rootPort,
-        BranchBridgeAgent _coreBranchBridgeAgent,
+        BranchBridgeAgent, // _coreBranchBridgeAgent,
         uint16 _branchChainId,
-        string memory _name,
-        string memory _symbol,
-        uint8 _decimals,
+        string memory, // _name,
+        string memory, // _symbol,
+        uint8, // _decimals,
         address _branchLocalWrappedNativeToken,
         address _branchWrappedNativeToken,
         address branchGlobalToken
