@@ -14,6 +14,7 @@ import {IPortStrategy} from "./interfaces/IPortStrategy.sol";
 import {AddressCodeSize} from "./lib/AddressCodeSize.sol";
 
 import {ERC20hToken} from "./token/ERC20hToken.sol";
+import {ReservesRatio} from "./lib/ReservesRatio.sol";
 
 /// @title Branch Port - Omnichain Token Management Contract
 /// @author MaiaDAO
@@ -374,14 +375,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
     }
 
     function _setStrategyTokenMinimumReservesRatio(address _token, uint256 _minimumReservesRatio) internal {
-        // Check if minimumReservesRatio is less or equal to 100%
-        if (_minimumReservesRatio > DIVISIONER) {
-            revert InvalidMinimumReservesRatio();
-        }
-        // Check if minimumReservesRatio is greater than or equal to 70%
-        if (_minimumReservesRatio < MIN_RESERVE_RATIO) {
-            revert InvalidMinimumReservesRatio();
-        }
+        ReservesRatio.checkReserveRatioLimit(_minimumReservesRatio);
 
         // Set the Strategy Token's Minimum Reserves Ratio
         getMinimumTokenReserveRatio[_token] = _minimumReservesRatio;
@@ -435,14 +429,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
         uint256 _dailyManagementLimit,
         uint256 _reserveRatioManagementLimit
     ) internal {
-        // Check if minimumReservesRatio is less or equal to 100%
-        if (_reserveRatioManagementLimit > DIVISIONER) {
-            revert InvalidMinimumReservesRatio();
-        }
-        // Check if minimumReservesRatio is greater than or equal to 70%
-        if (_reserveRatioManagementLimit < MIN_RESERVE_RATIO) {
-            revert InvalidMinimumReservesRatio();
-        }
+        ReservesRatio.checkReserveRatioLimit(_reserveRatioManagementLimit);
 
         // Set the Strategy Token's Minimum Reserves Ratio
         strategyDailyLimitAmount[_portStrategy][_token] = _dailyManagementLimit;

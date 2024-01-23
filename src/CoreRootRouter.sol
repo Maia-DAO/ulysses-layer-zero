@@ -15,6 +15,8 @@ import {
 } from "./interfaces/IRootBridgeAgent.sol";
 import {IRootPort as IPort} from "./interfaces/IRootPort.sol";
 
+import {ReservesRatio} from "./lib/ReservesRatio.sol";
+
 /// @title  Core Root Router Contract
 /// @author Maia DAO
 contract CoreRootRouter is ICoreRootRouter, Ownable {
@@ -151,6 +153,8 @@ contract CoreRootRouter is ICoreRootRouter, Ownable {
         uint16 _dstChainId,
         GasParams calldata _gParams
     ) external payable onlyOwner {
+        ReservesRatio.checkReserveRatioLimit(_minimumReservesRatio);
+
         // Encode CallData
         bytes memory params = abi.encode(_underlyingToken, _minimumReservesRatio);
 
@@ -171,6 +175,8 @@ contract CoreRootRouter is ICoreRootRouter, Ownable {
         uint16 _dstChainId,
         GasParams calldata _gParams
     ) external payable onlyOwner {
+        ReservesRatio.checkReserveRatioLimit(_minimumReservesRatio);
+
         // Encode CallData
         bytes memory params = abi.encode(_underlyingToken, _minimumReservesRatio);
 
@@ -193,6 +199,8 @@ contract CoreRootRouter is ICoreRootRouter, Ownable {
         uint16 _dstChainId,
         GasParams calldata _gParams
     ) external payable onlyOwner {
+        ReservesRatio.checkReserveRatioLimit(_reserveRatioManagementLimit);
+
         // Encode CallData
         bytes memory params =
             abi.encode(_portStrategy, _underlyingToken, _dailyManagementLimit, _reserveRatioManagementLimit);
@@ -216,6 +224,8 @@ contract CoreRootRouter is ICoreRootRouter, Ownable {
         uint16 _dstChainId,
         GasParams calldata _gParams
     ) external payable onlyOwner {
+        ReservesRatio.checkReserveRatioLimit(_reserveRatioManagementLimit);
+
         // Encode CallData
         bytes memory params =
             abi.encode(_portStrategy, _underlyingToken, _dailyManagementLimit, _reserveRatioManagementLimit);
