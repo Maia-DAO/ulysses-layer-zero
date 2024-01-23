@@ -14,12 +14,7 @@ library DeployArbitrumBranchBridgeAgent {
         external
         returns (ArbitrumBranchBridgeAgent)
     {
-        return new ArbitrumBranchBridgeAgent(
-            _localChainId,
-            _daoAddress,
-            _localRouterAddress,
-            _localPortAddress
-        );
+        return new ArbitrumBranchBridgeAgent(_localChainId, _daoAddress, _localRouterAddress, _localPortAddress);
     }
 }
 

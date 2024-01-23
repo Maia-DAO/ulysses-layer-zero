@@ -110,7 +110,6 @@ interface ICoreRootRouter is IRootRouter {
      * @param _dstChainId Chain Id of the branch chain where the new Bridge Agent will be deployed.
      * @param _gParams Gas parameters for remote execution.
      */
-
     function updateStrategyToken(
         address _underlyingToken,
         uint256 _minimumReservesRatio,
@@ -149,7 +148,6 @@ interface ICoreRootRouter is IRootRouter {
      * @param _dstChainId Chain Id of the branch chain where the new Bridge Agent will be deployed.
      * @param _gParams Gas parameters for remote execution.
      */
-
     function updatePortStrategy(
         address _portStrategy,
         address _underlyingToken,

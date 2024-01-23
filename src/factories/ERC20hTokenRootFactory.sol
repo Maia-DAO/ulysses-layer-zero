@@ -74,12 +74,7 @@ contract ERC20hTokenRootFactory is Ownable, IERC20hTokenRootFactory {
         requiresCoreRouterOrPort
         returns (ERC20hToken newToken)
     {
-        newToken = new ERC20hToken(
-            rootPortAddress,
-            _name,
-            _symbol,
-            _decimals
-        );
+        newToken = new ERC20hToken(rootPortAddress, _name, _symbol, _decimals);
 
         hTokens.push(newToken);
     }

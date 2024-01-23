@@ -407,7 +407,7 @@ interface IRootPort {
                             ERRORS  
     ///////////////////////////////////////////////////////////////*/
 
-    /// @notice Error emitted when owner tries to renounce ownership.
+    /// @notice Error emitted when the owner tries to renounce ownership.
     error RenounceOwnershipNotAllowed();
 
     /// @notice Error emitted when Set Up period is over.

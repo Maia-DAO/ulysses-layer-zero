@@ -37,7 +37,7 @@ contract ERC20hTokenBranchFactory is Ownable, IERC20hTokenBranchFactory {
      */
     constructor(address _localPortAddress, string memory _chainName, string memory _chainSymbol) {
         require(_localPortAddress != address(0), "Port address cannot be 0");
-        chainName = string.concat(_chainName, " Ulysses");
+        chainName = string.concat(_chainName, " Ulysses ");
         chainSymbol = string.concat(_chainSymbol, "-u");
         localPortAddress = _localPortAddress;
         _initializeOwner(msg.sender);
@@ -91,8 +91,9 @@ contract ERC20hTokenBranchFactory is Ownable, IERC20hTokenBranchFactory {
         returns (ERC20hToken newToken)
     {
         newToken = _addPrefix
-            ?
-            new ERC20hToken(localPortAddress, string.concat(chainName, _name), string.concat(chainSymbol, _symbol), _decimals)
+            ? new ERC20hToken(
+                localPortAddress, string.concat(chainName, _name), string.concat(chainSymbol, _symbol), _decimals
+            )
             : new ERC20hToken(localPortAddress, _name, _symbol, _decimals);
 
         hTokens.push(newToken);
