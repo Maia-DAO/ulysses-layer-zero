@@ -197,7 +197,7 @@ contract RootPort is Ownable, ReentrancyGuard, IRootPort {
         emit CoreRootSet(coreRootRouterAddress, _coreRootBridgeAgent);
     }
 
-    /// @notice Function being overriden to prevent mistakenly renouncing ownership.
+    /// @notice Function being overridden to prevent mistakenly renouncing ownership.
     function renounceOwnership() public payable override onlyOwner {
         revert RenounceOwnershipNotAllowed();
     }
