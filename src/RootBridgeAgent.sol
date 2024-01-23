@@ -3,12 +3,13 @@ pragma solidity ^0.8.0;
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
+import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
+
+import {AddressCodeSize} from "./lib/AddressCodeSize.sol";
 import {ExcessivelySafeCall} from "lib/ExcessivelySafeCall.sol";
 
 import {ILayerZeroEndpoint} from "./interfaces/ILayerZeroEndpoint.sol";
-
 import {IBranchBridgeAgent} from "./interfaces/IBranchBridgeAgent.sol";
-
 import {BridgeAgentConstants} from "./interfaces/BridgeAgentConstants.sol";
 import {
     GasParams,
@@ -20,13 +21,10 @@ import {
     SettlementInput,
     SettlementMultipleInput
 } from "./interfaces/IRootBridgeAgent.sol";
-
 import {IRootPort as IPort} from "./interfaces/IRootPort.sol";
 
-import {AddressCodeSize} from "./lib/AddressCodeSize.sol";
-
-import {VirtualAccount} from "./VirtualAccount.sol";
 import {DeployRootBridgeAgentExecutor, IRouter, RootBridgeAgentExecutor} from "./RootBridgeAgentExecutor.sol";
+import {VirtualAccount} from "./VirtualAccount.sol";
 
 /// @title Library for Root Bridge Agent Deployment
 library DeployRootBridgeAgent {
@@ -42,7 +40,7 @@ library DeployRootBridgeAgent {
 
 /// @title Root Bridge Agent Contract
 /// @author MaiaDAO
-contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
+contract RootBridgeAgent is BridgeAgentConstants, ReentrancyGuard, IRootBridgeAgent {
     using SafeTransferLib for address;
     using ExcessivelySafeCall for address;
     using AddressCodeSize for address;
@@ -103,13 +101,6 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
     mapping(uint256 chainId => mapping(uint256 nonce => uint256 state)) public executionState;
 
     /*///////////////////////////////////////////////////////////////
-                            REENTRANCY STATE
-    ///////////////////////////////////////////////////////////////*/
-
-    /// @notice Re-entrancy lock modifier state.
-    uint256 internal _unlocked = 1;
-
-    /*///////////////////////////////////////////////////////////////
                             CONSTRUCTOR
     ///////////////////////////////////////////////////////////////*/
 
@@ -165,7 +156,7 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
         uint16 _dstChainId,
         bytes calldata _params,
         GasParams calldata _gParams
-    ) external payable override lock requiresRouter {
+    ) external payable override nonReentrant requiresRouter {
         //Encode Data for call.
         bytes memory payload = abi.encodePacked(bytes1(0x01), _recipient, settlementNonce++, _params);
 
@@ -182,7 +173,7 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
         SettlementInput calldata _sParams,
         GasParams calldata _gParams,
         bool _hasFallbackToggled
-    ) external payable override lock requiresRouter {
+    ) external payable override nonReentrant requiresRouter {
         // Check if `_settlementOwnerAndGasRefundee` is not zero address
         if (_settlementOwnerAndGasRefundee == address(0)) revert InvalidInputParams();
 
@@ -220,7 +211,7 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
         SettlementMultipleInput calldata _sParams,
         GasParams calldata _gParams,
         bool _hasFallbackToggled
-    ) external payable override lock requiresRouter {
+    ) external payable override nonReentrant requiresRouter {
         // Check if `_settlementOwnerAndGasRefundee` is not zero address
         if (_settlementOwnerAndGasRefundee == address(0)) revert InvalidInputParams();
 
@@ -258,7 +249,7 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
         bytes calldata _params,
         GasParams calldata _gParams,
         bool _hasFallbackToggled
-    ) external payable override requiresRouter lock {
+    ) external payable override requiresRouter nonReentrant {
         // Get storage reference
         Settlement storage settlement = getSettlement[_settlementNonce];
 
@@ -285,7 +276,7 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
     }
 
     /// @inheritdoc IRootBridgeAgent
-    function retrieveSettlement(uint32 _settlementNonce, GasParams calldata _gParams) external payable lock {
+    function retrieveSettlement(uint32 _settlementNonce, GasParams calldata _gParams) external payable nonReentrant {
         //Get settlement storage reference
         Settlement storage settlement = getSettlement[_settlementNonce];
 
@@ -303,7 +294,7 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
     }
 
     /// @inheritdoc IRootBridgeAgent
-    function redeemSettlement(uint32 _settlementNonce, address _recipient) external override lock {
+    function redeemSettlement(uint32 _settlementNonce, address _recipient) external override nonReentrant {
         // Get setttlement storage reference
         Settlement storage settlement = getSettlement[_settlementNonce];
 
@@ -1183,14 +1174,6 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
     /*///////////////////////////////////////////////////////////////
                             MODIFIERS
     ///////////////////////////////////////////////////////////////*/
-
-    /// @notice Modifier for a simple re-entrancy check.
-    modifier lock() {
-        require(_unlocked == 1);
-        _unlocked = 2;
-        _;
-        _unlocked = 1;
-    }
 
     /// @notice Internal function to verify msg sender is Bridge Agent's Router.
     modifier requiresRouter() {

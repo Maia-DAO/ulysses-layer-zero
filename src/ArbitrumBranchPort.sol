@@ -52,7 +52,7 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
     function depositToPort(address _depositor, address _recipient, address _underlyingAddress, uint256 _deposit)
         external
         override
-        lock
+        nonReentrant
         requiresBridgeAgent
     {
         // Save root port address to memory
@@ -77,7 +77,7 @@ contract ArbitrumBranchPort is BranchPort, IArbitrumBranchPort {
     function withdrawFromPort(address _depositor, address _recipient, address _globalAddress, uint256 _amount)
         external
         override
-        lock
+        nonReentrant
         requiresBridgeAgent
     {
         // Save root port address to memory

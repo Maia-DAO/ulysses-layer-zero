@@ -64,7 +64,7 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
      *  @param underlyingAddress address of the underlying asset to be deposited.
      *  @param amount amount to be deposited.
      */
-    function depositToPort(address underlyingAddress, uint256 amount) external payable lock {
+    function depositToPort(address underlyingAddress, uint256 amount) external payable nonReentrant {
         IArbPort(localPortAddress).depositToPort(msg.sender, msg.sender, underlyingAddress, amount);
     }
 
@@ -73,7 +73,7 @@ contract ArbitrumBranchBridgeAgent is BranchBridgeAgent {
      *  @param globalAddress local hToken to be withdrawn.
      *  @param amount amount to be withdrawn.
      */
-    function withdrawFromPort(address globalAddress, uint256 amount) external payable lock {
+    function withdrawFromPort(address globalAddress, uint256 amount) external payable nonReentrant {
         IArbPort(localPortAddress).withdrawFromPort(msg.sender, msg.sender, globalAddress, amount);
     }
 

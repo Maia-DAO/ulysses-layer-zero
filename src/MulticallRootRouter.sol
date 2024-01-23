@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
+import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
+
 import {IMulticall2 as IMulticall} from "./interfaces/IMulticall2.sol";
 import {
     GasParams,
@@ -56,7 +58,7 @@ struct OutputMultipleParams {
  *         0x02         | multicallSingleOutput
  *         0x03         | multicallMultipleOutput
  */
-contract MulticallRootRouter is IRootRouter, Ownable {
+contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
     using SafeTransferLib for address;
 
     /*///////////////////////////////////////////////////////////////
@@ -85,9 +87,6 @@ contract MulticallRootRouter is IRootRouter, Ownable {
 
     /// @notice Bridge Agent Executor Address.
     address public bridgeAgentExecutorAddress;
-
-    /// @notice Re-entrancy lock modifier state.
-    uint256 internal _unlocked = 1;
 
     /*///////////////////////////////////////////////////////////////
                             CONSTRUCTOR
@@ -227,7 +226,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
      *  0x03         |  multicallMultipleOutput
      *
      */
-    function execute(bytes calldata encodedData, uint16) external payable override lock requiresExecutor {
+    function execute(bytes calldata encodedData, uint16) external payable override nonReentrant requiresExecutor {
         // Parse funcId
         bytes1 funcId = encodedData[0];
 
@@ -307,7 +306,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
         external
         payable
         override
-        lock
+        nonReentrant
         requiresExecutor
     {
         _executeSigned(encodedData, userAccount);
@@ -319,7 +318,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
         payable
         override
         requiresExecutor
-        lock
+        nonReentrant
     {
         _executeSigned(encodedData, userAccount);
     }
@@ -330,7 +329,7 @@ contract MulticallRootRouter is IRootRouter, Ownable {
         DepositMultipleParams calldata,
         address userAccount,
         uint16
-    ) external payable override requiresExecutor lock {
+    ) external payable override requiresExecutor nonReentrant {
         _executeSigned(encodedData, userAccount);
     }
 
@@ -528,18 +527,6 @@ contract MulticallRootRouter is IRootRouter, Ownable {
      */
     function _decode(bytes calldata data) internal pure virtual returns (bytes memory) {
         return data;
-    }
-
-    /*///////////////////////////////////////////////////////////////
-                                MODIFIERS
-    ///////////////////////////////////////////////////////////////*/
-
-    /// @notice Modifier for a simple re-entrancy check.
-    modifier lock() {
-        require(_unlocked == 1);
-        _unlocked = 2;
-        _;
-        _unlocked = 1;
     }
 
     /// @notice Verifies the caller is the Bridge Agent Executor.

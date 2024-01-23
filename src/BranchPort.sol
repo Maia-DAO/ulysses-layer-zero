@@ -6,6 +6,7 @@ import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
+import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 
 import {BridgeAgentConstants} from "./interfaces/BridgeAgentConstants.sol";
 import {IBranchPort} from "./interfaces/IBranchPort.sol";
@@ -18,7 +19,7 @@ import {ReservesRatio} from "./lib/ReservesRatio.sol";
 
 /// @title Branch Port - Omnichain Token Management Contract
 /// @author MaiaDAO
-contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
+contract BranchPort is Ownable, ReentrancyGuard, IBranchPort, BridgeAgentConstants {
     using SafeTransferLib for address;
     using AddressCodeSize for address;
 
@@ -84,18 +85,10 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
         strategyDailyLimitRemaining;
 
     /*///////////////////////////////////////////////////////////////
-                            REENTRANCY STATE
-    ///////////////////////////////////////////////////////////////*/
-
-    /// @notice Reentrancy lock guard state.
-    uint256 internal _unlocked = 1;
-
-    /*///////////////////////////////////////////////////////////////
                             CONSTANTS
     ///////////////////////////////////////////////////////////////*/
 
     uint256 internal constant DIVISIONER = 1e4;
-    uint256 internal constant MIN_RESERVE_RATIO = 7e3;
 
     /*///////////////////////////////////////////////////////////////
                             CONSTRUCTOR
@@ -139,7 +132,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
     ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchPort
-    function manage(address _token, uint256 _amount) external override lock requiresPortStrategy(_token) {
+    function manage(address _token, uint256 _amount) external override nonReentrant requiresPortStrategy(_token) {
         // Cache Strategy Token Global Debt
         uint256 _strategyTokenDebt = getStrategyTokenDebt[_token];
         uint256 _portStrategyTokenDebt = getPortStrategyTokenDebt[msg.sender][_token];
@@ -164,7 +157,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
     }
 
     /// @inheritdoc IBranchPort
-    function replenishReserves(address _token, uint256 _amount) external override lock {
+    function replenishReserves(address _token, uint256 _amount) external override nonReentrant {
         // Check if `_amount` is greater than zero.
         if (_amount == 0) revert InvalidAmount();
 
@@ -190,7 +183,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
     }
 
     /// @inheritdoc IBranchPort
-    function replenishReserves(address _strategy, address _token) external override lock {
+    function replenishReserves(address _strategy, address _token) external override nonReentrant {
         // Cache Strategy Token Global Debt
         uint256 strategyTokenDebt = getStrategyTokenDebt[_token];
 
@@ -237,7 +230,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
         public
         virtual
         override
-        lock
+        nonReentrant
         requiresBridgeAgent
     {
         _underlyingAddress.safeTransfer(_recipient, _deposit);
@@ -247,7 +240,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
     function bridgeIn(address _recipient, address _localAddress, uint256 _amount)
         external
         override
-        lock
+        nonReentrant
         requiresBridgeAgent
     {
         _bridgeIn(_recipient, _localAddress, _amount);
@@ -260,7 +253,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
         address[] memory _underlyingAddresses,
         uint256[] memory _amounts,
         uint256[] memory _deposits
-    ) external override lock requiresBridgeAgent {
+    ) external override nonReentrant requiresBridgeAgent {
         // Cache Length
         uint256 length = _localAddresses.length;
 
@@ -275,7 +268,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
 
             // Check if underlying tokens are being cleared
             if (_deposits[i] > 0) {
-                withdraw(_recipient, _underlyingAddresses[i], _deposits[i]);
+                _underlyingAddresses[i].safeTransfer(_recipient, _deposits[i]);
             }
 
             unchecked {
@@ -291,7 +284,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
         address _underlyingAddress,
         uint256 _amount,
         uint256 _deposit
-    ) external override lock requiresBridgeAgent {
+    ) external override nonReentrant requiresBridgeAgent {
         _bridgeOut(_depositor, _localAddress, _underlyingAddress, _amount, _deposit);
     }
 
@@ -302,7 +295,7 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
         address[] memory _underlyingAddresses,
         uint256[] memory _amounts,
         uint256[] memory _deposits
-    ) external override lock requiresBridgeAgent {
+    ) external override nonReentrant requiresBridgeAgent {
         // Cache Length
         uint256 length = _localAddresses.length;
 
@@ -623,13 +616,5 @@ contract BranchPort is Ownable, IBranchPort, BridgeAgentConstants {
         if (!isStrategyToken[_token]) revert UnrecognizedStrategyToken();
         if (!isPortStrategy[msg.sender][_token]) revert UnrecognizedPortStrategy();
         _;
-    }
-
-    /// @notice Modifier for a simple re-entrancy check.
-    modifier lock() {
-        require(_unlocked == 1);
-        _unlocked = 2;
-        _;
-        _unlocked = 1;
     }
 }

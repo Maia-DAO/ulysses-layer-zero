@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
+import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
+
 import {ExcessivelySafeCall} from "lib/ExcessivelySafeCall.sol";
 
 import {BridgeAgentConstants} from "./interfaces/BridgeAgentConstants.sol";
@@ -45,7 +47,7 @@ library DeployBranchBridgeAgent {
 
 /// @title Branch Bridge Agent Contract
 /// @author MaiaDAO
-contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
+contract BranchBridgeAgent is IBranchBridgeAgent, ReentrancyGuard, BridgeAgentConstants {
     using ExcessivelySafeCall for address;
     using SafeTransferLib for address;
     using DecodeBridgeInMultipleParams for bytes;
@@ -97,13 +99,6 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
 
     /// @notice If true, the bridge agent has already served a request with this nonce from a given chain.
     mapping(uint256 settlementNonce => uint256 state) public executionState;
-
-    /*///////////////////////////////////////////////////////////////
-                           REENTRANCY STATE
-    ///////////////////////////////////////////////////////////////*/
-
-    /// @notice Re-entrancy lock modifier state.
-    uint256 internal _unlocked = 1;
 
     /*///////////////////////////////////////////////////////////////
                              CONSTRUCTOR
@@ -168,7 +163,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         external
         payable
         override
-        lock
+        nonReentrant
         requiresRouter
     {
         //Encode Data for cross-chain call.
@@ -184,7 +179,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         bytes calldata _params,
         DepositInput memory _dParams,
         GasParams calldata _gParams
-    ) external payable override lock requiresRouter {
+    ) external payable override nonReentrant requiresRouter {
         //Cache Deposit Nonce
         uint32 _depositNonce = depositNonce;
 
@@ -214,7 +209,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         bytes calldata _params,
         DepositMultipleInput memory _dParams,
         GasParams calldata _gParams
-    ) external payable override lock requiresRouter {
+    ) external payable override nonReentrant requiresRouter {
         //Cache Deposit Nonce
         uint32 _depositNonce = depositNonce;
 
@@ -246,7 +241,12 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
     }
 
     /// @inheritdoc IBranchBridgeAgent
-    function callOutSigned(bytes calldata _params, GasParams calldata _gParams) external payable override lock {
+    function callOutSigned(bytes calldata _params, GasParams calldata _gParams)
+        external
+        payable
+        override
+        nonReentrant
+    {
         //Encode Data for cross-chain call.
         bytes memory payload = abi.encodePacked(bytes1(0x04), msg.sender, depositNonce++, _params);
 
@@ -260,7 +260,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         DepositInput memory _dParams,
         GasParams calldata _gParams,
         bool _hasFallbackToggled
-    ) external payable override lock {
+    ) external payable override nonReentrant {
         //Cache Deposit Nonce
         uint32 _depositNonce = depositNonce;
 
@@ -298,7 +298,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         DepositMultipleInput memory _dParams,
         GasParams calldata _gParams,
         bool _hasFallbackToggled
-    ) external payable override lock {
+    ) external payable override nonReentrant {
         // Cache Deposit Nonce
         uint32 _depositNonce = depositNonce;
 
@@ -340,7 +340,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         external
         payable
         override
-        lock
+        nonReentrant
         requiresRouter
     {
         // Get Settlement Reference
@@ -396,7 +396,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         bytes calldata _params,
         GasParams calldata _gParams,
         bool _hasFallbackToggled
-    ) external payable override lock {
+    ) external payable override nonReentrant {
         // Get Settlement Reference
         Deposit storage deposit = getDeposit[_depositNonce];
 
@@ -459,7 +459,12 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
     }
 
     /// @inheritdoc IBranchBridgeAgent
-    function retrieveDeposit(uint32 _depositNonce, GasParams calldata _gParams) external payable override lock {
+    function retrieveDeposit(uint32 _depositNonce, GasParams calldata _gParams)
+        external
+        payable
+        override
+        nonReentrant
+    {
         // Check if the deposit belongs to the message sender
         if (getDeposit[_depositNonce].owner != msg.sender) revert NotDepositOwner();
 
@@ -474,7 +479,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
     }
 
     /// @inheritdoc IBranchBridgeAgent
-    function redeemDeposit(uint32 _depositNonce, address _recipient) external override lock {
+    function redeemDeposit(uint32 _depositNonce, address _recipient) external override nonReentrant {
         // Get storage reference
         Deposit storage deposit = getDeposit[_depositNonce];
 
@@ -506,7 +511,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
     function redeemDeposit(uint32 _depositNonce, address _recipient, address _localTokenAddress)
         external
         override
-        lock
+        nonReentrant
     {
         // Check localTokenAddress not zero
         if (_localTokenAddress == address(0)) revert InvalidLocalAddress();
@@ -565,7 +570,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         bytes calldata _params,
         GasParams[2] calldata _gParams,
         bool _hasFallbackToggled
-    ) external payable virtual override lock {
+    ) external payable virtual override nonReentrant {
         // Check and revert if settlement nonce is not STATUS_READY
         if (executionState[_settlementNonce] != STATUS_READY) revert AlreadyExecutedTransaction();
 
@@ -882,7 +887,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         // Update Deposit Nonce
         depositNonce = _depositNonce + 1;
 
-        // Deposit / Lock Tokens into Port
+        // Deposit / nonReentrant Tokens into Port
         IPort(localPortAddress).bridgeOut(msg.sender, _hToken, _token, _amount, _deposit);
 
         // Cast to Dynamic
@@ -937,7 +942,7 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
         // Update Deposit Nonce
         depositNonce = _depositNonce + 1;
 
-        // Deposit / Lock Tokens into Port
+        // Deposit / nonReentrant Tokens into Port
         IPort(localPortAddress).bridgeOutMultiple(msg.sender, _hTokens, _tokens, _amounts, _deposits);
 
         // Update State
@@ -995,14 +1000,6 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
     /*///////////////////////////////////////////////////////////////
                                 MODIFIERS
     ///////////////////////////////////////////////////////////////*/
-
-    /// @notice Modifier for a simple re-entrancy check.
-    modifier lock() {
-        require(_unlocked == 1);
-        _unlocked = 2;
-        _;
-        _unlocked = 1;
-    }
 
     /// @notice Modifier verifies the caller is the Layerzero Enpoint or Local Branch Bridge Agent.
     modifier requiresEndpoint(uint16 _srcChainId, address _endpoint, bytes calldata _srcAddress) {

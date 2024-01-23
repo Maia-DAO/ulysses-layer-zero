@@ -5,6 +5,7 @@ import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
+import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 
 import {IBranchRouter} from "./interfaces/IBranchRouter.sol";
 
@@ -22,7 +23,7 @@ import {
 
 /// @title Base Branch Router Contract
 /// @author MaiaDAO
-contract BaseBranchRouter is IBranchRouter, Ownable {
+contract BaseBranchRouter is IBranchRouter, ReentrancyGuard, Ownable {
     using SafeTransferLib for address;
 
     /*///////////////////////////////////////////////////////////////
@@ -37,9 +38,6 @@ contract BaseBranchRouter is IBranchRouter, Ownable {
 
     /// @inheritdoc IBranchRouter
     address public override bridgeAgentExecutorAddress;
-
-    /// @notice Re-entrancy lock modifier state.
-    uint256 internal _unlocked = 1;
 
     /*///////////////////////////////////////////////////////////////
                             CONSTRUCTOR
@@ -81,7 +79,7 @@ contract BaseBranchRouter is IBranchRouter, Ownable {
     ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchRouter
-    function callOut(bytes calldata _params, GasParams calldata _gParams) external payable override lock {
+    function callOut(bytes calldata _params, GasParams calldata _gParams) external payable override nonReentrant {
         IBridgeAgent(localBridgeAgentAddress).callOut{value: msg.value}(payable(msg.sender), _params, _gParams);
     }
 
@@ -90,7 +88,7 @@ contract BaseBranchRouter is IBranchRouter, Ownable {
         external
         payable
         override
-        lock
+        nonReentrant
     {
         //Transfer tokens to this contract.
         _transferAndApproveToken(_dParams.hToken, _dParams.token, _dParams.amount, _dParams.deposit);
@@ -106,7 +104,7 @@ contract BaseBranchRouter is IBranchRouter, Ownable {
         bytes calldata _params,
         DepositMultipleInput calldata _dParams,
         GasParams calldata _gParams
-    ) external payable override lock {
+    ) external payable override nonReentrant {
         //Transfer tokens to this contract.
         _transferAndApproveMultipleTokens(_dParams.hTokens, _dParams.tokens, _dParams.amounts, _dParams.deposits);
 
@@ -218,13 +216,5 @@ contract BaseBranchRouter is IBranchRouter, Ownable {
     modifier requiresAgentExecutor() {
         if (msg.sender != bridgeAgentExecutorAddress) revert UnrecognizedBridgeAgentExecutor();
         _;
-    }
-
-    /// @notice Modifier for a simple re-entrancy check.
-    modifier lock() {
-        require(_unlocked == 1);
-        _unlocked = 2;
-        _;
-        _unlocked = 1;
     }
 }
