@@ -833,6 +833,9 @@ contract BranchBridgeAgent is IBranchBridgeAgent, BridgeAgentConstants {
             address(0),
             _encodeAdapterParams(_gParams, _baseExecutionGas, rootBridgeAgentAddress)
         );
+
+        // Emit Gas Params Event
+        emit LogGasParams(_gParams.gasLimit, _gParams.remoteBranchExecutionGas);
     }
 
     /**

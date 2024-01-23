@@ -299,8 +299,20 @@ interface IRootBridgeAgent is ILayerZeroReceiver {
                              EVENTS
     ///////////////////////////////////////////////////////////////*/
 
+    /// @notice Event emitted when fallback is received for a failed deposit nonce.
+    /// @param depositNonce Identifier for user deposit.
+    /// @param srcChainId Chain ID of the source chain.
     event LogExecute(uint256 indexed depositNonce, uint256 indexed srcChainId);
+
+    /// @notice Event emitted when a settlement nonce is executed successfully.
+    /// @param settlementNonce Identifier for user settlement.
+    /// @param dstChainId Chain ID of the destination chain.
     event LogFallback(uint256 indexed settlementNonce, uint256 indexed dstChainId);
+
+    /// @notice Event emitted after a message is sent to the Layer Zero Endpoint.
+    /// @param gasLimit gas limit for the cross-chain call.
+    /// @param remoteBranchExecutionGas native gas tokens to be sent to the remote branch.
+    event LogGasParams(uint256 indexed gasLimit, uint256 indexed remoteBranchExecutionGas);
 
     /*///////////////////////////////////////////////////////////////
                             ERRORS

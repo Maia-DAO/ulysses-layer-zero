@@ -806,6 +806,9 @@ contract RootBridgeAgent is IRootBridgeAgent, BridgeAgentConstants {
                 address(0),
                 _encodeAdapterParams(_gParams, _baseExecutionGas, callee)
             );
+
+            // Emit Gas Params Event
+            emit LogGasParams(_gParams.gasLimit, _gParams.remoteBranchExecutionGas);
         } else {
             // Send Gas to Local Branch Bridge Agent and execute call
             IBranchBridgeAgent(callee).lzReceive{value: msg.value}(0, "", 0, _payload);

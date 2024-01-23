@@ -277,10 +277,17 @@ interface IBranchBridgeAgent is ILayerZeroReceiver {
     ///////////////////////////////////////////////////////////////*/
 
     /// @notice Event emitted when a settlement nonce is executed successfully.
+    /// @param nonce Identifier for user settlement.
     event LogExecute(uint256 indexed nonce);
 
     /// @notice Event emitted when fallback is received for a failed deposit nonce.
+    /// @param nonce Identifier for user deposit.
     event LogFallback(uint256 indexed nonce);
+
+    /// @notice Event emitted after a message is sent to the Layer Zero Endpoint.
+    /// @param gasLimit gas limit for the cross-chain call.
+    /// @param remoteBranchExecutionGas native gas tokens to be sent to the remote branch.
+    event LogGasParams(uint256 indexed gasLimit, uint256 indexed remoteBranchExecutionGas);
 
     /*///////////////////////////////////////////////////////////////
                                 ERRORS
