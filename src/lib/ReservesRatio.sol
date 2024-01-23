@@ -3,8 +3,8 @@
 pragma solidity ^0.8.0;
 
 library ReservesRatio {
-    uint256 private constant DIVISIONER = 100;
-    uint256 private constant MIN_RESERVE_RATIO = 70;
+    uint256 private constant DIVISIONER = 1e4;
+    uint256 private constant MIN_RESERVE_RATIO = 7e3;
 
     function checkReserveRatioLimit(uint256 _reserveRatioManagementLimit) internal pure {
         // Check if reserveRatioManagementLimit is less or equal to 100%
