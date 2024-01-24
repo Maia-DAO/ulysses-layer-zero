@@ -239,6 +239,43 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         testCreateDepositSingle(uint32(1), _user, address(testToken), address(underlyingToken), _amount, _amount);
     }
 
+    function testCallOutSignedNoDeposit() public {
+        testFuzzCallOutSignedNoDeposit(address(this));
+    }
+
+    function testFuzzCallOutSignedNoDeposit(address _user) public {
+        // Input restrictions
+        if (_user < address(3)) _user = address(3);
+        else if (_user == localPortAddress) _user = address(uint160(_user) - 10);
+
+        // Prank into user account
+        vm.startPrank(_user);
+
+        // Get some gas.
+        vm.deal(_user, 1 ether);
+
+        //GasParams
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+
+        uint32 depositNonce = bAgent.depositNonce();
+
+        expectLayerZeroSend(
+            1 ether,
+            abi.encodePacked(bytes1(0x04), _user, depositNonce, "testdata"),
+            _user,
+            gasParams,
+            BRANCH_BASE_CALL_OUT_SIGNED_GAS
+        );
+
+        //Call Deposit function
+        bAgent.callOutSigned{value: 1 ether}("testdata", gasParams);
+
+        // Prank out of user account
+        vm.stopPrank();
+
+        assertEq(bAgent.depositNonce(), depositNonce + 1);
+    }
+
     address storedFallbackUser;
 
     function testCallOutSignedAndBridge(address _user, uint256 _amount) public {
