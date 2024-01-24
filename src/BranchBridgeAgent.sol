@@ -709,8 +709,8 @@ contract BranchBridgeAgent is IBranchBridgeAgent, ReentrancyGuard, BridgeAgentCo
             if (executionState[nonce] == STATUS_DONE) {
                 revert AlreadyExecutedTransaction();
             } else {
-                // Set settlement to retrieve mode, if not already set.
-                if (executionState[nonce] == STATUS_READY) executionState[nonce] = STATUS_RETRIEVE;
+                // Ensure settlement is set to retrieve mode.
+                executionState[nonce] = STATUS_RETRIEVE;
                 // Trigger fallback/Retry failed fallback
                 _performFallbackCall(recipient, nonce);
             }

@@ -642,10 +642,8 @@ contract RootBridgeAgent is BridgeAgentConstants, ReentrancyGuard, IRootBridgeAg
             if (executionState[_srcChainId][nonce] == STATUS_DONE) {
                 revert AlreadyExecutedTransaction();
             } else {
-                //Set settlement to retrieve mode, if not already set.
-                if (executionState[_srcChainId][nonce] == STATUS_READY) {
-                    executionState[_srcChainId][nonce] = STATUS_RETRIEVE;
-                }
+                //Ensure settlement is set to retrieve mode.
+                executionState[_srcChainId][nonce] = STATUS_RETRIEVE;
                 //Trigger fallback/Retry failed fallback
                 _performFallbackCall(
                     payable(address(uint160(bytes20(_payload[PARAMS_START:PARAMS_START_SIGNED])))), nonce, _srcChainId
