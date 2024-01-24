@@ -3,6 +3,9 @@ pragma solidity ^0.8.16;
 
 import "./helpers/ImportHelper.sol";
 
+import {EtherSink} from "./mocks/EtherSink.t.sol";
+import {MockCallee} from "./mocks/MockCallee.t.sol";
+
 contract MockRootPort {
     /// @notice Holds the mapping from Virtual account to router address => bool.
     /// @notice Stores whether a router is approved to spend a virtual account.
@@ -15,6 +18,9 @@ contract MockRootPort {
 
 contract VirtualAccountTest is DSTestPlus {
     using SafeTransferLib for address;
+
+    MockCallee callee;
+    EtherSink etherSink;
 
     /*//////////////////////////////////////////////////////////////
                              GLOBAL CONTRACTS
@@ -31,6 +37,12 @@ contract VirtualAccountTest is DSTestPlus {
     /*//////////////////////////////////////////////////////////////
                                TEST SETUP
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice Setups up the testing suite for call and payableCall
+    function setUp() public {
+        callee = new MockCallee();
+        etherSink = new EtherSink();
+    }
 
     function _deployVirtualAccount(address _userAddress, address _localPortAddress) internal returns (VirtualAccount) {
         hevm.prank(_localPortAddress);
@@ -218,7 +230,36 @@ contract VirtualAccountTest is DSTestPlus {
                               TEST CALLS
     //////////////////////////////////////////////////////////////*/
 
-    function test_payableCall() public {
+    function test_call() public {
+        address userAddress = address(this);
+        VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
+
+        // Test successful call
+        Call[] memory calls = new Call[](1);
+        calls[0] = Call(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
+
+        bytes[] memory returnData = virtualAccount.call(calls);
+        assertEq(keccak256(returnData[0]), keccak256(abi.encodePacked(blockhash(block.number))));
+    }
+
+    function test_call_unsuccessful() public {
+        address userAddress = address(this);
+        VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
+
+        // Test unexpected revert
+        Call[] memory calls = new Call[](2);
+        calls[0] = Call(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
+        calls[1] = Call(address(callee), abi.encodeWithSignature("thisMethodReverts()"));
+
+        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
+        virtualAccount.call(calls);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                          TEST PAYABLE CALLS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_payableCall_singleCall() public {
         address userAddress = address(this);
 
         address targetAddress = userAddress;
@@ -284,6 +325,51 @@ contract VirtualAccountTest is DSTestPlus {
         hevm.expectRevert(abi.encodeWithSignature("CallFailed()"));
 
         virtualAccount.payableCall{value: 2 ether}(calls);
+    }
+
+    function test_payableCall() public {
+        address userAddress = address(this);
+        VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
+
+        PayableCall[] memory calls = new PayableCall[](2);
+        calls[0] = PayableCall(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number), 0);
+        calls[1] =
+            PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 1);
+        (bytes[] memory returnData) = virtualAccount.payableCall{value: 1}(calls);
+
+        assertEq(keccak256(returnData[0]), keccak256(abi.encodePacked(blockhash(block.number))));
+        assertEq(returnData[1].length, 0);
+    }
+
+    function test_payableCall_unsuccessful() public {
+        address userAddress = address(this);
+        VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
+
+        PayableCall[] memory calls = new PayableCall[](3);
+        calls[0] = PayableCall(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number), 0);
+        calls[1] = PayableCall(address(callee), abi.encodeWithSignature("thisMethodReverts()"), 0);
+        calls[2] =
+            PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 0);
+
+        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
+        virtualAccount.payableCall{value: 1}(calls);
+
+        // Should fail if we don't provide enough value
+        PayableCall[] memory calls2 = new PayableCall[](2);
+        calls2[0] = PayableCall(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number), 0);
+        calls2[1] =
+            PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 1);
+
+        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
+        virtualAccount.payableCall(calls2);
+
+        // Works if we provide enough value
+        PayableCall[] memory calls3 = new PayableCall[](2);
+        calls3[0] = PayableCall(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number), 0);
+        calls3[1] =
+            PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 1);
+
+        virtualAccount.payableCall{value: 1}(calls3);
     }
 
     /*//////////////////////////////////////////////////////////////
