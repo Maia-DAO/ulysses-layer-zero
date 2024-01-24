@@ -318,6 +318,8 @@ interface IBranchBridgeAgent is ILayerZeroReceiver {
     /// @notice Error emitted when the deposit information is not valid.
     error InvalidInput();
 
+    /// @notice Error emitted when the the wrong retryDeposit function for a deposit type (Signed or Unsigned).
+    error WrongDepositType();
     /// @notice Error emitted when caller is not the deposit owner.
     error NotDepositOwner();
     /// @notice Error emitted when the action of deposit nonce is not retryabable.

@@ -346,14 +346,14 @@ contract BranchBridgeAgent is IBranchBridgeAgent, ReentrancyGuard, BridgeAgentCo
         // Get Settlement Reference
         Deposit storage deposit = getDeposit[_depositNonce];
 
-        // Check if deposit is not signed
-        if (deposit.isSigned == SIGNED_DEPOSIT) revert NotDepositOwner();
+        // Check if deposit is signed
+        if (deposit.isSigned != UNSIGNED_DEPOSIT) revert WrongDepositType();
 
         // Check if deposit belongs to message sender
         if (deposit.owner != _owner) revert NotDepositOwner();
 
         // Check if deposit is not failed and in redeem mode
-        if (deposit.status == STATUS_FAILED) revert DepositAlreadyRetrieved();
+        if (deposit.status != STATUS_SUCCESS) revert DepositRedeemUnavailable();
 
         // Pack data for deposit single
         if (uint8(deposit.hTokens.length) == 1) {
@@ -401,13 +401,13 @@ contract BranchBridgeAgent is IBranchBridgeAgent, ReentrancyGuard, BridgeAgentCo
         Deposit storage deposit = getDeposit[_depositNonce];
 
         // Check if deposit is signed
-        if (deposit.isSigned == UNSIGNED_DEPOSIT) revert NotDepositOwner();
+        if (deposit.isSigned != SIGNED_DEPOSIT) revert WrongDepositType();
 
         // Check if deposit belongs to message sender
         if (deposit.owner != msg.sender) revert NotDepositOwner();
 
         // Check if deposit is not failed and in redeem mode
-        if (deposit.status == STATUS_FAILED) revert DepositRedeemUnavailable();
+        if (deposit.status != STATUS_SUCCESS) revert DepositRedeemUnavailable();
 
         // Pack data for deposit single
         if (uint8(deposit.hTokens.length) == 1) {
