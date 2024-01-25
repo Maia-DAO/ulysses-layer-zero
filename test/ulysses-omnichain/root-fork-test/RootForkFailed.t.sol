@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./RootForkCallOutWithDeposit.t.sol";
 
-contract RootForkFailedTest is RootForkCallOutWithDepositTest {
+contract RootForkFailedTest is RootForkCallOutWithDepositTest, BridgeAgentConstants {
     using BaseBranchRouterHelper for BaseBranchRouter;
     using BranchBridgeAgentHelper for BranchBridgeAgent;
     using CoreRootRouterHelper for CoreRootRouter;
@@ -133,7 +133,8 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
         vm.stopPrank();
 
         require(
-            avaxMulticallBridgeAgent.getDepositEntry(prevNonceRoot).status == 0, "Deposit status should be success."
+            avaxMulticallBridgeAgent.getDepositEntry(prevNonceRoot).status == STATUS_SUCCESS,
+            "Deposit status should be success."
         );
 
         switchToLzChain(rootChainId);
@@ -141,7 +142,7 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
         switchToLzChain(avaxChainId);
 
         require(
-            avaxMulticallBridgeAgent.getDepositEntry(prevNonceRoot).status == 1,
+            avaxMulticallBridgeAgent.getDepositEntry(prevNonceRoot).status == STATUS_FAILED,
             "Deposit status should be ready for redemption."
         );
     }
@@ -310,7 +311,7 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
         _checkRootNonce(multicallRootBridgeAgent, true);
 
         require(
-            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == 0,
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == STATUS_SUCCESS,
             "Settlement status should be success."
         );
 
@@ -397,7 +398,7 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
         _checkRootNonce(multicallRootBridgeAgent, true);
 
         require(
-            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == 0,
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == STATUS_SUCCESS,
             "Settlement status should be success."
         );
 
@@ -450,7 +451,7 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
         _checkRootNonce(multicallRootBridgeAgent, false);
 
         require(
-            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == 0,
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == STATUS_SUCCESS,
             "Settlement status should be success."
         );
 
@@ -499,7 +500,7 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
     //     _checkRootNonce(multicallRootBridgeAgent, false);
 
     //     require(
-    //         multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == 0,
+    //         multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == STATUS_SUCCESS,
     //         "Settlement status should be success."
     //     );
 
@@ -508,7 +509,7 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
     //     switchToLzChain(rootChainId);
 
     //     require(
-    //         multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot - 1).status == 1,
+    //         multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot - 1).status == STATUS_FAILED,
     //         "Settlement status should be failed after fallback."
     //     );
     // }
@@ -586,7 +587,7 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
         _checkRootNonce(multicallRootBridgeAgent, false);
 
         require(
-            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == 0,
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == STATUS_SUCCESS,
             "Settlement status should be success."
         );
 
@@ -597,7 +598,7 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
         switchToLzChain(rootChainId);
 
         require(
-            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot - 1).status == 0,
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot - 1).status == STATUS_SUCCESS,
             "Settlement status should be stay unexecuted after failure."
         );
     }
@@ -619,7 +620,7 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
         vm.stopPrank();
 
         require(
-            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == 0,
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == STATUS_SUCCESS,
             "Settlement status should be success."
         );
 
@@ -628,7 +629,7 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
         switchToLzChain(rootChainId);
 
         require(
-            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot - 1).status == 1,
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot - 1).status == STATUS_FAILED,
             "Settlement status should be ready for redemption."
         );
     }
