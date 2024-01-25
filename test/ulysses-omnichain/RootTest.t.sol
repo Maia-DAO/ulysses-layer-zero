@@ -2333,6 +2333,66 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         );
     }
 
+    //////////////////////////////////////
+    //         VIRTUAL ACCOUNTS         //
+    //////////////////////////////////////
+
+    function test_fetchVirtualAccount() public {
+        _test_fetchVirtualAccount(rootPort, address(this));
+    }
+
+    function test_fetchVirtualAccount_twice() public {
+        _test_fetchVirtualAccount(rootPort, address(this));
+        _test_fetchVirtualAccount(rootPort, address(this));
+    }
+
+    function test_fuzz_fetchVirtualAccount(address _user) public {
+        _test_fetchVirtualAccount(rootPort, _user);
+    }
+
+    function test_fuzz_fetchVirtualAccount_twice(address _user) public {
+        if (_user == address(0)) _user = address(0xCAFE);
+        _test_fetchVirtualAccount(rootPort, _user);
+        _test_fetchVirtualAccount(rootPort, _user);
+    }
+
+    function test_fuzz_fetchVirtualAccount_twice(address _user1, address _user2) public {
+        if (_user1 == address(0) && _user2 == address(0)) _user1 = address(0xCAFE);
+        _test_fetchVirtualAccount(rootPort, _user1);
+        _test_fetchVirtualAccount(rootPort, _user2);
+    }
+
+    function _test_fetchVirtualAccount(RootPort _rootPort, address _user) public {
+        // Get virtual account (exists or is zero address)
+        VirtualAccount virtualAccount = _rootPort.getUserAccount(_user);
+
+        if (_user == address(0)) {
+            assertEq(address(virtualAccount), address(0));
+
+            hevm.expectRevert(IRootPort.InvalidUserAddress.selector);
+            virtualAccount = _rootPort.fetchVirtualAccount(_user);
+        } else if (address(virtualAccount) != address(0)) {
+            // If not zero address, should be equal to computed address
+            assertEq(address(virtualAccount), ComputeVirtualAccount.computeAddress(address(_rootPort), _user));
+        } else {
+            hevm.expectEmit(true, true, true, true);
+            emit VirtualAccountCreated(_user, ComputeVirtualAccount.computeAddress(address(_rootPort), _user));
+        }
+
+        // Fetch virtual account, will create if not exists
+        virtualAccount = _rootPort.fetchVirtualAccount(_user);
+
+        if (_user == address(0)) {
+            assertEq(address(virtualAccount), address(0));
+        } else {
+            // Check virtual account
+            assertEq(address(virtualAccount), ComputeVirtualAccount.computeAddress(address(_rootPort), _user));
+        }
+    }
+
+    /// @notice Emitted when a new Virtual Account is created.
+    event VirtualAccountCreated(address indexed user, address indexed account);
+
     //////////////////////////////////////   HELPERS   //////////////////////////////////////
 
     function testCreateDepositSingle(

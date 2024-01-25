@@ -381,7 +381,7 @@ interface IRootPort {
     event BridgeAgentSynced(address indexed bridgeAgent, address indexed rootBridgeAgent, uint256 indexed srcChainId);
 
     /// @notice Emitted when a new Virtual Account is created.
-    event VirtualAccountCreated(address indexed user, address account);
+    event VirtualAccountCreated(address indexed user, address indexed account);
 
     /// @notice Emitted when a new local token is added to the system.
     event LocalTokenAdded(
