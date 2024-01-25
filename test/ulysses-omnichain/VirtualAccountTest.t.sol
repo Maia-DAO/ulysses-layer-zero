@@ -246,13 +246,21 @@ contract VirtualAccountTest is DSTestPlus {
         address userAddress = address(this);
         VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
 
-        // Test unexpected revert
+        // Should fail due to "thisMethodReverts()"
         Call[] memory calls = new Call[](2);
         calls[0] = Call(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
         calls[1] = Call(address(callee), abi.encodeWithSignature("thisMethodReverts()"));
 
         hevm.expectRevert(IVirtualAccount.CallFailed.selector);
         virtualAccount.call(calls);
+
+        // Should fail if we call a non-contract address
+        Call[] memory calls2 = new Call[](2);
+        calls2[0] = Call(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
+        calls2[1] = Call(address(1), "");
+
+        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
+        virtualAccount.call(calls2);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -345,6 +353,7 @@ contract VirtualAccountTest is DSTestPlus {
         address userAddress = address(this);
         VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
 
+        // Should fail due to "thisMethodReverts()"
         PayableCall[] memory calls = new PayableCall[](3);
         calls[0] = PayableCall(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number), 0);
         calls[1] = PayableCall(address(callee), abi.encodeWithSignature("thisMethodReverts()"), 0);
@@ -354,22 +363,32 @@ contract VirtualAccountTest is DSTestPlus {
         hevm.expectRevert(IVirtualAccount.CallFailed.selector);
         virtualAccount.payableCall{value: 1}(calls);
 
-        // Should fail if we don't provide enough value
-        PayableCall[] memory calls2 = new PayableCall[](2);
-        calls2[0] = PayableCall(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number), 0);
-        calls2[1] =
-            PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 1);
+        // Should fail if we call a non-contract address
+        PayableCall[] memory calls2 = new PayableCall[](3);
+        calls[0] = PayableCall(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number), 0);
+        calls[1] = PayableCall(address(1), "", 0);
+        calls[2] =
+            PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 0);
 
         hevm.expectRevert(IVirtualAccount.CallFailed.selector);
-        virtualAccount.payableCall(calls2);
+        virtualAccount.payableCall{value: 1}(calls2);
 
-        // Works if we provide enough value
+        // Should fail if we don't provide enough value
         PayableCall[] memory calls3 = new PayableCall[](2);
         calls3[0] = PayableCall(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number), 0);
         calls3[1] =
             PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 1);
 
-        virtualAccount.payableCall{value: 1}(calls3);
+        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
+        virtualAccount.payableCall(calls3);
+
+        // Works if we provide enough value
+        PayableCall[] memory calls4 = new PayableCall[](2);
+        calls4[0] = PayableCall(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number), 0);
+        calls4[1] =
+            PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 1);
+
+        virtualAccount.payableCall{value: 1}(calls4);
     }
 
     /*//////////////////////////////////////////////////////////////
