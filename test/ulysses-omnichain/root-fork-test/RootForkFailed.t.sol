@@ -13,6 +13,104 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
     using RootPortHelper for RootPort;
 
     //////////////////////////////////////
+    //        FORCE RESUME RECEIVE      //
+    //////////////////////////////////////
+
+    function testEnterBlockingMode() public {
+        // Force Root Bridge Agent into 'Blocking Mode' on Endpoint
+        _forceGaslessCallEndpoint(multicallRootBridgeAgent, avaxMulticallBridgeAgent, avaxChainId);
+
+        // Call Resume Receive
+        _forceResumeReceive(multicallRootBridgeAgent, avaxMulticallBridgeAgent, avaxChainId);
+
+        // Expect Success on Next Call
+        _testCallOutWithDepositSuccess();
+    }
+
+    event PayloadStored(
+        uint16 srcChainId, bytes srcAddress, address dstAddress, uint64 nonce, bytes payload, bytes reason
+    );
+
+    function _forceGaslessCallEndpoint(
+        RootBridgeAgent _rootBridgeAgent,
+        BranchBridgeAgent _branchBridgeAgent,
+        uint16 _branchChainId
+    ) internal {
+        _updateRootNonce(_rootBridgeAgent);
+
+        //Switch to avax
+        switchToLzChainWithoutExecutePendingOrPacketUpdate(_branchChainId);
+        _updateBranchNonce(_branchBridgeAgent);
+
+        address _user = address(this);
+
+        //Encode Data for cross-chain call.
+        bytes memory payload = abi.encodePacked(
+            bytes1(0x05),
+            _user,
+            _branchBridgeAgent.depositNonce(),
+            address(0),
+            address(0),
+            uint256(0),
+            uint256(0),
+            "should fail"
+        );
+
+        // Deal gas
+        vm.deal(address(_branchBridgeAgent), 100 ether);
+
+        // Prank into lzEndpoint
+        vm.prank(address(_branchBridgeAgent));
+
+        //Call Deposit function
+        ILayerZeroEndpoint(lzEndpointAddress).send{value: 100 ether}(
+            rootChainId,
+            abi.encodePacked(address(_rootBridgeAgent), address(_branchBridgeAgent)),
+            payload,
+            payable(_user),
+            address(0),
+            abi.encodePacked(uint16(2), uint256(15000), uint256(0), address(_rootBridgeAgent))
+        );
+
+        // Expect Payload Stored Event
+        vm.expectEmit(true, true, true, true);
+        emit PayloadStored(
+            _branchChainId,
+            abi.encodePacked(address(_branchBridgeAgent), address(_rootBridgeAgent)),
+            address(_rootBridgeAgent),
+            1,
+            payload,
+            abi.encodePacked(
+                bytes4(0x4e487b71), bytes32(0x0000000000000000000000000000000000000000000000000000000000000011)
+            )
+        );
+        // bytes(0x4e487b710000000000000000000000000000000000000000000000000000000000000011)
+
+        switchToLzChain(rootChainId);
+
+        _checkRootNonce(_rootBridgeAgent, false);
+    }
+
+    event UaForceResumeReceive(uint16 chainId, bytes srcAddress);
+
+    function _forceResumeReceive(
+        RootBridgeAgent _rootBridgeAgent,
+        BranchBridgeAgent _branchBridgeAgent,
+        uint16 _branchChainId
+    ) internal {
+        // Expect Payload Cleared Event
+        vm.expectEmit(true, true, true, true);
+        emit UaForceResumeReceive(
+            _branchChainId, abi.encodePacked(address(_branchBridgeAgent), address(_rootBridgeAgent))
+        );
+
+        // Call forceResumeReceive
+        _rootBridgeAgent.forceResumeReceive(
+            _branchChainId, abi.encodePacked(address(_branchBridgeAgent), address(_rootBridgeAgent))
+        );
+    }
+
+    //////////////////////////////////////
     //    RETRY, RETRIEVE AND REDEEM    //
     //////////////////////////////////////
 
