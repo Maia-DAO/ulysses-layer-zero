@@ -75,32 +75,16 @@ contract RootForkRequiresEndpointTest is RootForkSetupTest {
         switchToLzChain(avaxChainId);
 
         bytes memory _pathData = abi.encodePacked(address(0), address(0));
-        this._testRequiresEndpointBranch(
-            avaxMulticallBridgeAgent,
-            multicallRootBridgeAgent,
-            lzEndpointAddress,
-            rootChainId,
-            lzEndpointAddress,
-            rootChainId,
-            _pathData,
-            abi.encodePacked(bytes1(0xFF))
-        );
+
+        testRequiresEndpointBranch_pathData(_pathData);
     }
 
     function testRequiresEndpointBranch_srcAddress(address _srcAddress) public {
         switchToLzChain(avaxChainId);
 
         bytes memory _pathData = abi.encodePacked(_srcAddress, address(0));
-        this._testRequiresEndpointBranch(
-            avaxMulticallBridgeAgent,
-            multicallRootBridgeAgent,
-            lzEndpointAddress,
-            rootChainId,
-            lzEndpointAddress,
-            rootChainId,
-            _pathData,
-            abi.encodePacked(bytes1(0xFF))
-        );
+
+        testRequiresEndpointBranch_pathData(_pathData);
     }
 
     function testRequiresEndpointBranch_pathData() public {
@@ -108,16 +92,7 @@ contract RootForkRequiresEndpointTest is RootForkSetupTest {
 
         bytes memory _pathData = abi.encodePacked(multicallRootBridgeAgent);
 
-        this._testRequiresEndpointBranch(
-            avaxMulticallBridgeAgent,
-            multicallRootBridgeAgent,
-            lzEndpointAddress,
-            rootChainId,
-            lzEndpointAddress,
-            rootChainId,
-            _pathData,
-            abi.encodePacked(bytes1(0xFF))
-        );
+        testRequiresEndpointBranch_pathData(_pathData);
     }
 
     function testRequiresEndpointBranch_pathData(bytes memory _pathData) public {
@@ -138,18 +113,7 @@ contract RootForkRequiresEndpointTest is RootForkSetupTest {
     function testRequiresEndpointBranch_srcChainId() public {
         switchToLzChain(avaxChainId);
 
-        uint16 _srcChainId = 0;
-
-        this._testRequiresEndpointBranch(
-            avaxMulticallBridgeAgent,
-            multicallRootBridgeAgent,
-            lzEndpointAddress,
-            rootChainId,
-            lzEndpointAddress,
-            _srcChainId,
-            abi.encodePacked(multicallRootBridgeAgent, avaxMulticallBridgeAgent),
-            abi.encodePacked(bytes1(0xFF))
-        );
+        testRequiresEndpointBranch_srcChainId(0);
     }
 
     function testRequiresEndpointBranch_srcChainId(uint16 _srcChainId) public {
@@ -224,45 +188,20 @@ contract RootForkRequiresEndpointTest is RootForkSetupTest {
 
     function testRequiresEndpointRoot_srcAddress() public {
         bytes memory _pathData = abi.encodePacked(address(0), address(0));
-        this._testRequiresEndpointRoot(
-            multicallRootBridgeAgent,
-            avaxMulticallBridgeAgent,
-            lzEndpointAddress,
-            avaxChainId,
-            lzEndpointAddress,
-            avaxChainId,
-            _pathData,
-            abi.encodePacked(bytes1(0xFF))
-        );
+
+        testRequiresEndpointRoot_pathData(_pathData);
     }
 
     function testRequiresEndpointRoot_srcAddress(address _srcAddress) public {
         bytes memory _pathData = abi.encodePacked(_srcAddress, address(0));
-        this._testRequiresEndpointRoot(
-            multicallRootBridgeAgent,
-            avaxMulticallBridgeAgent,
-            lzEndpointAddress,
-            avaxChainId,
-            lzEndpointAddress,
-            avaxChainId,
-            _pathData,
-            abi.encodePacked(bytes1(0xFF))
-        );
+
+        testRequiresEndpointRoot_pathData(_pathData);
     }
 
     function testRequiresEndpointRoot_pathData() public {
         bytes memory _pathData = abi.encodePacked(avaxMulticallBridgeAgent);
 
-        this._testRequiresEndpointRoot(
-            multicallRootBridgeAgent,
-            avaxMulticallBridgeAgent,
-            lzEndpointAddress,
-            avaxChainId,
-            lzEndpointAddress,
-            avaxChainId,
-            _pathData,
-            abi.encodePacked(bytes1(0xFF))
-        );
+        testRequiresEndpointRoot_pathData(_pathData);
     }
 
     function testRequiresEndpointRoot_pathData(bytes memory _pathData) public {
@@ -279,18 +218,7 @@ contract RootForkRequiresEndpointTest is RootForkSetupTest {
     }
 
     function testRequiresEndpointRoot_srcChainId() public {
-        uint16 _srcChainId = 0;
-
-        this._testRequiresEndpointRoot(
-            multicallRootBridgeAgent,
-            avaxMulticallBridgeAgent,
-            lzEndpointAddress,
-            avaxChainId,
-            lzEndpointAddress,
-            _srcChainId,
-            abi.encodePacked(avaxMulticallBridgeAgent, multicallRootBridgeAgent),
-            abi.encodePacked(bytes1(0xFF))
-        );
+        testRequiresEndpointRoot_srcChainId(0);
     }
 
     function testRequiresEndpointRoot_srcChainId(uint16 _srcChainId) public {

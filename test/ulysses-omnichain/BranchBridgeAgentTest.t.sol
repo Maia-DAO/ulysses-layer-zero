@@ -1161,6 +1161,97 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         }
     }
 
+    /*///////////////////////////////////////////////////////////////
+                          TEST REQUIRES ENDPOINT
+    ///////////////////////////////////////////////////////////////*/
+
+    // Internal Notation because we only do an external call for easier bytes handling
+    function _testRequiresEndpointBranch(
+        BranchBridgeAgent _branchBridgeAgent,
+        address _rootBridgeAgent,
+        address _lzEndpointAddress,
+        uint16 _rootChainId,
+        address _endpoint,
+        uint16 _srcChainId,
+        bytes calldata _path
+    ) external {
+        if (_endpoint != _lzEndpointAddress) {
+            vm.expectRevert(IBranchBridgeAgent.LayerZeroUnauthorizedEndpoint.selector);
+        } else if (_path.length != 40) {
+            vm.expectRevert(IBranchBridgeAgent.LayerZeroUnauthorizedCaller.selector);
+        } else if (_rootBridgeAgent != address(uint160(bytes20(_path[:20])))) {
+            vm.expectRevert(IBranchBridgeAgent.LayerZeroUnauthorizedCaller.selector);
+        } else if (_srcChainId != _rootChainId) {
+            vm.expectRevert(IBranchBridgeAgent.LayerZeroUnauthorizedCaller.selector);
+        } else {
+            // _payload[0] == 0xFF is always true
+            vm.expectRevert(IBranchBridgeAgent.UnknownFlag.selector);
+        }
+
+        // Call lzReceiveNonBlocking because lzReceive should never fail
+        vm.prank(address(_branchBridgeAgent));
+        _branchBridgeAgent.lzReceiveNonBlocking(_endpoint, _srcChainId, _path, abi.encodePacked(bytes1(0xFF)));
+    }
+
+    function testRequiresEndpointBranch() public {
+        this._testRequiresEndpointBranch(
+            bAgent,
+            rootBridgeAgentAddress,
+            lzEndpointAddress,
+            rootChainId,
+            lzEndpointAddress,
+            rootChainId,
+            abi.encodePacked(rootBridgeAgentAddress, bAgent)
+        );
+    }
+
+    function testRequiresEndpointBranch_NotCallingItself() public {
+        vm.expectRevert(IBranchBridgeAgent.LayerZeroUnauthorizedEndpoint.selector);
+        bAgent.lzReceiveNonBlocking(
+            lzEndpointAddress,
+            rootChainId,
+            abi.encodePacked(rootBridgeAgentAddress, bAgent),
+            abi.encodePacked(bytes1(0xFF))
+        );
+    }
+
+    function testRequiresEndpointBranch_srcAddress() public {
+        bytes memory _pathData = abi.encodePacked(address(1), address(1));
+        testRequiresEndpointBranch_pathData(_pathData);
+    }
+
+    function testRequiresEndpointBranch_srcAddress(address _srcAddress) public {
+        bytes memory _pathData = abi.encodePacked(_srcAddress, address(1));
+        testRequiresEndpointBranch_pathData(_pathData);
+    }
+
+    function testRequiresEndpointBranch_pathData() public {
+        bytes memory _pathData = abi.encodePacked(rootBridgeAgentAddress);
+        testRequiresEndpointBranch_pathData(_pathData);
+    }
+
+    function testRequiresEndpointBranch_pathData(bytes memory _pathData) public {
+        this._testRequiresEndpointBranch(
+            bAgent, rootBridgeAgentAddress, lzEndpointAddress, rootChainId, lzEndpointAddress, rootChainId, _pathData
+        );
+    }
+
+    function testRequiresEndpointBranch_srcChainId() public {
+        testRequiresEndpointBranch_srcChainId(0);
+    }
+
+    function testRequiresEndpointBranch_srcChainId(uint16 _srcChainId) public {
+        this._testRequiresEndpointBranch(
+            bAgent,
+            rootBridgeAgentAddress,
+            lzEndpointAddress,
+            rootChainId,
+            lzEndpointAddress,
+            _srcChainId,
+            abi.encodePacked(rootBridgeAgentAddress, bAgent)
+        );
+    }
+
     //////////////////////////////////////   HELPERS   //////////////////////////////////////
 
     function testCreateDeposit(
