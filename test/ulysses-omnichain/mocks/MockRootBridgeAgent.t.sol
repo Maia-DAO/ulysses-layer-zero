@@ -18,4 +18,8 @@ contract MockRootBridgeAgent is RootBridgeAgent {
     function checkSettlementOwner(address caller, address settlementOwner) external view {
         super._checkSettlementOwner(caller, settlementOwner);
     }
+
+    function setExecutionState(uint256 srcChainId, uint256 nonce, uint8 state) external {
+        executionState[srcChainId][nonce] = state;
+    }
 }

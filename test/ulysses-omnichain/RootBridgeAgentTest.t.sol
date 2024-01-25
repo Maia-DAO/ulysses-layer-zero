@@ -3,7 +3,7 @@ pragma solidity ^0.8.16;
 
 import "./helpers/ImportHelper.sol";
 
-contract RootBridgeAgentTest is Test {
+contract RootBridgeAgentTest is Test, BridgeAgentConstants {
     using AddressCodeSize for address;
 
     uint16 rootChainId = 100;
@@ -265,5 +265,109 @@ contract RootBridgeAgentTest is Test {
         mockRootBridgeAgent.lzReceive{gas: 14_000}(1, abi.encodePacked(address(this), address(this)), 0, payload);
 
         //Should fail.
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                          TEST ALREADY EXECUTED
+    ///////////////////////////////////////////////////////////////*/
+
+    function test_alreadyExecutedTransaction0x01(bytes4 _nonce, bool _setStatusRetrieved) public {
+        test_alreadyExecutedTransaction(_nonce, 0x01, _setStatusRetrieved, 1024);
+    }
+
+    function test_alreadyExecutedTransaction0x02(bytes4 _nonce, bool _setStatusRetrieved) public {
+        test_alreadyExecutedTransaction(_nonce, 0x02, _setStatusRetrieved, 1024);
+    }
+
+    function test_alreadyExecutedTransaction0x03(bytes4 _nonce, bool _setStatusRetrieved) public {
+        test_alreadyExecutedTransaction(_nonce, 0x03, _setStatusRetrieved, 1024);
+    }
+
+    function test_alreadyExecutedTransaction0x04(bytes4 _nonce, bool _setStatusRetrieved) public {
+        test_alreadyExecutedTransaction(_nonce, 0x04, _setStatusRetrieved, 1024);
+    }
+
+    function test_alreadyExecutedTransaction0x05(bytes4 _nonce, bool _setStatusRetrieved) public {
+        test_alreadyExecutedTransaction(_nonce, 0x05, _setStatusRetrieved, 1024);
+    }
+
+    function test_alreadyExecutedTransaction0x85(bytes4 _nonce, bool _setStatusRetrieved) public {
+        test_alreadyExecutedTransaction(_nonce, 0x85, _setStatusRetrieved, 1024);
+    }
+
+    function test_alreadyExecutedTransaction0x06(bytes4 _nonce, bool _setStatusRetrieved) public {
+        test_alreadyExecutedTransaction(_nonce, 0x06, _setStatusRetrieved, 1024);
+    }
+
+    function test_alreadyExecutedTransaction0x08(bytes4 _nonce) public {
+        test_alreadyExecutedTransaction(_nonce, 0x08, false, 1024);
+    }
+
+    /// @notice This test should always revert with AlreadyExecutedTransaction error
+    function test_alreadyExecutedTransaction(
+        bytes4 _nonce,
+        bytes1 _depositFlag,
+        bool _setStatusRetrieved,
+        uint16 _payloadLength
+    ) public {
+        // Remove the deposit flag from the payload
+        bytes1 depositFlag = _depositFlag & 0x7F;
+
+        // If the deposit flag does not set this check, set it to 0x85 (Signed call with deposit with fallback)
+        if (depositFlag == 0x00 || depositFlag == 0x07 || depositFlag > 0x08) {
+            _depositFlag = 0x85;
+            depositFlag = _depositFlag & 0x7F;
+        }
+
+        uint256 start;
+
+        if (depositFlag == 0x01 || depositFlag == 0x02) {
+            // _payload[PARAMS_START:PARAMS_TKN_START] = _nonce;
+            start = PARAMS_START;
+            _depositFlag = depositFlag;
+        } else if (depositFlag == 0x03) {
+            // _payload[2:6] = _nonce;
+            start = 2;
+            _depositFlag = depositFlag;
+        } else if (depositFlag == 0x04 || depositFlag == 0x05 || depositFlag == 0x08) {
+            // _payload[PARAMS_START_SIGNED:PARAMS_TKN_START_SIGNED] = _nonce;
+            start = PARAMS_START_SIGNED;
+            if (depositFlag != 0x05) {
+                _depositFlag = depositFlag;
+
+                if (depositFlag == 0x08) {
+                    _setStatusRetrieved = false;
+                }
+            }
+        } else if (depositFlag == 0x06) {
+            // _payload[PARAMS_START_SIGNED + PARAMS_START:PARAMS_START_SIGNED + PARAMS_TKN_START] = _nonce;
+            start = PARAMS_START_SIGNED + PARAMS_START;
+        }
+
+        uint256 end = start + 4;
+        bytes memory payload = new bytes(end > _payloadLength ? end : _payloadLength);
+        payload[0] = _depositFlag;
+
+        setBytes4(payload, _nonce, start);
+
+        bytes memory path = syncBranchBridgeAgent(branchBridgeAgent, branchChainId);
+
+        mockRootBridgeAgent.setExecutionState(
+            branchChainId, uint32(_nonce), _setStatusRetrieved ? STATUS_RETRIEVE : STATUS_DONE
+        );
+
+        vm.expectRevert(IRootBridgeAgent.AlreadyExecutedTransaction.selector);
+        vm.prank(address(mockRootBridgeAgent));
+        mockRootBridgeAgent.lzReceiveNonBlocking(endpoint, branchChainId, path, payload);
+    }
+
+    function setBytes4(bytes memory _bytes, bytes4 _value, uint256 _offset)
+        internal
+        pure
+        returns (bytes memory _newBytes)
+    {
+        for (uint256 i = 0; i < 4; i++) {
+            _bytes[_offset + i] = _value[i];
+        }
     }
 }

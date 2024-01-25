@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import "./helpers/ImportHelper.sol";
-import {BridgeAgentConstants} from "@omni/interfaces/BridgeAgentConstants.sol";
 
 contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
     MockERC20 underlyingToken;
@@ -15,7 +14,7 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
 
     BaseBranchRouter bRouter;
 
-    BranchBridgeAgent bAgent;
+    MockBranchBridgeAgent bAgent;
 
     uint16 rootChainId = uint16(42161);
 
@@ -48,7 +47,7 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
 
         BranchPort(payable(localPortAddress)).initialize(address(bRouter), address(this));
 
-        bAgent = new BranchBridgeAgent(
+        bAgent = new MockBranchBridgeAgent(
             rootChainId, localChainId, rootBridgeAgentAddress, lzEndpointAddress, address(bRouter), localPortAddress
         );
 
@@ -1076,6 +1075,93 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         assertEq(underToken0.balanceOf(_recipient), _deposit0);
         assertEq(underToken1.balanceOf(_recipient), _deposit1);
     }
+
+    /*///////////////////////////////////////////////////////////////
+                          TEST ALREADY EXECUTED
+    ///////////////////////////////////////////////////////////////*/
+
+    function test_alreadyExecutedTransaction0x01(bytes4 _nonce, bool _setStatusRetrieved) public {
+        test_alreadyExecutedTransaction(_nonce, 0x01, _setStatusRetrieved, 1024);
+    }
+
+    function test_alreadyExecutedTransaction0x02(bytes4 _nonce, bool _setStatusRetrieved) public {
+        test_alreadyExecutedTransaction(_nonce, 0x02, _setStatusRetrieved, 1024);
+    }
+
+    function test_alreadyExecutedTransaction0x82(bytes4 _nonce, bool _setStatusRetrieved) public {
+        test_alreadyExecutedTransaction(_nonce, 0x82, _setStatusRetrieved, 1024);
+    }
+
+    function test_alreadyExecutedTransaction0x03(bytes4 _nonce, bool _setStatusRetrieved) public {
+        test_alreadyExecutedTransaction(_nonce, 0x03, _setStatusRetrieved, 1024);
+    }
+
+    function test_alreadyExecutedTransaction0x83(bytes4 _nonce, bool _setStatusRetrieved) public {
+        test_alreadyExecutedTransaction(_nonce, 0x83, _setStatusRetrieved, 1024);
+    }
+
+    function test_alreadyExecutedTransaction0x04(bytes4 _nonce) public {
+        test_alreadyExecutedTransaction(_nonce, 0x04, false, 1024);
+    }
+
+    /// @notice This test should always revert with AlreadyExecutedTransaction error
+    function test_alreadyExecutedTransaction(
+        bytes4 _nonce,
+        bytes1 _depositFlag,
+        bool _setStatusRetrieved,
+        uint16 _payloadLength
+    ) public {
+        // Remove the deposit flag from the payload
+        bytes1 depositFlag = _depositFlag & 0x7F;
+
+        // If the deposit flag does not set this check, set it to 0x82 (Call with deposit with fallback)
+        if (depositFlag == 0x00 || depositFlag > 0x04) {
+            _depositFlag = 0x82;
+            depositFlag = _depositFlag & 0x7F;
+        }
+
+        uint256 start;
+
+        if (depositFlag == 0x03) {
+            // _payload[22:26] = _nonce;
+            start = 22;
+        } else {
+            // _payload[PARAMS_START_SIGNED:PARAMS_TKN_START_SIGNED] = _nonce;
+            start = PARAMS_START_SIGNED;
+
+            if (depositFlag != 0x02) {
+                _depositFlag = depositFlag;
+
+                if (depositFlag == 0x04) {
+                    _setStatusRetrieved = false;
+                }
+            }
+        }
+
+        uint256 end = start + 4;
+        bytes memory payload = new bytes(end > _payloadLength ? end : _payloadLength);
+        payload[0] = _depositFlag;
+
+        setBytes4(payload, _nonce, start);
+
+        bAgent.setExecutionState(uint32(_nonce), _setStatusRetrieved ? STATUS_RETRIEVE : STATUS_DONE);
+
+        vm.expectRevert(IRootBridgeAgent.AlreadyExecutedTransaction.selector);
+        vm.prank(address(bAgent));
+        bAgent.lzReceiveNonBlocking(lzEndpointAddress, rootChainId, rootBridgeAgentPath, payload);
+    }
+
+    function setBytes4(bytes memory _bytes, bytes4 _value, uint256 _offset)
+        internal
+        pure
+        returns (bytes memory _newBytes)
+    {
+        for (uint256 i = 0; i < 4; i++) {
+            _bytes[_offset + i] = _value[i];
+        }
+    }
+
+    //////////////////////////////////////   HELPERS   //////////////////////////////////////
 
     function testCreateDeposit(
         uint32 _depositNonce,
