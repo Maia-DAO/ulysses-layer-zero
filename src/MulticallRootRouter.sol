@@ -498,7 +498,7 @@ contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
         // For each output token
         for (uint256 i = 0; i < outputTokens.length;) {
             // Approve Root Port to spend output hTokens.
-            outputTokens[i].safeApprove(localPortAddress, amountsOut[i] - depositsOut[i]);
+            outputTokens[i].safeApprove(localPortAddress, amountsOut[i] - depositsOut[i]); // TODO: CHECK TO AVOID UNNCECESSARY APPROVALS
             unchecked {
                 ++i;
             }
