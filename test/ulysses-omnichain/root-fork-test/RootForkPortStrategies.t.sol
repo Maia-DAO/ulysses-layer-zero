@@ -361,6 +361,21 @@ contract RootForkPortStrategiesTest is RootForkSetupTest {
         );
     }
 
+    function testReplenishAsStrategyNotTrusted() public {
+        // Add Strategy token and Port strategy
+        testManage();
+
+        // Switch to brnach
+        switchToLzChainWithoutExecutePendingOrPacketUpdate(ftmChainId);
+
+        // Prank into non-trusted strategy
+        vm.prank(address(1));
+
+        vm.expectRevert(IBranchPort.InsufficientDebt.selector);
+        // Request management of assets
+        ftmPort.replenishReserves(address(mockFtmPortToken), 250 ether);
+    }
+
     function testReplenishAsUser() public {
         // Add Strategy token and Port strategy
         testManage();
@@ -398,6 +413,18 @@ contract RootForkPortStrategiesTest is RootForkSetupTest {
             ftmPort.strategyDailyLimitAmount(mockFtmPortStrategyAddress, address(mockFtmPortToken)) == 250 ether,
             "Should remain 250 ether"
         );
+    }
+
+    function testReplenishAsUserStrategyNotTrusted() public {
+        // Add Strategy token and Port strategy
+        testManage();
+
+        // Fake some port withdrawals
+        MockERC20(mockFtmPortToken).burn(address(ftmPort), 500 ether);
+
+        vm.expectRevert(IBranchPort.InsufficientDebt.selector);
+        // Request management of assets
+        ftmPort.replenishReserves(address(1), address(mockFtmPortToken));
     }
 
     function testReplenishAsStrategyNotEnoughDebtToRepay() public {

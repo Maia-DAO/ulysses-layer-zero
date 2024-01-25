@@ -376,6 +376,24 @@ contract BranchPortTest is Test, BridgeAgentConstants {
         );
     }
 
+    function testReplenishAsStrategyNotTrusted() public {
+        // Add Strategy token and Port strategy
+        testManage();
+
+        // Get port balance before manage
+        uint256 portBalanceBefore = mockStrategyToken.balanceOf(address(localPortAddress));
+
+        // Get Strategy balance before manage
+        uint256 strategyBalanceBefore = mockStrategyToken.balanceOf(mockPortStrategyAddress);
+
+        // Prank into non-trusted strategy
+        vm.prank(address(1));
+
+        vm.expectRevert(IBranchPort.InsufficientDebt.selector);
+        // Request management of assets
+        BranchPort(payable(localPortAddress)).replenishReserves(address(mockStrategyToken), 250 ether);
+    }
+
     function testReplenishAsUser() public {
         // Add Strategy token and Port strategy
         testManage();
@@ -419,6 +437,18 @@ contract BranchPortTest is Test, BridgeAgentConstants {
         );
     }
 
+    function testReplenishAsUserStrategyNotTrusted() public {
+        // Add Strategy token and Port strategy
+        testManage();
+
+        // Fake some port withdrawals
+        MockERC20(mockStrategyToken).burn(address(localPortAddress), 500 ether);
+
+        vm.expectRevert(IBranchPort.InsufficientDebt.selector);
+        // Request management of assets
+        BranchPort(payable(localPortAddress)).replenishReserves(address(1), address(mockStrategyToken));
+    }
+
     function testReplenishAsStrategyNotEnoughDebtToRepay() public {
         // Add Strategy token and Port strategy
         testManage();
@@ -458,11 +488,6 @@ contract BranchPortTest is Test, BridgeAgentConstants {
         // 3. Return debt -> see MockPortStrategyReentrancy.withdraw()
         BranchPort(payable(localPortAddress)).replenishReserves(address(mockStrategyToken), 150 ether);
     }
-}
-
-interface IBranchPort {
-    function withdraw(address _recipient, address _underlyingAddress, uint256 _amount) external;
-    function manage(address _token, uint256 _amount) external;
 }
 
 contract MockPortStrategyReentrancy {

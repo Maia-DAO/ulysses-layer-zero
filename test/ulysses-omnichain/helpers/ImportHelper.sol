@@ -19,7 +19,7 @@ import {IBranchRouter} from "@omni/interfaces/IBranchRouter.sol";
 
 import {IRootPort, RootPort} from "@omni/RootPort.sol";
 import {ArbitrumBranchPort} from "@omni/ArbitrumBranchPort.sol";
-import {BranchPort} from "@omni/BranchPort.sol";
+import {BranchPort, IBranchPort} from "@omni/BranchPort.sol";
 import {IVirtualAccount, Call, PayableCall, VirtualAccount} from "@omni/VirtualAccount.sol";
 
 import {IRootBridgeAgent, RootBridgeAgent, DepositParams, DepositMultipleParams} from "@omni/RootBridgeAgent.sol";
