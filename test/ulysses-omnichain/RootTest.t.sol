@@ -1518,6 +1518,42 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         assertEq(deposit.owner, _user);
     }
 
+    function testRetrieveDepositAlreadyRetrieved() public {
+        testRetrieveDeposit();
+
+        address _user = address(0x420);
+
+        uint32 depositNonce = avaxMulticallBridgeAgent.depositNonce() - 1;
+
+        // Get some gas.
+        hevm.deal(_user, 10 ether);
+
+        hevm.prank(_user);
+        hevm.expectRevert(abi.encodeWithSignature("DepositAlreadyRetrieved()"));
+        avaxMulticallBridgeAgent.retrieveDeposit(depositNonce, GasParams(0.5 ether, 0.5 ether));
+    }
+
+    function testRetrieveDepositAlreadyExecuted() public {
+        testSettlementFailed();
+
+        address _user = address(0x420);
+
+        uint32 depositNonce = avaxMulticallBridgeAgent.depositNonce() - 1;
+
+        // Get some gas.
+        hevm.deal(_user, 10 ether);
+
+        hevm.prank(_user);
+        avaxMulticallBridgeAgent.retrieveDeposit(depositNonce, GasParams(0.5 ether, 0.5 ether));
+
+        Deposit memory deposit = avaxMulticallBridgeAgent.getDepositEntry(depositNonce);
+
+        assertEq(deposit.status, STATUS_SUCCESS);
+        assertEq(deposit.owner, _user);
+
+        assertEq(multicallBridgeAgent.executionState(avaxChainId, depositNonce), STATUS_DONE);
+    }
+
     function testRedeemDeposit() public {
         testRetrieveDeposit();
 
