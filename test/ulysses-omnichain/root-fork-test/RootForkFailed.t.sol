@@ -146,6 +146,35 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest {
         );
     }
 
+    function testRetrieveDepositDoesNotExist() public {
+        switchToLzChain(avaxChainId);
+
+        //Get some ether.
+        vm.deal(user, 10 ether);
+
+        vm.expectRevert(IBranchBridgeAgent.NotDepositOwner.selector);
+        //Prank address 18
+        vm.prank(user);
+
+        //Call Deposit function with wrong nonce
+        avaxMulticallBridgeAgent.retrieveDeposit{value: 10 ether}(prevNonceRoot, GasParams(1_000_000, 0.01 ether));
+    }
+
+    function testRetrieveDepositAlreadyRetrieved() public {
+        //Set up
+        testRetrieveDeposit();
+
+        //Get some ether.
+        vm.deal(user, 10 ether);
+
+        vm.expectRevert(IBranchBridgeAgent.DepositAlreadyRetrieved.selector);
+        //Prank address 18
+        vm.prank(user);
+
+        //Call Deposit function with wrong nonce
+        avaxMulticallBridgeAgent.retrieveDeposit{value: 10 ether}(prevNonceRoot, GasParams(1_000_000, 0.01 ether));
+    }
+
     function testRedeemDepositAfterRetrieve() public {
         //Set up
         testRetrieveDeposit();
