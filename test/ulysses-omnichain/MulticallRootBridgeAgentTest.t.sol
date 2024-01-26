@@ -304,10 +304,51 @@ contract MulticallRootBridgeAgentTest is Test {
             100 ether,
             packedData,
             gasParams,
-            avaxChainId
+            avaxChainId,
+            true
         );
 
         checkNonceState(multicallBridgeAgent, chainNonce[avaxChainId] - 1, avaxChainId);
+    }
+
+    function testMulticallDepositSingleShouldRevert() public {
+        // Add Local Token from Avax
+        testSetLocalToken();
+
+        //GasParams
+        GasParams memory gasParams = GasParams(5_000_000, 0);
+
+        Multicall2.Call[] memory calls = new Multicall2.Call[](1);
+
+        // Prepare call to transfer 100 hAVAX form virtual account to Mock App (could be bribes)
+        calls[0] = Multicall2.Call({
+            target: avaxGlobalToken,
+            callData: abi.encodeWithSelector(bytes4(0xa9059cbb), mockApp, 100 ether)
+        });
+
+        // RLP Encode Calldata
+        bytes memory data = abi.encode(calls);
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
+
+        vm.expectRevert(abi.encodeWithSignature("ExecutionFailure()"));
+
+        encodeCallWithDeposit(
+            payable(avaxMulticallBridgeAgentAddress),
+            payable(multicallBridgeAgent),
+            chainNonce[avaxChainId]++,
+            address(avaxLocalWrappedNativeTokenAddress),
+            address(avaxUnderlyingWrappedNativeTokenAddress),
+            100 ether,
+            100 ether,
+            packedData,
+            gasParams,
+            avaxChainId,
+            false
+        );
+
+        checkNonceStateFail(multicallBridgeAgent, chainNonce[avaxChainId] - 1, avaxChainId);
     }
 
     function testMulticallDepositMultiple() public {
@@ -354,10 +395,64 @@ contract MulticallRootBridgeAgentTest is Test {
             inputTokenDeposits,
             packedData,
             GasParams(5_000_000, 0),
-            avaxChainId
+            avaxChainId,
+            true
         );
 
         checkNonceState(multicallBridgeAgent, chainNonce[avaxChainId] - 1, avaxChainId);
+    }
+
+    function testMulticallDepositMultipleShouldRevert() public {
+        // Add Local Token from Avax
+        testSetLocalToken();
+
+        Multicall2.Call[] memory calls = new Multicall2.Call[](1);
+
+        // Prepare call to transfer 100 hAVAX form virtual account to Mock App (could be bribes)
+        calls[0] = Multicall2.Call({
+            target: avaxGlobalToken,
+            callData: abi.encodeWithSelector(bytes4(0xa9059cbb), mockApp, 100 ether)
+        });
+
+        // Prepare input token arrays
+        address[] memory inputHTokenAddresses = new address[](2);
+        address[] memory inputTokenAddresses = new address[](2);
+        uint256[] memory inputTokenAmounts = new uint256[](2);
+        uint256[] memory inputTokenDeposits = new uint256[](2);
+
+        inputHTokenAddresses[0] = address(avaxLocalWrappedNativeTokenAddress);
+        inputTokenAddresses[0] = address(avaxUnderlyingWrappedNativeTokenAddress);
+        inputTokenAmounts[0] = 100 ether;
+        inputTokenDeposits[0] = 100 ether;
+
+        inputHTokenAddresses[1] = address(avaxNativeAssethToken);
+        inputTokenAddresses[1] = address(avaxNativeToken);
+        inputTokenAmounts[1] = 100 ether;
+        inputTokenDeposits[1] = 100 ether;
+
+        // RLP Encode Calldata
+        bytes memory data = abi.encode(calls);
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
+
+        vm.expectRevert(abi.encodeWithSignature("ExecutionFailure()"));
+
+        encodeCallWithDepositMultiple(
+            payable(avaxMulticallBridgeAgentAddress),
+            payable(multicallBridgeAgent),
+            chainNonce[avaxChainId]++,
+            inputHTokenAddresses,
+            inputTokenAddresses,
+            inputTokenAmounts,
+            inputTokenDeposits,
+            packedData,
+            GasParams(5_000_000, 0),
+            avaxChainId,
+            false
+        );
+
+        checkNonceStateFail(multicallBridgeAgent, chainNonce[avaxChainId] - 1, avaxChainId);
     }
 
     function testMulticallNoDepositSigned() public {
@@ -587,7 +682,8 @@ contract MulticallRootBridgeAgentTest is Test {
             100 ether,
             packedData,
             gasParams,
-            avaxChainId
+            avaxChainId,
+            true
         );
     }
 
@@ -640,7 +736,8 @@ contract MulticallRootBridgeAgentTest is Test {
             inputTokenDeposits,
             packedData,
             gasParams,
-            avaxChainId
+            avaxChainId,
+            true
         );
     }
 
@@ -899,7 +996,7 @@ contract MulticallRootBridgeAgentTest is Test {
         GasParams[2] memory gasParams = [GasParams(5_000_000, 0.5 ether), GasParams(5_000_000, 0.5 ether)];
 
         //Encode Call Data
-        bytes memory data = abi.encode(ftmCoreBridgeAgentAddress, newAvaxAssetGlobalAddress, ftmChainId, gasParams);
+        bytes memory data = abi.encode(address(this), newAvaxAssetGlobalAddress, ftmChainId, gasParams);
 
         // Pack FuncId
         bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
@@ -913,6 +1010,7 @@ contract MulticallRootBridgeAgentTest is Test {
             _gasParams,
             ftmChainId
         );
+
         // State change occurs in setLocalToken
     }
 
@@ -1000,7 +1098,8 @@ contract MulticallRootBridgeAgentTest is Test {
         uint256 _deposit,
         bytes memory _data,
         GasParams memory _gasParams,
-        uint16 _srcChainIdId
+        uint16 _srcChainIdId,
+        bool _mockCall
     ) private {
         vm.mockCall(mockApp, abi.encodeWithSignature("distro()"), abi.encode(0));
 
@@ -1010,11 +1109,13 @@ contract MulticallRootBridgeAgentTest is Test {
         //Encode Data
         bytes memory inputCalldata = abi.encodePacked(bytes1(0x02), _nonce, _hToken, _token, _amount, _deposit, _data);
 
-        vm.mockCall(
-            address(rootMulticallRouter),
-            abi.encodeWithSignature("executeDepositSingle(bytes,(uint32,address,address,uint256,uint256),uint16)"),
-            abi.encode(0)
-        );
+        if (_mockCall) {
+            vm.mockCall(
+                address(rootMulticallRouter),
+                abi.encodeWithSignature("executeDepositSingle(bytes,(uint32,address,address,uint256,uint256),uint16)"),
+                abi.encode(0)
+            );
+        }
 
         // Prank into user account
         vm.startPrank(lzEndpointAddress);
@@ -1038,7 +1139,8 @@ contract MulticallRootBridgeAgentTest is Test {
         uint256[] memory _deposits,
         bytes memory _data,
         GasParams memory _gasParams,
-        uint16 _srcChainIdId
+        uint16 _srcChainIdId,
+        bool _mockCall
     ) private {
         vm.mockCall(mockApp, abi.encodeWithSignature("distro()"), abi.encode(0));
 
@@ -1049,13 +1151,15 @@ contract MulticallRootBridgeAgentTest is Test {
             bytes1(0x03), uint8(_hTokens.length), _nonce, _hTokens, _tokens, _amounts, _deposits, _data
         );
 
-        vm.mockCall(
-            address(rootMulticallRouter),
-            abi.encodeWithSignature(
-                "executeDepositMultiple(bytes,(uint8,uint32,address[],address[],uint256[],uint256[]),uint16)"
-            ),
-            abi.encode(0)
-        );
+        if (_mockCall) {
+            vm.mockCall(
+                address(rootMulticallRouter),
+                abi.encodeWithSignature(
+                    "executeDepositMultiple(bytes,(uint8,uint32,address[],address[],uint256[],uint256[]),uint16)"
+                ),
+                abi.encode(0)
+            );
+        }
 
         // Prank into user account
         vm.startPrank(lzEndpointAddress);
@@ -1170,5 +1274,11 @@ contract MulticallRootBridgeAgentTest is Test {
         uint256 depositExecutionStateAfter = rootBridgeAgent.executionState(_chainId, _nonce);
 
         require(depositExecutionStateAfter == 1, "Execution state should be 1");
+    }
+
+    function checkNonceStateFail(RootBridgeAgent rootBridgeAgent, uint32 _nonce, uint16 _chainId) internal view {
+        uint256 depositExecutionStateAfter = rootBridgeAgent.executionState(_chainId, _nonce);
+
+        require(depositExecutionStateAfter == 0, "Execution state should be 0");
     }
 }
