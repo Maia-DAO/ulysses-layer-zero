@@ -3,7 +3,7 @@ pragma solidity ^0.8.16;
 
 import "./helpers/ImportHelper.sol";
 
-contract ArbitrumBranchTest is DSTestPlus {
+contract ArbitrumBranchTest is Test {
     receive() external payable {}
 
     uint32 nonce;
@@ -150,7 +150,7 @@ contract ArbitrumBranchTest is DSTestPlus {
 
         localPortAddress.initialize(address(arbitrumCoreRouter), address(localBranchBridgeAgentFactory));
 
-        hevm.startPrank(address(arbitrumCoreRouter));
+        vm.startPrank(address(arbitrumCoreRouter));
 
         arbitrumCoreBridgeAgent = ArbitrumBranchBridgeAgent(
             payable(
@@ -168,7 +168,7 @@ contract ArbitrumBranchTest is DSTestPlus {
             )
         );
 
-        hevm.stopPrank();
+        vm.stopPrank();
 
         arbitrumCoreRouter.initialize(address(arbitrumCoreBridgeAgent));
         arbitrumMulticallRouter.initialize(address(arbitrumMulticallBridgeAgent));
@@ -189,27 +189,27 @@ contract ArbitrumBranchTest is DSTestPlus {
 
         multicallBridgeAgent.approveBranchBridgeAgent(ftmChainId);
 
-        hevm.prank(address(rootCoreRouter));
+        vm.prank(address(rootCoreRouter));
         RootPort(rootPort).syncBranchBridgeAgentWithRoot(
             address(arbitrumMulticallBridgeAgent), address(multicallBridgeAgent), rootChainId
         );
 
-        hevm.prank(address(rootCoreRouter));
+        vm.prank(address(rootCoreRouter));
         RootPort(rootPort).syncBranchBridgeAgentWithRoot(
             avaxCoreBridgeAgentAddress, address(coreBridgeAgent), avaxChainId
         );
 
-        hevm.prank(address(rootCoreRouter));
+        vm.prank(address(rootCoreRouter));
         RootPort(rootPort).syncBranchBridgeAgentWithRoot(
             avaxMulticallBridgeAgentAddress, address(multicallBridgeAgent), avaxChainId
         );
 
-        hevm.prank(address(rootCoreRouter));
+        vm.prank(address(rootCoreRouter));
         RootPort(rootPort).syncBranchBridgeAgentWithRoot(
             ftmCoreBridgeAgentAddress, address(coreBridgeAgent), ftmChainId
         );
 
-        hevm.prank(address(rootCoreRouter));
+        vm.prank(address(rootCoreRouter));
         RootPort(rootPort).syncBranchBridgeAgentWithRoot(
             ftmMulticallBridgeAgentAddress, address(multicallBridgeAgent), ftmChainId
         );
@@ -241,15 +241,15 @@ contract ArbitrumBranchTest is DSTestPlus {
         ftmGlobalToken = RootPort(rootPort).getGlobalTokenFromLocal(ftmLocalWrappedNativeTokenAddress, ftmChainId);
 
         // //Ensure there are gas tokens from each chain in the system.
-        // hevm.startPrank(address(rootPort));
+        // vm.startPrank(address(rootPort));
         // ERC20hToken(avaxGlobalToken).mint(address(rootPort), 1 ether);
         // ERC20hToken(ftmGlobalToken).mint(address(rootPort), 1 ether);
         // ERC20hToken(avaxGlobalToken).approve(address(rootPort), 1 ether);
         // ERC20hToken(ftmGlobalToken).approve(address(rootPort), 1 ether);
-        // hevm.stopPrank();
+        // vm.stopPrank();
 
         // //Update balance
-        // hevm.startPrank(address(rootBridgeAgent));
+        // vm.startPrank(address(rootBridgeAgent));
         // RootPort(rootPort).bridgeToRoot(address _recipient, address _hToken, uint256 _amount, uint256 _deposit, uint256 _srcChainId)
 
         require(
@@ -413,7 +413,7 @@ contract ArbitrumBranchTest is DSTestPlus {
 
     function testAddLocalTokenArbitrum() public {
         // Get some gas.
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         //Get gas params
         GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
@@ -451,7 +451,7 @@ contract ArbitrumBranchTest is DSTestPlus {
 
     function testAddLocalTokenArbitrumFailedIsGlobal() public {
         // Get some gas.
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         address prevAddress = RootPort(rootPort).getLocalTokenFromUnderlying(address(arbitrumNativeToken), rootChainId);
 
@@ -464,7 +464,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         //Gas Params
         GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
 
-        hevm.expectRevert(abi.encodeWithSignature("ExecutionFailure()"));
+        vm.expectRevert(abi.encodeWithSignature("ExecutionFailure()"));
 
         //Add new localToken
         arbitrumCoreRouter.addLocalToken(ftmGlobalToken, gasParams);
@@ -472,7 +472,7 @@ contract ArbitrumBranchTest is DSTestPlus {
 
     function testAddBridgeAgentArbitrum() public {
         //Get some gas
-        hevm.deal(address(this), 2 ether);
+        vm.deal(address(this), 2 ether);
 
         //Create Root Bridge Agent
         MulticallRootRouter testMulticallRouter;
@@ -544,7 +544,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         arbitrumNativeToken.approve(address(localPortAddress), 100 ether);
 
         // Call deposit to port
-        hevm.expectRevert(abi.encodeWithSignature("UnknownGlobalToken()"));
+        vm.expectRevert(abi.encodeWithSignature("UnknownGlobalToken()"));
 
         arbitrumMulticallBridgeAgent.depositToPort(address(arbitrumNativeToken), 100 ether);
     }
@@ -568,8 +568,17 @@ contract ArbitrumBranchTest is DSTestPlus {
         testDepositToPort();
 
         // Call withdraw from port
-        hevm.expectRevert(abi.encodeWithSignature("UnknownGlobalToken()"));
+        vm.expectRevert(abi.encodeWithSignature("UnknownGlobalToken()"));
         arbitrumMulticallBridgeAgent.withdrawFromPort(address(arbitrumNativeToken), 100 ether);
+    }
+
+    function testRetrySettlementRevert() public {
+        // Call withdraw from port
+        vm.expectRevert();
+
+        arbitrumMulticallBridgeAgent.retrySettlement(
+            1, "", [GasParams(1 ether, 0.5 ether), GasParams(1 ether, 0.5 ether)], true
+        );
     }
 
     function testCallOutWithDeposit() public {
@@ -613,7 +622,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         }
 
         // Get some gas.
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // Mint Underlying Token.
         arbitrumNativeToken.mint(address(this), 100 ether);
@@ -661,6 +670,104 @@ contract ArbitrumBranchTest is DSTestPlus {
         );
     }
 
+    function testCallOutWithDepositFailedTriggerFallbackDestinationArbitrumBranch() public {
+        // Set up
+        testAddLocalTokenArbitrum();
+
+        // Store user
+        address user = address(this);
+
+        // Store multicallBridgeAgent settlement nonce
+        uint32 settlementNonce = multicallBridgeAgent.settlementNonce();
+
+        //Get gas
+        GasParams memory gasParams = GasParams(5_000_000, 0);
+
+        // Prank into rootPort
+        vm.prank(address(rootPort));
+
+        // Mint Underlying Token.
+        ERC20hToken(newArbitrumAssetGlobalAddress).mint(address(rootMulticallRouter), 100 ether);
+
+        // Prank into rootMulticallRouter
+        vm.startPrank(address(rootMulticallRouter));
+
+        // Approve spend by router
+        ERC20hToken(newArbitrumAssetGlobalAddress).approve(address(rootPort), 100 ether);
+
+        //Call Deposit function with Fallback on
+        multicallBridgeAgent.callOutAndBridge(
+            payable(user),
+            user,
+            rootChainId,
+            "should fail",
+            SettlementInput(newArbitrumAssetGlobalAddress, 100 ether, 0),
+            gasParams,
+            true
+        );
+
+        // Check if settlement is set to failure
+        require(multicallBridgeAgent.settlementNonce() == settlementNonce + 1, "Settlement nonce should be incremented");
+        require(multicallBridgeAgent.getSettlementEntry(settlementNonce).status == 1, "Settlement should be failed");
+    }
+
+    function testCallOutWithDepositFailedTriggerFallbackDestinationArbitrumBranchWithRootExecutionFailure() public {
+        // Set up
+        testAddLocalTokenArbitrum();
+
+        // Store user
+        address user = address(this);
+
+        // Store multicallBridgeAgent settlement nonce
+        uint32 settlementNonce = multicallBridgeAgent.settlementNonce();
+
+        //Get gas
+        GasParams memory gasParams = GasParams(5_000_000, 0);
+
+        // Mock Call to RootBridgeAgent
+        vm.mockCall(
+            address(multicallBridgeAgent),
+            abi.encodeWithSignature(
+                "lzReceive(uint16,bytes,uint64,bytes)",
+                rootChainId,
+                "",
+                0,
+                abi.encodePacked(bytes1(0x09), settlementNonce)
+            ),
+            abi.encode(false)
+        );
+
+        // Prank into rootPort
+        vm.prank(address(rootPort));
+
+        // Mint Underlying Token.
+        ERC20hToken(newArbitrumAssetGlobalAddress).mint(address(rootMulticallRouter), 100 ether);
+
+        // Prank into rootMulticallRouter
+        vm.startPrank(address(rootMulticallRouter));
+
+        // Approve spend by router
+        ERC20hToken(newArbitrumAssetGlobalAddress).approve(address(rootPort), 100 ether);
+
+        // Can´t Expect ExecutionFailure Error since it is caught
+        // vm.expectRevert(abi.encodeWithSignature("ExecutionFailure()"));
+
+        //Call Deposit function with Fallback on
+        multicallBridgeAgent.callOutAndBridge(
+            payable(user),
+            user,
+            rootChainId,
+            "should fail",
+            SettlementInput(newArbitrumAssetGlobalAddress, 100 ether, 0),
+            gasParams,
+            true
+        );
+
+        // Check if settlement is set to failure
+        require(multicallBridgeAgent.settlementNonce() == settlementNonce + 1, "Settlement nonce should be incremented");
+        require(multicallBridgeAgent.getSettlementEntry(settlementNonce).status == 0, "Settlement should be success");
+    }
+
     function testCallOutWithDepositWithHTokens() public {
         // Set up
         testCallOutWithDeposit();
@@ -704,7 +811,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         }
 
         // Get some gas.
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // Approve spend by router
         ERC20hToken(newArbitrumAssetGlobalAddress).approve(address(rootPort), 49 ether);
@@ -796,7 +903,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         }
 
         // Get some gas.
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // Mint Underlying Token.
         arbitrumNativeToken.mint(address(this), 100 ether);
@@ -812,7 +919,7 @@ contract ArbitrumBranchTest is DSTestPlus {
             deposit: 100 ether
         });
 
-        hevm.expectRevert(abi.encodeWithSignature("ExecutionFailure()"));
+        vm.expectRevert(abi.encodeWithSignature("ExecutionFailure()"));
         //Call Deposit function
         arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(packedData, depositInput, gasParams, true);
     }
@@ -832,7 +939,7 @@ contract ArbitrumBranchTest is DSTestPlus {
         }
 
         // Input restrictions
-        hevm.assume(
+        vm.assume(
             _user != address(0) && size == 0 && _amount > _deposit && _amount >= _amountOut
                 && _amount - _amountOut >= _depositOut && _depositOut < _amountOut
         );
@@ -867,13 +974,13 @@ contract ArbitrumBranchTest is DSTestPlus {
         }
 
         // Get some gas.
-        hevm.deal(_user, 1 ether);
+        vm.deal(_user, 1 ether);
 
         if (_amount - _deposit > 0) {
             // Assure there is enough balance for mock action
-            hevm.startPrank(address(rootPort));
+            vm.startPrank(address(rootPort));
             ERC20hToken(newArbitrumAssetGlobalAddress).mint(_user, _amount - _deposit);
-            hevm.stopPrank();
+            vm.stopPrank();
             arbitrumNativeToken.mint(address(localPortAddress), _amount - _deposit);
         }
 
@@ -895,14 +1002,14 @@ contract ArbitrumBranchTest is DSTestPlus {
         );
 
         // Mock token decimals call
-        hevm.mockCall(address(arbitrumNativeToken), abi.encodeWithSignature("decimals()"), abi.encode(18));
+        vm.mockCall(address(arbitrumNativeToken), abi.encodeWithSignature("decimals()"), abi.encode(18));
 
         // Call Deposit function
-        hevm.startPrank(_user);
+        vm.startPrank(_user);
         arbitrumNativeToken.approve(address(localPortAddress), _deposit);
         ERC20hToken(newArbitrumAssetGlobalAddress).approve(address(rootPort), _amount - _deposit);
         arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(packedData, depositInput, gasParams, true);
-        hevm.stopPrank();
+        vm.stopPrank();
 
         // Test If Deposit was successful
         testCreateDepositSingle(
@@ -1011,12 +1118,12 @@ contract ArbitrumBranchTest is DSTestPlus {
         uint16 _srcChainIdId
     ) private {
         //Get some gas
-        hevm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
+        vm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
         //Encode Data
         bytes memory inputCalldata = abi.encodePacked(bytes1(0x01), nonce++, _data);
 
         // Prank into user account
-        hevm.startPrank(lzEndpointAddress);
+        vm.startPrank(lzEndpointAddress);
 
         // Perform Call
         _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
@@ -1025,6 +1132,6 @@ contract ArbitrumBranchTest is DSTestPlus {
         );
 
         // Prank out of user account
-        hevm.stopPrank();
+        vm.stopPrank();
     }
 }
