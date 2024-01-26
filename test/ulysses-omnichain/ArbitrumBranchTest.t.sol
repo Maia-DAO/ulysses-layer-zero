@@ -670,6 +670,119 @@ contract ArbitrumBranchTest is Test {
         );
     }
 
+    function testCallOutWithDepositUsingRouter() public {
+        // Set up
+        testAddLocalTokenArbitrum();
+
+        //Get gas
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+
+        //Prepare data
+        address outputToken;
+        uint256 amountOut;
+        uint256 depositOut;
+        bytes memory packedData;
+
+        {
+            outputToken = newArbitrumAssetGlobalAddress;
+            amountOut = 99 ether;
+            depositOut = 50 ether;
+
+            Multicall2.Call[] memory calls = new Multicall2.Call[](1);
+
+            // Prepare call to transfer 100 hAVAX form virtual account to Mock App
+            calls[0] = Multicall2.Call({
+                target: newArbitrumAssetGlobalAddress,
+                callData: abi.encodeWithSelector(bytes4(0xa9059cbb), mockApp, 1 ether)
+            });
+
+            // Output Params
+            OutputParams memory outputParams =
+                OutputParams(address(this), address(this), outputToken, amountOut, depositOut);
+
+            //dstChainId
+            uint16 dstChainId = rootChainId;
+
+            // RLP Encode Calldata
+            bytes memory data = abi.encode(calls, outputParams, dstChainId);
+
+            // Pack FuncId
+            packedData = abi.encodePacked(bytes1(0x02), data);
+        }
+
+        address user = address(this);
+
+        // // Assure there are assets after mock action
+        // vm.startPrank(address(rootPort));
+        // ERC20hToken(newArbitrumAssetGlobalAddress).mint(address(rootPort), 50 ether);
+        // vm.stopPrank();
+
+        // vm.startPrank(address(multicallBridgeAgent));
+        // ERC20hToken(newArbitrumAssetGlobalAddress).approve(address(rootPort), 50 ether);
+        // rootPort.bridgeToBranch(user, newArbitrumAssetGlobalAddress, 50 ether, 0, rootChainId);
+        // vm.stopPrank();
+
+        // Assure there are assets after mock action
+        vm.startPrank(address(rootPort));
+        ERC20hToken(newArbitrumAssetGlobalAddress).mint(user, 50 ether);
+        vm.stopPrank();
+
+        // Get some gas.
+        vm.deal(address(this), 1 ether);
+
+        // Mint Underlying Token.
+        arbitrumNativeToken.mint(address(this), 100 ether);
+
+        // Approve spend by router
+        arbitrumNativeToken.approve(address(arbitrumMulticallRouter), 100 ether);
+        ERC20hToken(newArbitrumAssetGlobalAddress).approve(address(arbitrumMulticallRouter), 50 ether);
+
+        // Prepare deposit info
+        DepositInput memory depositInput = DepositInput({
+            hToken: address(newArbitrumAssetGlobalAddress),
+            token: address(arbitrumNativeToken),
+            amount: 150 ether,
+            deposit: 100 ether
+        });
+
+        vm.mockCall(
+            address(rootMulticallRouter),
+            abi.encodeWithSignature("executeDepositSingle(bytes,(uint32,address,address,uint256,uint256),uint16)"),
+            abi.encode(0)
+        );
+
+        //Call Deposit function
+        arbitrumMulticallRouter.callOutAndBridge{value: 1 ether}(packedData, depositInput, gasParams);
+
+        // Test If Deposit was successful
+        testCreateDepositSingle(
+            arbitrumMulticallBridgeAgent,
+            uint32(1),
+            address(this),
+            address(newArbitrumAssetGlobalAddress),
+            address(arbitrumNativeToken),
+            150 ether,
+            100 ether,
+            1 ether,
+            0.5 ether
+        );
+
+        console2.log("LocalPort Balance:", MockERC20(arbitrumNativeToken).balanceOf(address(localPortAddress)));
+        require(
+            MockERC20(arbitrumNativeToken).balanceOf(address(localPortAddress)) == 100 ether,
+            "LocalPort should have 100 tokens"
+        );
+
+        console2.log(
+            "Multicall Root Router Global Balance:",
+            MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(rootMulticallRouter))
+        );
+        require(
+            MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(rootMulticallRouter)) == 150 ether,
+            "rootMulticallRouter should have 150 global tokens"
+        );
+    }
+
     function testCallOutWithDepositFailedTriggerFallbackDestinationArbitrumBranch() public {
         // Set up
         testAddLocalTokenArbitrum();
