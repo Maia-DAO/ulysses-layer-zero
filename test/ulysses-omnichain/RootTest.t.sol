@@ -957,6 +957,26 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         require(ftmPort.isBridgeAgentFactory(address(newFtmBranchBridgeAgentFactory)), "Factory not enabled");
     }
 
+    function testAddBridgeAgentFactoryUnrecognizedBridgeAgentFactory() public {
+        // Get some gas
+        hevm.deal(address(this), 1 ether);
+
+        newFtmBranchBridgeAgentFactory = new BranchBridgeAgentFactory(
+            ftmChainId, rootChainId, address(80), lzEndpointAddress, address(ftmCoreRouter), address(ftmPort), owner
+        );
+
+        hevm.expectRevert(abi.encodeWithSignature("UnrecognizedBridgeAgentFactory()"));
+        coreRootRouter.toggleBranchBridgeAgentFactory{value: 0.05 ether}(
+            address(1),
+            address(newFtmBranchBridgeAgentFactory),
+            address(this),
+            ftmChainId,
+            GasParams(0.05 ether, 0.05 ether)
+        );
+
+        require(!ftmPort.isBridgeAgentFactory(address(newFtmBranchBridgeAgentFactory)), "Factory enabled");
+    }
+
     function testAddBridgeAgentWrongRootFactory() public {
         testAddBridgeAgentFactory();
 
@@ -1041,7 +1061,35 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
             address(102), 7000, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
         );
 
-        require(ftmPort.isStrategyToken(address(102)), "Should be added");
+        assertTrue(ftmPort.isStrategyToken(address(102)));
+        assertEq(ftmPort.getMinimumTokenReserveRatio(address(102)), 7000);
+    }
+
+    function testUpdateStrategyToken() public {
+        testAddStrategyToken();
+
+        // Get some gas
+        hevm.deal(address(this), 1 ether);
+
+        coreRootRouter.updateStrategyToken{value: 0.05 ether}(
+            address(102), 8000, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
+        );
+
+        assertTrue(ftmPort.isStrategyToken(address(102)));
+        assertEq(ftmPort.getMinimumTokenReserveRatio(address(102)), 8000);
+    }
+
+    function testUpdateStrategyTokenUnrecognizedStrategyToken() public {
+        // Get some gas
+        hevm.deal(address(this), 1 ether);
+
+        // UnrecognizedStrategyToken();
+        coreRootRouter.updateStrategyToken{value: 0.05 ether}(
+            address(102), 8000, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
+        );
+
+        assertFalse(ftmPort.isStrategyToken(address(102)));
+        assertEq(ftmPort.getMinimumTokenReserveRatio(address(102)), 0);
     }
 
     function testAddStrategyTokenInvalidMinReserve() public {
@@ -1052,7 +1100,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         coreRootRouter.toggleStrategyToken{value: 0.05 ether}(
             address(102), 30000, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
         );
-        require(!ftmPort.isStrategyToken(address(102)), "Should note be added");
+
+        assertFalse(ftmPort.isStrategyToken(address(102)));
+        assertEq(ftmPort.getMinimumTokenReserveRatio(address(102)), 0);
     }
 
     function testRemoveStrategyToken() public {
@@ -1066,7 +1116,8 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
             address(102), 10000, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
         );
 
-        require(!ftmPort.isStrategyToken(address(102)), "Should be removed");
+        assertFalse(ftmPort.isStrategyToken(address(102)));
+        assertEq(ftmPort.getMinimumTokenReserveRatio(address(102)), 10000);
     }
 
     function testAddPortStrategy() public {
@@ -1080,19 +1131,93 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
             address(50), address(102), 7000, 7000, address(this), ftmChainId, GasParams(0.05 ether, 0)
         );
 
-        require(ftmPort.isPortStrategy(address(50), address(102)), "Should be added");
+        assertTrue(ftmPort.isPortStrategy(address(50), address(102)));
+        assertEq(ftmPort.strategyDailyLimitAmount(address(50), address(102)), 7000);
+        assertEq(ftmPort.strategyReserveRatioManagementLimit(address(50), address(102)), 7000);
+    }
+
+    function testRemovePortStrategy() public {
+        // Add port strategy
+        testAddPortStrategy();
+
+        // Get some gas
+        hevm.deal(address(this), 1 ether);
+
+        coreRootRouter.togglePortStrategy{value: 0.05 ether}(
+            address(50), address(102), 7000, 7000, address(this), ftmChainId, GasParams(0.05 ether, 0)
+        );
+
+        assertFalse(ftmPort.isPortStrategy(address(50), address(102)));
+        assertEq(ftmPort.strategyDailyLimitAmount(address(50), address(102)), 0);
+        assertEq(ftmPort.strategyReserveRatioManagementLimit(address(50), address(102)), 10000);
     }
 
     function testAddPortStrategyNotToken() public {
         // Get some gas
         hevm.deal(address(this), 1 ether);
 
-        //UnrecognizedStrategyToken();
+        // UnrecognizedStrategyToken();
         coreRootRouter.togglePortStrategy{value: 0.1 ether}(
             address(50), address(102), 7000, 7000, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
         );
 
-        require(!ftmPort.isPortStrategy(address(50), address(102)), "Should not be added");
+        assertFalse(ftmPort.isPortStrategy(address(50), address(102)));
+        assertEq(ftmPort.strategyDailyLimitAmount(address(50), address(102)), 0);
+        assertEq(ftmPort.strategyReserveRatioManagementLimit(address(50), address(102)), 0);
+    }
+
+    function testUpdatePortStrategy() public {
+        // Add port strategy
+        testAddPortStrategy();
+
+        // Get some gas
+        hevm.deal(address(this), 1 ether);
+
+        coreRootRouter.updatePortStrategy{value: 0.05 ether}(
+            address(50), address(102), 8000, 8000, address(this), ftmChainId, GasParams(0.05 ether, 0)
+        );
+
+        assertTrue(ftmPort.isPortStrategy(address(50), address(102)));
+        assertEq(ftmPort.strategyDailyLimitAmount(address(50), address(102)), 8000);
+        assertEq(ftmPort.strategyReserveRatioManagementLimit(address(50), address(102)), 8000);
+    }
+
+    function testUpdatePortStrategyUnrecognizedStrategyToken() public {
+        // Add port strategy
+        testAddPortStrategy();
+
+        // Get some gas
+        hevm.deal(address(this), 1 ether);
+
+        // UnrecognizedStrategyToken();
+        coreRootRouter.updatePortStrategy{value: 0.05 ether}(
+            address(1), address(102), 8000, 8000, address(this), ftmChainId, GasParams(0.05 ether, 0)
+        );
+
+        assertTrue(ftmPort.isPortStrategy(address(50), address(102)));
+        assertEq(ftmPort.strategyDailyLimitAmount(address(50), address(102)), 7000);
+        assertEq(ftmPort.strategyReserveRatioManagementLimit(address(50), address(102)), 7000);
+
+        assertFalse(ftmPort.isPortStrategy(address(50), address(102)));
+        assertEq(ftmPort.strategyDailyLimitAmount(address(50), address(102)), 7000);
+        assertEq(ftmPort.strategyReserveRatioManagementLimit(address(50), address(102)), 7000);
+    }
+
+    function testUpdatePortStrategyUnrecognizedPortStrategy() public {
+        // Add port strategy
+        testAddPortStrategy();
+
+        // Get some gas
+        hevm.deal(address(this), 1 ether);
+
+        // UnrecognizedStrategyToken();
+        coreRootRouter.updatePortStrategy{value: 0.05 ether}(
+            address(50), address(1), 8000, 8000, address(this), ftmChainId, GasParams(0.05 ether, 0)
+        );
+
+        assertTrue(ftmPort.isPortStrategy(address(50), address(102)));
+        assertEq(ftmPort.strategyDailyLimitAmount(address(50), address(102)), 7000);
+        assertEq(ftmPort.strategyReserveRatioManagementLimit(address(50), address(102)), 7000);
     }
 
     //////////////////////////////////////
@@ -1189,7 +1314,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
     //               Sweep              //
     //////////////////////////////////////
 
-    function testSweep() public {
+    function testSweepRootPort(uint256 amount) public {
         // Save previous balance
         uint256 prevBalance = address(this).balance;
 
@@ -1204,6 +1329,25 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
         // Check this balance
         assertEq(address(this).balance, prevBalance + 100 ether);
+    }
+
+    function testSweepBranchPort(uint128 amount) public {
+        hevm.deal(address(this), 1 ether);
+
+        // Save previous balance
+        uint256 prevBalance = address(this).balance - 0.05 ether;
+
+        // Mock accumulated balance
+        hevm.deal(address(ftmPort), amount);
+
+        // Reques sweep to address(this)
+        coreRootRouter.sweep{value: 0.05 ether}(address(this), address(this), ftmChainId, GasParams(0.05 ether, 0));
+
+        // Check root port balance
+        assertEq(address(ftmPort).balance, 0, "Branch Port balance should be 0");
+
+        // Check this balance
+        assertEq(address(this).balance, prevBalance + amount, "This balance should be increased");
     }
 
     //////////////////////////////////////
@@ -1685,7 +1829,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
             address(multicallBridgeAgent), newAvaxAssetGlobalAddress, 150 ether, 100 ether, avaxChainId
         );
         hevm.stopPrank();
-        
+
         // Mint Underlying Token.
         avaxMockAssetToken.mint(_user, 100 ether);
 
@@ -2690,13 +2834,7 @@ contract MockEndpoint is DSTestPlus {
     uint256 remoteBranchExecutionGas;
     address receiver;
 
-    bool dropNextMessage;
-
     constructor() {}
-
-    function toggleDropNextMessage() public {
-        dropNextMessage = !dropNextMessage;
-    }
 
     function toggleFallback(uint256 _fallbackCountdown) external {
         forceFallback = !forceFallback;
@@ -2772,13 +2910,7 @@ contract MockEndpoint is DSTestPlus {
             receiver = address(0);
         }
 
-        if (dropNextMessage) {
-            dropNextMessage = false;
-            return
-        }
-
         if (!forceFallback) {
-            console2.log("Executing Fallback...");
             // Perform Call
             destinationBridgeAgent.call{value: remoteBranchExecutionGas}("");
             RootBridgeAgent(payable(destinationBridgeAgent)).lzReceive{gas: gasLimit}(
