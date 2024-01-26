@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import "./helpers/ImportHelper.sol";
 
+import "./helpers/RootForkHelper.t.sol";
+
 contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
     MockERC20 underlyingToken;
 
@@ -749,10 +751,10 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
     }
 
     function testFuzzRedeemDeposit(address _user, uint256 _amount, uint256 _deposit, uint16 _dstChainId) public {
-        _amount %= type(uint256).max / 1 ether;
+        if (_dstChainId == 0) _dstChainId = 1;
 
         // Input restrictions
-        vm.assume(_user != address(0) && _amount > 0 && _deposit <= _amount && _dstChainId > 0);
+        (_user, _amount, _deposit,,) = BranchBridgeAgentHelper.adjustValues(_user, _amount, _deposit, 0, 0);
 
         //GasParams
         GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
@@ -944,8 +946,10 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
     }
 
     function testFuzzExecuteWithSettlement(address, uint256 _amount, uint256 _deposit, uint16 _dstChainId) public {
+        if (_dstChainId == 0) _dstChainId = 1;
+
         // Input restrictions
-        vm.assume(_amount > 0 && _deposit <= _amount && _dstChainId > 0);
+        (, _amount, _deposit,,) = BranchBridgeAgentHelper.adjustValues(address(1), _amount, _deposit, 0, 0);
 
         //GasParams
         GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);

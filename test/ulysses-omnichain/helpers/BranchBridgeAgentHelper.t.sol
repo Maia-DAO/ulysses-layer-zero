@@ -54,4 +54,43 @@ library BranchBridgeAgentHelper {
 
         require(deposit.status == 0, "Deposit status should be succesful.");
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        CREATE DEPOSIT HELPERS
+    //////////////////////////////////////////////////////////////*/
+
+    function adjustValues(address _user, uint256 _amount, uint256 _deposit, uint256 _amountOut, uint256 _depositOut)
+        public
+        view
+        returns (address, uint256, uint256, uint256, uint256)
+    {
+        // Input restrictions
+        _amount %= type(uint256).max / 1 ether;
+
+        uint256 size;
+        assembly ("memory-safe") {
+            size := extcodesize(_user)
+        }
+
+        if (_user == address(0) || size > 0) _user = address(0xDEAD);
+
+        if (_amount <= _deposit) {
+            _deposit %= type(uint256).max;
+            _amount = _deposit + 1;
+        }
+
+        if (_amount < _amountOut || _amountOut == 0) {
+            _amountOut = _amount;
+        }
+
+        if (_amount - _amountOut < _depositOut) {
+            _depositOut = _amount - _amountOut;
+        }
+
+        if (_depositOut >= _amountOut) {
+            _depositOut = _amountOut - 1;
+        }
+
+        return (_user, _amount, _deposit, _amountOut, _depositOut);
+    }
 }

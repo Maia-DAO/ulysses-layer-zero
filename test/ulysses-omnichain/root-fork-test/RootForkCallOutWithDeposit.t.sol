@@ -79,19 +79,8 @@ contract RootForkCallOutWithDepositTest is RootForkAddTokenTest {
         uint256 _amountOut,
         uint256 _depositOut
     ) public {
-        // Input restrictions
-        _amount %= type(uint128).max;
-
-        uint256 size;
-        assembly ("memory-safe") {
-            size := extcodesize(_user)
-        }
-
-        // Input restrictions
-        vm.assume(
-            _user != address(0) && size == 0 && _amount > _deposit && _amount >= _amountOut
-                && _amount - _amountOut >= _depositOut && _depositOut < _amountOut
-        );
+        (_user, _amount, _deposit, _amountOut, _depositOut) =
+            BranchBridgeAgentHelper.adjustValues(_user, _amount, _deposit, _amountOut, _depositOut);
 
         _callOutWithDepositArbtirum(_user, _amount, _deposit, _amountOut, _depositOut);
     }

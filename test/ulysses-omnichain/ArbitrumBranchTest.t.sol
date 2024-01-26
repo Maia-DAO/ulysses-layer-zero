@@ -3,6 +3,8 @@ pragma solidity ^0.8.16;
 
 import "./helpers/ImportHelper.sol";
 
+import "./helpers/RootForkHelper.t.sol";
+
 contract ArbitrumBranchTest is Test {
     receive() external payable {}
 
@@ -1044,18 +1046,8 @@ contract ArbitrumBranchTest is Test {
         uint256 _amountOut,
         uint256 _depositOut
     ) public {
-        _amount %= type(uint256).max / 1 ether;
-
-        uint256 size;
-        assembly ("memory-safe") {
-            size := extcodesize(_user)
-        }
-
-        // Input restrictions
-        vm.assume(
-            _user != address(0) && size == 0 && _amount > _deposit && _amount >= _amountOut
-                && _amount - _amountOut >= _depositOut && _depositOut < _amountOut
-        );
+        (_user, _amount, _deposit, _amountOut, _depositOut) =
+            BranchBridgeAgentHelper.adjustValues(_user, _amount, _deposit, _amountOut, _depositOut);
 
         // Set up
         testAddLocalTokenArbitrum();

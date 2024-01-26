@@ -381,6 +381,8 @@ contract RootBridgeAgentTest is Test, BridgeAgentConstants {
         uint16 _srcChainId,
         bytes calldata _path
     ) external {
+        syncBranchBridgeAgent(branchBridgeAgent, branchChainId);
+
         if (_lzEndpointAddress != _endpoint) {
             vm.expectRevert(IBranchBridgeAgent.LayerZeroUnauthorizedEndpoint.selector);
         } else if (_path.length != 40) {

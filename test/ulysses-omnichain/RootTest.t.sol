@@ -1198,9 +1198,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         assertEq(ftmPort.strategyDailyLimitAmount(address(50), address(102)), 7000);
         assertEq(ftmPort.strategyReserveRatioManagementLimit(address(50), address(102)), 7000);
 
-        assertFalse(ftmPort.isPortStrategy(address(50), address(102)));
-        assertEq(ftmPort.strategyDailyLimitAmount(address(50), address(102)), 7000);
-        assertEq(ftmPort.strategyReserveRatioManagementLimit(address(50), address(102)), 7000);
+        assertFalse(ftmPort.isPortStrategy(address(1), address(102)));
+        assertEq(ftmPort.strategyDailyLimitAmount(address(1), address(102)), 0);
+        assertEq(ftmPort.strategyReserveRatioManagementLimit(address(1), address(102)), 0);
     }
 
     function testUpdatePortStrategyUnrecognizedPortStrategy() public {
@@ -1492,19 +1492,8 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint256 _amountOut,
         uint256 _depositOut
     ) public {
-        // Input restrictions
-        _amount %= type(uint256).max / 1 ether;
-
-        uint256 size;
-        assembly ("memory-safe") {
-            size := extcodesize(_user)
-        }
-
-        // Input restrictions
-        hevm.assume(
-            _user != address(0) && size == 0 && _amount > _deposit && _amount >= _amountOut
-                && _amount - _amountOut >= _depositOut && _depositOut < _amountOut
-        );
+        (_user, _amount, _deposit, _amountOut, _depositOut) =
+            BranchBridgeAgentHelper.adjustValues(_user, _amount, _deposit, _amountOut, _depositOut);
 
         _testFuzzCallOutWithDeposit(_user, _amount, _deposit, _amountOut, _depositOut);
     }
@@ -2745,6 +2734,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
             hevm.expectRevert(IRootPort.InvalidUserAddress.selector);
             virtualAccount = _rootPort.fetchVirtualAccount(_user);
+
+            assertEq(address(virtualAccount), address(0));
+            return;
         } else if (address(virtualAccount) != address(0)) {
             // If not zero address, should be equal to computed address
             assertEq(address(virtualAccount), ComputeVirtualAccount.computeAddress(address(_rootPort), _user));
@@ -2756,12 +2748,8 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         // Fetch virtual account, will create if not exists
         virtualAccount = _rootPort.fetchVirtualAccount(_user);
 
-        if (_user == address(0)) {
-            assertEq(address(virtualAccount), address(0));
-        } else {
-            // Check virtual account
-            assertEq(address(virtualAccount), ComputeVirtualAccount.computeAddress(address(_rootPort), _user));
-        }
+        // Check virtual account
+        assertEq(address(virtualAccount), ComputeVirtualAccount.computeAddress(address(_rootPort), _user));
     }
 
     /// @notice Emitted when a new Virtual Account is created.
