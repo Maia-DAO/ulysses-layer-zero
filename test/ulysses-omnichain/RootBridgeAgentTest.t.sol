@@ -361,11 +361,7 @@ contract RootBridgeAgentTest is Test, BridgeAgentConstants {
         mockRootBridgeAgent.lzReceiveNonBlocking(endpoint, branchChainId, path, payload);
     }
 
-    function setBytes4(bytes memory _bytes, bytes4 _value, uint256 _offset)
-        internal
-        pure
-        returns (bytes memory _newBytes)
-    {
+    function setBytes4(bytes memory _bytes, bytes4 _value, uint256 _offset) internal pure {
         for (uint256 i = 0; i < 4; i++) {
             _bytes[_offset + i] = _value[i];
         }
@@ -385,9 +381,7 @@ contract RootBridgeAgentTest is Test, BridgeAgentConstants {
         uint16 _srcChainId,
         bytes calldata _path
     ) external {
-        bytes memory path = syncBranchBridgeAgent(branchBridgeAgent, branchChainId);
-
-        if (_endpoint != _endpoint) {
+        if (_lzEndpointAddress != _endpoint) {
             vm.expectRevert(IBranchBridgeAgent.LayerZeroUnauthorizedEndpoint.selector);
         } else if (_path.length != 40) {
             vm.expectRevert(IBranchBridgeAgent.LayerZeroUnauthorizedCaller.selector);

@@ -380,12 +380,6 @@ contract BranchPortTest is Test, BridgeAgentConstants {
         // Add Strategy token and Port strategy
         testManage();
 
-        // Get port balance before manage
-        uint256 portBalanceBefore = mockStrategyToken.balanceOf(address(localPortAddress));
-
-        // Get Strategy balance before manage
-        uint256 strategyBalanceBefore = mockStrategyToken.balanceOf(mockPortStrategyAddress);
-
         // Prank into non-trusted strategy
         vm.prank(address(1));
 

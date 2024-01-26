@@ -1151,11 +1151,7 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         bAgent.lzReceiveNonBlocking(lzEndpointAddress, rootChainId, rootBridgeAgentPath, payload);
     }
 
-    function setBytes4(bytes memory _bytes, bytes4 _value, uint256 _offset)
-        internal
-        pure
-        returns (bytes memory _newBytes)
-    {
+    function setBytes4(bytes memory _bytes, bytes4 _value, uint256 _offset) internal pure {
         for (uint256 i = 0; i < 4; i++) {
             _bytes[_offset + i] = _value[i];
         }

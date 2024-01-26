@@ -4,8 +4,6 @@ pragma solidity ^0.8.16;
 import "../helpers/ImportHelper.sol";
 
 contract ReservesRatioTest is DSTestPlus {
-    using DecodeBridgeInMultipleParams for bytes;
-
     uint256 private constant DIVISIONER = 1e4;
     uint256 private constant MIN_RESERVE_RATIO = 7e3;
 
