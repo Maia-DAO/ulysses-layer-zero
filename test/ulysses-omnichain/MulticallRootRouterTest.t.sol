@@ -330,6 +330,38 @@ contract MulticallRootRouterTest is DSTestPlus {
         require((multicallBridgeAgent).executionState(avaxChainId, currentNonce) == 1, "Nonce should be executed");
     }
 
+    function testMulticallNoOutputNoDepositSigned() public {
+        hevm.mockCall(mockApp, abi.encodeWithSignature("distro()"), abi.encode(0));
+
+        //Add Local Token from Avax
+        testSetLocalToken();
+
+        Multicall2.Call[] memory calls = new Multicall2.Call[](1);
+
+        calls[0] =
+            Multicall2.Call({target: mockApp, callData: abi.encodeWithSelector(bytes4(keccak256(bytes("distro()"))))});
+
+        // RLP Encode Calldata
+        bytes memory data = encodeCalls(abi.encode(calls));
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
+
+        uint32 currentNonce = nonce;
+
+        // Call Deposit function
+        encodeCallNoDepositSigned(
+            payable(avaxMulticallBridgeAgentAddress),
+            payable(multicallBridgeAgent),
+            address(this),
+            packedData,
+            GasParams(0.5 ether, 0 ether),
+            avaxChainId
+        );
+
+        require((multicallBridgeAgent).executionState(avaxChainId, currentNonce) == 1, "Nonce should be executed");
+    }
+
     function testMulticallSignedNoOutputDepositSingle() public {
         // Add Local Token from Avax
         testSetLocalToken();
@@ -1405,6 +1437,78 @@ contract MulticallRootRouterTest is DSTestPlus {
 
         // require(balanceTokenVirtualAccountAfter == 0 ether, "Balance should stay equal");
         // require(balanceFtmVirtualAccountAfter == 100 ether, "Balance should be incremented");
+    }
+
+    //////////////////////////////////////////////////////////////////// UNRECOGNIZED FUNCTION ID ////////////////////////////////////////////////////////////
+
+    function testMulticallUnrecognizedFuncitonId() public {
+        hevm.mockCall(mockApp, abi.encodeWithSignature("distro()"), abi.encode(0));
+
+        //Add Local Token from Avax
+        testSetLocalToken();
+
+        Multicall2.Call[] memory calls = new Multicall2.Call[](1);
+
+        calls[0] =
+            Multicall2.Call({target: mockApp, callData: abi.encodeWithSelector(bytes4(keccak256(bytes("distro()"))))});
+
+        // RLP Encode Calldata
+        bytes memory data = encodeCalls(abi.encode(calls));
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x08), data);
+
+        uint32 currentNonce = nonce;
+
+        hevm.expectRevert(abi.encodeWithSignature("UnrecognizedFunctionId()"));
+
+        // Call Deposit function
+        encodeCallNoDeposit(
+            payable(avaxMulticallBridgeAgentAddress),
+            payable(multicallBridgeAgent),
+            1,
+            packedData,
+            GasParams(0.5 ether, 0 ether),
+            avaxChainId
+        );
+
+        require((multicallBridgeAgent).executionState(avaxChainId, currentNonce) == 0, "Nonce should not be executed");
+    }
+
+    function testMulticallUnrecognizedFuncitonIdSigned() public {
+        hevm.mockCall(mockApp, abi.encodeWithSignature("distro()"), abi.encode(0));
+
+        //Add Local Token from Avax
+        testSetLocalToken();
+
+        Multicall2.Call[] memory calls = new Multicall2.Call[](1);
+
+        calls[0] =
+            Multicall2.Call({target: mockApp, callData: abi.encodeWithSelector(bytes4(keccak256(bytes("distro()"))))});
+
+        // RLP Encode Calldata
+        bytes memory data = encodeCalls(abi.encode(calls));
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x08), data);
+
+        uint32 currentNonce = nonce;
+
+        hevm.expectRevert(abi.encodeWithSignature("UnrecognizedFunctionId()"));
+
+        // Call Deposit function
+        encodeCallNoDepositSigned(
+            payable(avaxMulticallBridgeAgentAddress),
+            payable(multicallBridgeAgent),
+            address(this),
+            packedData,
+            GasParams(0.5 ether, 0 ether),
+            avaxChainId
+        );
+
+        console2.log("HERE", currentNonce);
+
+        require((multicallBridgeAgent).executionState(avaxChainId, currentNonce) == 0, "Nonce should not be executed");
     }
 
     ////////////////////////////////////////////////////////////////////////// ADD TOKENS ////////////////////////////////////////////////////////////////////
