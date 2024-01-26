@@ -3,7 +3,7 @@ pragma solidity ^0.8.16;
 
 import "./helpers/ImportHelper.sol";
 
-contract CoreRootBridgeAgentTest is Test {
+contract CoreRootBridgeAgentTest is Test, BridgeAgentConstants {
     uint32 nonce;
 
     MockERC20 wAvaxLocalhToken;
@@ -230,6 +230,8 @@ contract CoreRootBridgeAgentTest is Test {
 
         rewardToken = new MockERC20("hermes token", "HERMES", 18);
         arbAssetToken = new MockERC20("A", "AAA", 18);
+
+        vm.mockCall(lzEndpointAddress, abi.encodeWithSelector(ILayerZeroEndpoint.send.selector), "");
     }
 
     address public newGlobalAddress;
@@ -260,8 +262,6 @@ contract CoreRootBridgeAgentTest is Test {
         );
 
         newGlobalAddress = RootPort(rootPort).getGlobalTokenFromLocal(address(wAvaxLocalhToken), avaxChainId);
-
-        console2.log("New: ", newGlobalAddress);
 
         require(
             RootPort(rootPort).getGlobalTokenFromLocal(address(wAvaxLocalhToken), avaxChainId) != address(0),
@@ -353,7 +353,6 @@ contract CoreRootBridgeAgentTest is Test {
             RootPort(rootPort).getLocalTokenFromGlobal(newGlobalAddress, rootChainId) == address(newGlobalAddress),
             "Token should be added"
         );
-        console2.log("NOWNOWNOWON");
         require(
             RootPort(rootPort).getUnderlyingTokenFromLocal(address(newGlobalAddress), rootChainId)
                 == address(arbAssetToken),
@@ -366,13 +365,41 @@ contract CoreRootBridgeAgentTest is Test {
         testAddLocalToken();
 
         //Gas Params
-        GasParams memory gasParams = GasParams(0.0001 ether, 0.00005 ether);
+        GasParams[2] memory gasParams = [GasParams(0.0000025 ether, 0.0000025 ether), GasParams(0.0000025 ether, 0)];
 
         //Encode Call Data
-        bytes memory data = abi.encode(ftmCoreBridgeAgentAddress, newGlobalAddress, ftmChainId, 0.0000025 ether);
+        bytes memory data = abi.encode(address(this), newGlobalAddress, ftmChainId, gasParams);
 
         // Pack FuncId
         bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
+
+        uint256 currentNonce = chainNonce[ftmChainId];
+
+        // Encode expected data for lzEndpoint
+        bytes memory params = abi.encodePacked(
+            bytes1(0x01),
+            address(this),
+            coreBridgeAgent.settlementNonce(),
+            bytes1(0x01),
+            abi.encode(
+                newGlobalAddress,
+                MockERC20(newGlobalAddress).name(),
+                MockERC20(newGlobalAddress).symbol(),
+                MockERC20(newGlobalAddress).decimals(),
+                address(this),
+                gasParams[1]
+            )
+        );
+
+        expectLayerZeroSend(
+            ftmChainId,
+            ftmCoreBridgeAgentAddress,
+            0.0000025 ether,
+            params,
+            address(this),
+            gasParams[0],
+            ROOT_BASE_CALL_OUT_GAS
+        );
 
         // Call Deposit function
         encodeCallNoDeposit(
@@ -380,41 +407,13 @@ contract CoreRootBridgeAgentTest is Test {
             payable(address(coreBridgeAgent)),
             chainNonce[ftmChainId]++,
             packedData,
-            gasParams,
+            gasParams[0],
             ftmChainId
         );
         // State change occurs in setLocalToken
-    }
 
-    function testAddGlobalTokenAlreadyAdded() public {
-        // Add Local Token from Avax
-        testAddGlobalToken();
-
-        //Gas Params
-        GasParams memory gasParams = GasParams(0.0001 ether, 0.00005 ether);
-
-        //Save current
-        address currentAddress = RootPort(rootPort).getLocalTokenFromGlobal(address(newGlobalAddress), ftmChainId);
-
-        // Encode Call Data
-        bytes memory data = abi.encode(ftmCoreBridgeAgentAddress, newGlobalAddress, ftmChainId, 0.000025 ether);
-
-        // Pack FuncId
-        bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
-
-        // Call Deposit function
-        encodeCallNoDeposit(
-            payable(ftmCoreBridgeAgentAddress),
-            payable(address(coreBridgeAgent)),
-            chainNonce[ftmChainId]++,
-            packedData,
-            gasParams,
-            ftmChainId
-        );
-
-        require(
-            RootPort(rootPort).getLocalTokenFromGlobal(address(newGlobalAddress), ftmChainId) == currentAddress,
-            "Token should not be changed"
+        assertEq(
+            coreBridgeAgent.executionState(ftmChainId, currentNonce), STATUS_DONE, "Execution status should be done"
         );
     }
 
@@ -423,22 +422,29 @@ contract CoreRootBridgeAgentTest is Test {
         testAddLocalToken();
 
         //Gas Params
-        GasParams memory gasParams = GasParams(0.0001 ether, 0.00005 ether);
+        GasParams[2] memory gasParams = [GasParams(50000, 50000), GasParams(50000, 0)];
 
         //Encode Call Data
-        bytes memory data = abi.encode(ftmCoreBridgeAgentAddress, newGlobalAddress, ftmChainId, 200);
+        bytes memory data = abi.encode(ftmCoreBridgeAgentAddress, newGlobalAddress, ftmChainId, gasParams);
 
         // Pack FuncId
         bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
 
+        uint256 currentNonce = chainNonce[ftmChainId];
+
+        vm.expectRevert();
         // Call Deposit function
         encodeCallNoDeposit(
             payable(ftmCoreBridgeAgentAddress),
             payable(address(coreBridgeAgent)),
             chainNonce[ftmChainId]++,
             packedData,
-            gasParams,
+            gasParams[0],
             ftmChainId
+        );
+
+        assertEq(
+            coreBridgeAgent.executionState(ftmChainId, currentNonce), STATUS_READY, "Execution status should be failed"
         );
     }
 
@@ -481,6 +487,160 @@ contract CoreRootBridgeAgentTest is Test {
         );
     }
 
+    function testAddGlobalUnrecognizedGlobalToken() public {
+        //Gas Params
+        GasParams[2] memory gasParams = [GasParams(0.0000025 ether, 0.0000025 ether), GasParams(0.0000025 ether, 0)];
+
+        //Save current
+        address currentAddress = RootPort(rootPort).getLocalTokenFromGlobal(address(0xDEAD), ftmChainId);
+
+        assertEq(RootPort(rootPort).getLocalTokenFromGlobal(address(0xDEAD), ftmChainId), address(0));
+
+        //Encode Call Data
+        bytes memory data = abi.encode(address(this), address(0xDEAD), ftmChainId, gasParams);
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
+
+        uint256 currentNonce = chainNonce[ftmChainId];
+
+        vm.expectRevert(ICoreRootRouter.UnrecognizedGlobalToken.selector);
+        // Call Deposit function
+        encodeCallNoDeposit(
+            payable(ftmCoreBridgeAgentAddress),
+            payable(address(coreBridgeAgent)),
+            chainNonce[ftmChainId]++,
+            packedData,
+            gasParams[0],
+            ftmChainId
+        );
+
+        assertEq(
+            RootPort(rootPort).getLocalTokenFromGlobal(address(0xDEAD), ftmChainId),
+            currentAddress,
+            "Token should still be zero"
+        );
+        assertEq(
+            coreBridgeAgent.executionState(ftmChainId, currentNonce), STATUS_READY, "Execution status should be failed"
+        );
+    }
+
+    function testAddGlobalTokenAlreadyAdded() public {
+        // Add Local Token from Avax
+        testSetLocalToken();
+
+        //Gas Params
+        GasParams[2] memory gasParams = [GasParams(0.0000025 ether, 0.0000025 ether), GasParams(0.0000025 ether, 0)];
+
+        //Save current
+        address currentAddress = RootPort(rootPort).getLocalTokenFromGlobal(address(newGlobalAddress), ftmChainId);
+
+        //Encode Call Data
+        bytes memory data = abi.encode(address(this), newGlobalAddress, ftmChainId, gasParams);
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x01), data);
+
+        vm.expectRevert(ICoreRootRouter.TokenAlreadyAdded.selector);
+        // Call Deposit function
+        encodeCallNoDeposit(
+            payable(ftmCoreBridgeAgentAddress),
+            payable(address(coreBridgeAgent)),
+            chainNonce[ftmChainId]++,
+            packedData,
+            gasParams[0],
+            ftmChainId
+        );
+
+        assertEq(
+            RootPort(rootPort).getLocalTokenFromGlobal(address(newGlobalAddress), ftmChainId),
+            currentAddress,
+            "Token should not be changed"
+        );
+    }
+
+    function testRetrySettlementRevert(
+        uint32 _settlementNonce,
+        address _recipient,
+        bytes calldata _data,
+        GasParams calldata _gParams,
+        bool _hasFallbackToggled
+    ) public {
+        vm.expectRevert();
+        rootCoreRouter.retrySettlement(_settlementNonce, _recipient, _data, _gParams, _hasFallbackToggled);
+    }
+
+    function testExecuteRetrySettlementRevert(
+        address _owner,
+        uint32 _settlementNonce,
+        address _recipient,
+        bytes calldata _data,
+        GasParams calldata _gParams,
+        bool _hasFallbackToggled,
+        uint16 _srcChainId
+    ) public {
+        vm.expectRevert();
+        rootCoreRouter.executeRetrySettlement(
+            _owner, _settlementNonce, _recipient, _data, _gParams, _hasFallbackToggled, _srcChainId
+        );
+    }
+
+    function testExecuteDepositSingleRevert(bytes memory _data, DepositParams memory _dParams, uint16 _srcChainId)
+        public
+    {
+        vm.expectRevert();
+        rootCoreRouter.executeDepositSingle(_data, _dParams, _srcChainId);
+    }
+
+    function testExecuteDepositMultipleRevert(
+        bytes memory _data,
+        DepositMultipleParams memory _dParams,
+        uint16 _srcChainId
+    ) public {
+        vm.expectRevert();
+        rootCoreRouter.executeDepositMultiple(_data, _dParams, _srcChainId);
+    }
+
+    function testExecuteSignedRevert(bytes memory _data, address userAccount, uint16 _srcChainId) public {
+        vm.expectRevert();
+        rootCoreRouter.executeSigned(_data, userAccount, _srcChainId);
+    }
+
+    function testExecuteSignedDepositSingleRevert(
+        bytes memory _data,
+        DepositParams memory _dParams,
+        address userAccount,
+        uint16 _srcChainId
+    ) public {
+        vm.expectRevert();
+        rootCoreRouter.executeSignedDepositSingle(_data, _dParams, userAccount, _srcChainId);
+    }
+
+    function testExecuteSignedDepositMultipleRevert(
+        bytes memory _data,
+        DepositMultipleParams memory _dParams,
+        address userAccount,
+        uint16 _srcChainId
+    ) public {
+        vm.expectRevert();
+        rootCoreRouter.executeSignedDepositMultiple(_data, _dParams, userAccount, _srcChainId);
+    }
+
+    function testExecuteUnrecognizedFunctionId(bytes1 flag, bytes memory _data, uint16 _srcChainId) public {
+        // Ensure flag is not valid
+        if (flag > 0 && flag < 0x05) flag = 0x05;
+
+        if (_data.length == 0) {
+            _data = abi.encodePacked(flag);
+        } else {
+            _data[0] = flag;
+        }
+
+        vm.prank(rootCoreRouter.bridgeAgentExecutorAddress());
+        vm.expectRevert(IRootRouter.UnrecognizedFunctionId.selector);
+        rootCoreRouter.execute(_data, _srcChainId);
+    }
+
     ////////////////////////////////////////////////// HELPERS /////////////////////////////////////////////////////////////////
 
     function encodeCallNoDeposit(
@@ -506,5 +666,42 @@ contract CoreRootBridgeAgentTest is Test {
 
         // Prank out of user account
         vm.stopPrank();
+    }
+
+    function _getAdapterParams(uint256 _gasLimit, uint256 _remoteBranchExecutionGas, address _callee)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodePacked(uint16(2), _gasLimit, _remoteBranchExecutionGas, _callee);
+    }
+
+    function expectLayerZeroSend(
+        uint16 _dstChainId,
+        address destinationBridgeAgent,
+        uint256 msgValue,
+        bytes memory data,
+        address refundee,
+        GasParams memory gasParams,
+        uint256 _baseGasCost
+    ) internal {
+        bytes memory adatperParams = _getAdapterParams(
+            gasParams.gasLimit + _baseGasCost, gasParams.remoteBranchExecutionGas, destinationBridgeAgent
+        );
+
+        vm.expectCall(
+            lzEndpointAddress,
+            msgValue,
+            abi.encodeWithSelector(
+                // "send(uint16,bytes,bytes,address,address,bytes)",
+                ILayerZeroEndpoint.send.selector,
+                _dstChainId,
+                abi.encodePacked(destinationBridgeAgent, coreBridgeAgent),
+                data,
+                refundee,
+                address(0),
+                adatperParams
+            )
+        );
     }
 }
