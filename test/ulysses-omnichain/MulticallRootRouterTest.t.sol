@@ -1349,6 +1349,100 @@ contract MulticallRootRouterTest is DSTestPlus {
         require(balanceTokenMockAppAfter == 0, "Balance should be cleared");
     }
 
+    ////////////////////////////////////////////////////////////////////////////////// CALLOUT AND BRIDGE ///////////////////////////////////////////////////////////////////////////////
+
+    function testCallOutAndBridge() public {
+        // Add Local Token from Avax
+        testSetLocalToken();
+
+        require(
+            RootPort(rootPort).getLocalTokenFromGlobal(newAvaxAssetGlobalAddress, ftmChainId) == newAvaxAssetLocalToken,
+            "Token should be added"
+        );
+
+        address _user = address(this);
+
+        // mint for user
+        hevm.startPrank(address(rootPort));
+        ERC20hToken(newAvaxAssetGlobalAddress).mint(_user, 100 ether);
+        hevm.stopPrank();
+
+        //approve router
+        ERC20hToken(newAvaxAssetGlobalAddress).approve(address(rootMulticallRouter), 100 ether);
+
+        // Perform callOut
+        rootMulticallRouter.callOutAndBridge(
+            _user, _user, newAvaxAssetGlobalAddress, 100 ether, 0, avaxChainId, GasParams(500_000, 0)
+        );
+
+        uint256 balanceTokenPortAfter = MockERC20(newAvaxAssetGlobalAddress).balanceOf(address(rootPort));
+
+        require(balanceTokenPortAfter == 100 ether, "Balance should be in port");
+
+        uint256 balanceUserAfter = MockERC20(newAvaxAssetGlobalAddress).balanceOf(_user);
+
+        require(balanceUserAfter == 0, "Balance should be spent");
+    }
+
+    function testCallOutAndBridgeMultiple() public {
+        // Add Local Token from Avax
+        testSetLocalToken();
+
+        require(
+            RootPort(rootPort).getLocalTokenFromGlobal(newAvaxAssetGlobalAddress, ftmChainId) == newAvaxAssetLocalToken,
+            "Token should be added"
+        );
+
+        address _user = address(this);
+
+        // Mint for user
+        hevm.startPrank(address(rootPort));
+        ERC20hToken(newAvaxAssetGlobalAddress).mint(_user, 100 ether);
+        ERC20hToken(avaxGlobalToken).mint(_user, 100 ether);
+        hevm.stopPrank();
+
+        // Approve router
+        ERC20hToken(newAvaxAssetGlobalAddress).approve(address(rootMulticallRouter), 100 ether);
+        ERC20hToken(avaxGlobalToken).approve(address(rootMulticallRouter), 100 ether);
+
+        // Prepare Data
+        address[] memory outputTokensAddresses = new address[](2);
+        uint256[] memory outputTokensAmounts = new uint256[](2);
+        uint256[] memory outputTokensDeposits = new uint256[](2);
+
+        outputTokensAddresses[0] = address(newAvaxAssetGlobalAddress);
+        outputTokensAddresses[1] = address(avaxGlobalToken);
+
+        outputTokensAmounts[0] = 100 ether;
+        outputTokensAmounts[1] = 100 ether;
+
+        outputTokensDeposits[0] = 0;
+        outputTokensDeposits[1] = 50 ether;
+
+        // Perform callOut
+        rootMulticallRouter.callOutAndBridgeMultiple(
+            _user,
+            _user,
+            outputTokensAddresses,
+            outputTokensAmounts,
+            outputTokensDeposits,
+            avaxChainId,
+            GasParams(500_000, 0)
+        );
+
+        uint256 balanceTokenPortAfter_A = MockERC20(newAvaxAssetGlobalAddress).balanceOf(address(rootPort));
+        require(balanceTokenPortAfter_A == 100 ether, "Balance should be in port");
+
+        uint256 balanceTokenPortAfter_B = MockERC20(avaxGlobalToken).balanceOf(address(rootPort));
+        require(balanceTokenPortAfter_B == 50 ether, "Balance should be in port");
+
+        uint256 balanceUserAfter_A = MockERC20(newAvaxAssetGlobalAddress).balanceOf(_user);
+        require(balanceUserAfter_A == 0, "Balance should be spent");
+
+        uint256 balanceUserAfter_B = MockERC20(avaxGlobalToken).balanceOf(_user);
+        require(balanceUserAfter_B == 0, "Balance should be spent");
+    }
+
     ////////////////////////////////////////////////////////////////////////// TEST INCREMENT AND DECREMENT BRANCHES ////////////////////////////////////////////////////////////////////
 
     function testInvalidBranchhTokenMintSignedNoOutputDepositMultiple() public {
