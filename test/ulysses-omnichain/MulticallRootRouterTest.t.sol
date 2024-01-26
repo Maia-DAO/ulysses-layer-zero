@@ -566,15 +566,15 @@ contract MulticallRootRouterTest is DSTestPlus {
 
         {
             outputToken = ftmGlobalToken;
-            amountOut = 99 ether;
-            depositOut = 50 ether;
+            amountOut = 50 ether;
+            depositOut = 25 ether;
 
             Multicall2.Call[] memory calls = new Multicall2.Call[](1);
 
             // Prepare call to transfer 100 hAVAX form virtual account to Mock App
             calls[0] = Multicall2.Call({
                 target: ftmGlobalToken,
-                callData: abi.encodeWithSelector(bytes4(0xa9059cbb), mockApp, 1 ether)
+                callData: abi.encodeWithSelector(bytes4(0xa9059cbb), mockApp, 50 ether)
             });
 
             // Output Params
@@ -583,7 +583,8 @@ contract MulticallRootRouterTest is DSTestPlus {
 
             // Assure there are assets after mock action
             hevm.startPrank(address(rootPort));
-            ERC20hToken(ftmGlobalToken).mint(userVirtualAccount, 100 ether);
+            ERC20hToken(ftmGlobalToken).mint(address(rootMulticallRouter), 50 ether);
+            ERC20hToken(ftmGlobalToken).mint(multicallAddress, 50 ether);
             hevm.stopPrank();
 
             // ToChain
@@ -599,10 +600,10 @@ contract MulticallRootRouterTest is DSTestPlus {
         uint256 balanceFtmPortBefore = MockERC20(ftmGlobalToken).balanceOf(address(rootPort));
 
         // Call Deposit function
-        encodeCallNoDepositSigned(
+        encodeCallNoDeposit(
             payable(avaxMulticallBridgeAgentAddress),
             payable(multicallBridgeAgent),
-            address(this),
+            0,
             packedData,
             GasParams(0.5 ether, 0.5 ether),
             avaxChainId
@@ -612,13 +613,9 @@ contract MulticallRootRouterTest is DSTestPlus {
 
         uint256 balanceFtmPortAfter = MockERC20(ftmGlobalToken).balanceOf(address(rootPort));
 
-        uint256 balanceFtmVirtualAccountAfter = MockERC20(ftmGlobalToken).balanceOf(userVirtualAccount);
+        require(balanceFtmMockAppAfter == 50 ether, "Mock app balance should be 50 ether");
 
-        require(balanceFtmMockAppAfter == 1 ether, "1 should be bigger");
-
-        require(balanceFtmPortAfter == balanceFtmPortBefore + 49 ether, "2 should be bigger");
-
-        require(balanceFtmVirtualAccountAfter == 0, "3 should be cleared");
+        require(balanceFtmPortAfter == balanceFtmPortBefore + 25 ether, "Port should increase 25 ether");
     }
 
     function testMulticallSignedSingleOutputNoDeposit() public {
@@ -930,7 +927,7 @@ contract MulticallRootRouterTest is DSTestPlus {
 
     ////////////////////////////////////////////////////////////////////////// MULTIPLE OUTPUT ////////////////////////////////////////////////////////////////////
 
-    function testMulticallMultipleOutputNoDeposit() public {
+    function testMulticallMultipleOutputNoDepositW() public {
         // Add Local Token from Avax
         testSetLocalToken();
 
@@ -938,6 +935,10 @@ contract MulticallRootRouterTest is DSTestPlus {
             RootPort(rootPort).getLocalTokenFromGlobal(newAvaxAssetGlobalAddress, ftmChainId) == newAvaxAssetLocalToken,
             "Token should be added"
         );
+
+        // Get previous port balance
+        uint256 portBalanceBefore_A = MockERC20(avaxGlobalToken).balanceOf(address(rootPort));
+        uint256 portBalanceBefore_B = MockERC20(newAvaxAssetGlobalAddress).balanceOf(address(rootPort));
 
         // Prepare data
         address[] memory outputTokens = new address[](2);
@@ -967,8 +968,9 @@ contract MulticallRootRouterTest is DSTestPlus {
 
             // Assure there are assets after mock action
             hevm.startPrank(address(rootPort));
-            ERC20hToken(avaxGlobalToken).mint(userVirtualAccount, 100 ether);
-            ERC20hToken(newAvaxAssetGlobalAddress).mint(userVirtualAccount, 100 ether);
+            ERC20hToken(newAvaxAssetGlobalAddress).mint(address(rootMulticallRouter), 99 ether);
+            ERC20hToken(newAvaxAssetGlobalAddress).mint(multicallAddress, 1 ether);
+            ERC20hToken(avaxGlobalToken).mint(address(rootMulticallRouter), 100 ether);
             hevm.stopPrank();
 
             //dstChainId
@@ -982,24 +984,29 @@ contract MulticallRootRouterTest is DSTestPlus {
         }
 
         // Call Deposit function
-        encodeCallNoDepositSigned(
+        encodeCallNoDeposit(
             payable(avaxMulticallBridgeAgentAddress),
             payable(multicallBridgeAgent),
-            address(this),
+            1,
             packedData,
             GasParams(0.5 ether, 0 ether),
             avaxChainId
         );
 
-        uint256 balanceAfter = MockERC20(newAvaxAssetGlobalAddress).balanceOf(address(rootMulticallRouter));
-        uint256 balanceFtmAfter = MockERC20(ftmGlobalToken).balanceOf(address(rootMulticallRouter));
+        uint256 routerBalanceAfter_A = MockERC20(avaxGlobalToken).balanceOf(address(rootMulticallRouter));
+        require(routerBalanceAfter_A == 0, "Router Balance should be cleared of token A");
 
-        require(balanceAfter == 0, "Balance should be cleared");
-        require(balanceFtmAfter == 0, "Balance should be cleared");
+        uint256 routerBalanceAfter_B = MockERC20(newAvaxAssetGlobalAddress).balanceOf(address(rootMulticallRouter));
+        require(routerBalanceAfter_B == 0, "Router Balance should be cleared of token B");
 
-        uint256 balanceTokenMockAppAfter = MockERC20(newAvaxAssetGlobalAddress).balanceOf(mockApp);
+        uint256 mockAppBalanceAfter_B = MockERC20(newAvaxAssetGlobalAddress).balanceOf(mockApp);
+        require(mockAppBalanceAfter_B == 1 ether, "Balance should be 1 ether");
 
-        require(balanceTokenMockAppAfter == 1 ether, "Balance should be 1 ether");
+        uint256 portBalanceAfter_A = MockERC20(avaxGlobalToken).balanceOf(address(rootPort));
+        require(portBalanceAfter_A == portBalanceBefore_A + 50 ether, "Port Balance should increase 99 ether");
+
+        uint256 portBalanceAfter_B = MockERC20(newAvaxAssetGlobalAddress).balanceOf(address(rootPort));
+        require(portBalanceAfter_B == portBalanceBefore_B + 99 ether, "Port Balance should increase  50 ether");
     }
 
     function testMulticallMultipleOutputNoDepositContractBalance() public {
