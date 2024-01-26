@@ -336,27 +336,17 @@ contract CoreRootRouter is ICoreRootRouter, Ownable {
     }
 
     /// @inheritdoc IRootRouter
-    function executeDepositSingle(bytes memory, DepositParams memory, uint16)
-        external
-        payable
-        override
-        requiresExecutor
-    {
+    function executeDepositSingle(bytes memory, DepositParams memory, uint16) external payable override {
         revert();
     }
 
     /// @inheritdoc IRootRouter
-    function executeDepositMultiple(bytes calldata, DepositMultipleParams memory, uint16)
-        external
-        payable
-        override
-        requiresExecutor
-    {
+    function executeDepositMultiple(bytes calldata, DepositMultipleParams memory, uint16) external payable override {
         revert();
     }
 
     /// @inheritdoc IRootRouter
-    function executeSigned(bytes memory, address, uint16) external payable override requiresExecutor {
+    function executeSigned(bytes memory, address, uint16) external payable override {
         revert();
     }
 
@@ -365,7 +355,6 @@ contract CoreRootRouter is ICoreRootRouter, Ownable {
         external
         payable
         override
-        requiresExecutor
     {
         revert();
     }
@@ -375,7 +364,6 @@ contract CoreRootRouter is ICoreRootRouter, Ownable {
         external
         payable
         override
-        requiresExecutor
     {
         revert();
     }

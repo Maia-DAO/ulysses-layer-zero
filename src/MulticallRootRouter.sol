@@ -190,6 +190,7 @@ contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
         GasParams calldata _gParams,
         bool _hasFallbackToggled
     ) external payable override {
+        /// @dev Payload is empty because the current BranchRouter does not support receiving a payload.
         // Perform call to bridge agent.
         IBridgeAgent(bridgeAgentAddress).retrySettlement{value: msg.value}(
             msg.sender, _settlementNonce, _recipient, "", _gParams, _hasFallbackToggled
@@ -210,6 +211,7 @@ contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
         bool _hasFallbackToggled,
         uint16
     ) public payable override requiresBridgeAgent {
+        /// @dev Payload is empty because the current BranchRouter does not support receiving a payload.
         // Perform call to bridge agent.
         IBridgeAgent(bridgeAgentAddress).retrySettlement{value: msg.value}(
             _owner, _settlementNonce, _recipient, "", _gParams, _hasFallbackToggled
