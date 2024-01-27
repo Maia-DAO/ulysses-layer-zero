@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./RootForkSetup.t.sol";
 
-contract RootForkBridgeMultipleTest is RootForkSetupTest {
+contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
     using BaseBranchRouterHelper for BaseBranchRouter;
     using BranchBridgeAgentHelper for BranchBridgeAgent;
     using CoreRootRouterHelper for CoreRootRouter;
@@ -15,6 +15,268 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest {
     /*///////////////////////////////////////////////////////////////
                    CALL OUT AND BRIDGE MULTIPLE TESTS
     ///////////////////////////////////////////////////////////////*/
+
+    // Test takes over 1min per run when fuzzing if the length is too high, max without reverting should be 255
+    uint8 constant MAX_LENGTH = 5;
+
+    function test_fuzz_CallOutAndBridgeMultiple_withLocalToken_router_ftm(
+        bytes32[MAX_LENGTH] memory _underlyingSalts,
+        uint256[MAX_LENGTH] memory _amounts,
+        uint256[MAX_LENGTH] memory _deposits,
+        uint8[MAX_LENGTH] memory _decimals,
+        uint8 length
+    ) public {
+        _test_fuzz_CallOutAndBridgeMultiple_withLocalToken(
+            true,
+            ftmMulticallBridgeAgent,
+            ftmMulticallRouter,
+            ftmCoreRouter,
+            ftmPort,
+            _underlyingSalts,
+            _amounts,
+            _deposits,
+            _decimals,
+            length,
+            ftmChainId
+        );
+    }
+
+    function test_fuzz_CallOutAndBridgeMultiple_withLocalToken_bridgeAgent_ftm(
+        bytes32[MAX_LENGTH] memory _underlyingSalts,
+        uint256[MAX_LENGTH] memory _amounts,
+        uint256[MAX_LENGTH] memory _deposits,
+        uint8[MAX_LENGTH] memory _decimals,
+        uint8 length
+    ) public {
+        _test_fuzz_CallOutAndBridgeMultiple_withLocalToken(
+            false,
+            ftmMulticallBridgeAgent,
+            ftmMulticallRouter,
+            ftmCoreRouter,
+            ftmPort,
+            _underlyingSalts,
+            _amounts,
+            _deposits,
+            _decimals,
+            length,
+            ftmChainId
+        );
+    }
+
+    function test_fuzz_CallOutAndBridgeMultiple_withLocalToken_router_avax(
+        bytes32[MAX_LENGTH] memory _underlyingSalts,
+        uint256[MAX_LENGTH] memory _amounts,
+        uint256[MAX_LENGTH] memory _deposits,
+        uint8[MAX_LENGTH] memory _decimals,
+        uint8 length
+    ) public {
+        _test_fuzz_CallOutAndBridgeMultiple_withLocalToken(
+            true,
+            avaxMulticallBridgeAgent,
+            avaxMulticallRouter,
+            avaxCoreRouter,
+            avaxPort,
+            _underlyingSalts,
+            _amounts,
+            _deposits,
+            _decimals,
+            length,
+            avaxChainId
+        );
+    }
+
+    function test_fuzz_CallOutAndBridgeMultiple_withLocalToken_bridgeAgent_avax(
+        bytes32[MAX_LENGTH] memory _underlyingSalts,
+        uint256[MAX_LENGTH] memory _amounts,
+        uint256[MAX_LENGTH] memory _deposits,
+        uint8[MAX_LENGTH] memory _decimals,
+        uint8 length
+    ) public {
+        _test_fuzz_CallOutAndBridgeMultiple_withLocalToken(
+            false,
+            avaxMulticallBridgeAgent,
+            avaxMulticallRouter,
+            avaxCoreRouter,
+            avaxPort,
+            _underlyingSalts,
+            _amounts,
+            _deposits,
+            _decimals,
+            length,
+            avaxChainId
+        );
+    }
+
+    struct Cache {
+        bool callRouter;
+        BranchBridgeAgent branchBridgeAgent;
+        BaseBranchRouter branchMulticallRouter;
+        CoreBranchRouter branchCoreRouter;
+        BranchPort branchPort;
+        bytes32[MAX_LENGTH] underlyingSalts;
+        uint256[MAX_LENGTH] amounts;
+        uint256[MAX_LENGTH] deposits;
+        uint8[MAX_LENGTH] decimals;
+        address spenderToApprove;
+    }
+
+    function _test_fuzz_CallOutAndBridgeMultiple_withLocalToken(
+        bool _callRouter,
+        BranchBridgeAgent _branchBridgeAgent,
+        BaseBranchRouter _branchMulticallRouter,
+        CoreBranchRouter _branchCoreRouter,
+        BranchPort _branchPort,
+        bytes32[MAX_LENGTH] memory _underlyingSalts,
+        uint256[MAX_LENGTH] memory _amounts,
+        uint256[MAX_LENGTH] memory _deposits,
+        uint8[MAX_LENGTH] memory _decimals,
+        uint8 _length,
+        uint16 _lzChainId
+    ) internal {
+        Cache memory cache = Cache({
+            callRouter: _callRouter,
+            branchBridgeAgent: _branchBridgeAgent,
+            branchMulticallRouter: _branchMulticallRouter,
+            branchCoreRouter: _branchCoreRouter,
+            branchPort: _branchPort,
+            underlyingSalts: _underlyingSalts,
+            amounts: _amounts,
+            deposits: _deposits,
+            decimals: _decimals,
+            spenderToApprove: _callRouter ? address(_branchMulticallRouter) : address(_branchPort)
+        });
+
+        // Switch Chain and Execute Incoming Packets
+        switchToLzChain(_lzChainId);
+
+        vm.deal(address(this), 256_000 ether);
+
+        _length %= MAX_LENGTH;
+        _length++;
+
+        address[] memory underlyingTokens = new address[](_length);
+        uint256[] memory amounts = new uint256[](_length);
+        uint256[] memory deposits = new uint256[](_length);
+
+        for (uint256 i = 0; i < _length; i++) {
+            MockERC20 underToken = new MockERC20{salt: cache.underlyingSalts[i]}(
+                string(abi.encodePacked(cache.underlyingSalts[i])),
+                string(abi.encodePacked(bytes4(cache.underlyingSalts[i]))),
+                cache.decimals[i]
+            );
+
+            underlyingTokens[i] = address(underToken);
+            cache.branchCoreRouter.addLocalToken{value: 100 ether}(address(underToken), GasParams(2_000_000, 0));
+
+            if (cache.amounts[i] > 0) {
+                amounts[i] = cache.amounts[i];
+                deposits[i] = cache.deposits[i] % cache.amounts[i];
+
+                if (deposits[i] > 0) {
+                    underToken.mint(address(this), deposits[i]);
+                    underToken.approve(cache.spenderToApprove, deposits[i]);
+                }
+            }
+        }
+
+        // Switch Chain and Execute Incoming Packets
+        switchToLzChain(rootChainId);
+        // Switch Chain and Execute Incoming Packets
+        switchToLzChain(_lzChainId);
+        // Switch Chain and Execute Incoming Packets
+        switchToLzChain(rootChainId);
+
+        address[] memory hTokens = new address[](_length);
+        address[] memory globalTokens = new address[](_length);
+
+        for (uint256 i = 0; i < _length; i++) {
+            hTokens[i] = rootPort.getLocalTokenFromUnderlying(underlyingTokens[i], _lzChainId);
+
+            MockERC20 globalToken = MockERC20(rootPort.getGlobalTokenFromLocal(hTokens[i], _lzChainId));
+            globalTokens[i] = address(globalToken);
+
+            uint256 hTokenAmount = amounts[i] - deposits[i];
+            if (hTokenAmount > 0) {
+                vm.prank(address(rootPort));
+                globalToken.mint(address(this), hTokenAmount);
+
+                globalToken.approve(address(rootPort), hTokenAmount);
+
+                vm.prank(address(multicallRootBridgeAgent));
+                rootPort.bridgeToBranch(address(this), address(globalToken), hTokenAmount, 0, _lzChainId);
+            }
+        }
+
+        switchToLzChain(_lzChainId);
+
+        for (uint256 i = 0; i < _length; i++) {
+            uint256 hTokenAmount = amounts[i] - deposits[i];
+            if (hTokenAmount > 0) {
+                vm.prank(address(cache.branchBridgeAgent));
+                cache.branchPort.bridgeIn(address(this), hTokens[i], hTokenAmount);
+
+                MockERC20(hTokens[i]).approve(cache.spenderToApprove, hTokenAmount);
+            }
+        }
+
+        // Prepare deposit info
+        DepositMultipleInput memory depositInput =
+            DepositMultipleInput({hTokens: hTokens, tokens: underlyingTokens, amounts: amounts, deposits: deposits});
+
+        // GasParams
+        GasParams memory gasParams = GasParams(1_250_000, 0 ether);
+
+        uint256 currentNonce = cache.branchBridgeAgent.depositNonce();
+
+        vm.deal(address(this), 10 ether);
+
+        // Empty
+        bytes memory emptyPayload = abi.encodePacked(bytes1(0x01), abi.encode(new Call[](0)));
+
+        // deposit multiple assets from branch to Root
+        if (cache.callRouter) {
+            cache.branchMulticallRouter.callOutAndBridgeMultiple{value: 10 ether}(emptyPayload, depositInput, gasParams);
+        } else {
+            cache.branchBridgeAgent.callOutSignedAndBridgeMultiple{value: 10 ether}(
+                emptyPayload, depositInput, gasParams, false
+            );
+        }
+
+        assertEq(cache.branchBridgeAgent.depositNonce(), currentNonce + 1);
+
+        Deposit memory deposit = cache.branchBridgeAgent.getDepositEntry(uint32(currentNonce));
+        assertEq(deposit.status, STATUS_SUCCESS);
+        assertEq(deposit.owner, address(this));
+        assertEq(deposit.hTokens.length, _length);
+        assertEq(deposit.tokens.length, _length);
+        assertEq(deposit.amounts.length, _length);
+        assertEq(deposit.deposits.length, _length);
+        assertEq(deposit.isSigned, cache.callRouter ? UNSIGNED_DEPOSIT : SIGNED_DEPOSIT);
+
+        // Switch Chain and Execute Incoming Packets
+        switchToLzChain(rootChainId);
+
+        // Root tx reverted if the call was not signed because `executeDepositMultiple` is not implemented
+        assertEq(
+            multicallRootBridgeAgent.executionState(_lzChainId, currentNonce),
+            cache.callRouter ? STATUS_READY : STATUS_DONE
+        );
+
+        // Check that the tokens were deposited in the virtual account
+        if (!cache.callRouter) {
+            address virtualAccount = address(rootPort.getUserAccount(address(this)));
+            assertNotEq(virtualAccount, address(0));
+
+            for (uint256 i = 0; i < _length; i++) {
+                // Can be greater than the deposit amount if there are duplicate entries
+                assertGe(
+                    MockERC20(globalTokens[i]).balanceOf(virtualAccount),
+                    amounts[i],
+                    "Virtual account balance should be updated"
+                );
+            }
+        }
+    }
 
     function test_CallOutAndBridgeMultiple_withLocalToken() public {
         // Switch Chain and Execute Incoming Packets
@@ -82,32 +344,6 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest {
                 gasParams
             )
         );
-    }
-
-    function test_CallOutAndBridgeMultiple_withLocalToken(
-        address[] memory hTokens,
-        address[] memory tokens,
-        uint256[] memory amounts,
-        uint256[] memory deposits,
-        GasParams memory gasParams
-    ) public {
-        // Switch Chain and Execute Incoming Packets
-        switchToLzChain(avaxChainId);
-
-        // Prepare deposit info
-        DepositMultipleInput memory depositInput =
-            DepositMultipleInput({hTokens: hTokens, tokens: tokens, amounts: amounts, deposits: deposits});
-
-        for (uint256 i = 0; i < tokens.length; i++) {
-            MockERC20(tokens[i]).approve(address(avaxMulticallRouter), deposits[i]);
-        }
-
-        vm.deal(address(this), 50 ether);
-        // deposit multiple assets from Avax branch to Root
-        // Attempting to deposit two hTokens and two underlyingTokens
-        avaxMulticallRouter.callOutAndBridgeMultiple{value: 1 ether}(bytes(""), depositInput, gasParams);
-        // Switch Chain and Execute Incoming Packets
-        switchToLzChain(rootChainId);
     }
 
     struct GetLocalhTokensToBranchParams {
