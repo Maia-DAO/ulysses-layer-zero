@@ -20,7 +20,6 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
     uint8 constant MAX_LENGTH = 5;
 
     function test_fuzz_CallOutAndBridgeMultiple_withLocalToken_router_ftm(
-        bytes32[MAX_LENGTH] memory _underlyingSalts,
         uint256[MAX_LENGTH] memory _amounts,
         uint256[MAX_LENGTH] memory _deposits,
         uint8[MAX_LENGTH] memory _decimals,
@@ -32,7 +31,6 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
             ftmMulticallRouter,
             ftmCoreRouter,
             ftmPort,
-            _underlyingSalts,
             _amounts,
             _deposits,
             _decimals,
@@ -42,7 +40,6 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
     }
 
     function test_fuzz_CallOutAndBridgeMultiple_withLocalToken_bridgeAgent_ftm(
-        bytes32[MAX_LENGTH] memory _underlyingSalts,
         uint256[MAX_LENGTH] memory _amounts,
         uint256[MAX_LENGTH] memory _deposits,
         uint8[MAX_LENGTH] memory _decimals,
@@ -54,7 +51,6 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
             ftmMulticallRouter,
             ftmCoreRouter,
             ftmPort,
-            _underlyingSalts,
             _amounts,
             _deposits,
             _decimals,
@@ -64,7 +60,6 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
     }
 
     function test_fuzz_CallOutAndBridgeMultiple_withLocalToken_router_avax(
-        bytes32[MAX_LENGTH] memory _underlyingSalts,
         uint256[MAX_LENGTH] memory _amounts,
         uint256[MAX_LENGTH] memory _deposits,
         uint8[MAX_LENGTH] memory _decimals,
@@ -76,7 +71,6 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
             avaxMulticallRouter,
             avaxCoreRouter,
             avaxPort,
-            _underlyingSalts,
             _amounts,
             _deposits,
             _decimals,
@@ -86,7 +80,6 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
     }
 
     function test_fuzz_CallOutAndBridgeMultiple_withLocalToken_bridgeAgent_avax(
-        bytes32[MAX_LENGTH] memory _underlyingSalts,
         uint256[MAX_LENGTH] memory _amounts,
         uint256[MAX_LENGTH] memory _deposits,
         uint8[MAX_LENGTH] memory _decimals,
@@ -98,7 +91,6 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
             avaxMulticallRouter,
             avaxCoreRouter,
             avaxPort,
-            _underlyingSalts,
             _amounts,
             _deposits,
             _decimals,
@@ -113,7 +105,6 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
         BaseBranchRouter branchMulticallRouter;
         CoreBranchRouter branchCoreRouter;
         BranchPort branchPort;
-        bytes32[MAX_LENGTH] underlyingSalts;
         uint256[MAX_LENGTH] amounts;
         uint256[MAX_LENGTH] deposits;
         uint8[MAX_LENGTH] decimals;
@@ -126,7 +117,6 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
         BaseBranchRouter _branchMulticallRouter,
         CoreBranchRouter _branchCoreRouter,
         BranchPort _branchPort,
-        bytes32[MAX_LENGTH] memory _underlyingSalts,
         uint256[MAX_LENGTH] memory _amounts,
         uint256[MAX_LENGTH] memory _deposits,
         uint8[MAX_LENGTH] memory _decimals,
@@ -139,7 +129,6 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
             branchMulticallRouter: _branchMulticallRouter,
             branchCoreRouter: _branchCoreRouter,
             branchPort: _branchPort,
-            underlyingSalts: _underlyingSalts,
             amounts: _amounts,
             deposits: _deposits,
             decimals: _decimals,
@@ -159,11 +148,8 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest, BridgeAgentConstants {
         uint256[] memory deposits = new uint256[](_length);
 
         for (uint256 i = 0; i < _length; i++) {
-            MockERC20 underToken = new MockERC20{salt: cache.underlyingSalts[i]}(
-                string(abi.encodePacked(cache.underlyingSalts[i])),
-                string(abi.encodePacked(bytes4(cache.underlyingSalts[i]))),
-                cache.decimals[i]
-            );
+            MockERC20 underToken =
+                new MockERC20("Test Ulysses Hermes underlying token", "test-uhUNDER", cache.decimals[i]);
 
             underlyingTokens[i] = address(underToken);
             cache.branchCoreRouter.addLocalToken{value: 100 ether}(address(underToken), GasParams(2_000_000, 0));
