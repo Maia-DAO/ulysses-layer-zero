@@ -1000,6 +1000,10 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
     uint256[] public amounts;
     uint256[] public deposits;
 
+    function testFuzzExecuteWithSettlementMultiple() public {
+        testFuzzExecuteWithSettlementMultiple(100 ether, 100 ether, 50 ether, 100 ether, 2);
+    }
+
     function testFuzzExecuteWithSettlementMultiple(
         uint256 _amount0,
         uint256 _amount1,
@@ -1016,7 +1020,11 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         address _recipient = address(this);
 
         // Input restrictions
-        vm.assume(_amount0 > 0 && _deposit0 <= _amount0 && _amount1 > 0 && _deposit1 <= _amount1 && _dstChainId > 0);
+        if (_dstChainId == 0) _dstChainId = 1;
+        if (_amount0 == 0) _amount0 = 1;
+        if (_amount1 == 0) _amount1 = 1;
+        if (_deposit0 > _amount0) _deposit0 %= _amount0;
+        if (_deposit1 > _amount1) _deposit1 %= _amount1;
 
         vm.startPrank(localPortAddress);
 
@@ -1033,18 +1041,6 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         MockERC20 underToken1 = new MockERC20("u1 token", "U1", 18);
         underToken0.mint(_recipient, _deposit0);
         underToken1.mint(_recipient, _deposit1);
-
-        console2.log("testFuzzExecuteWithSettlementMultiple DATA:");
-        console2.log(_recipient);
-        console2.log(address(fuzzToken0));
-        console2.log(address(fuzzToken1));
-        console2.log(address(underToken0));
-        console2.log(address(underToken1));
-        console2.log(_amount0);
-        console2.log(_amount1);
-        console2.log(_deposit0);
-        console2.log(_deposit1);
-        console2.log(_dstChainId);
 
         vm.stopPrank();
 
