@@ -1307,7 +1307,9 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         );
 
         // Mock Call to create Bridge Agent
-        vm.mockCall(address(0), abi.encodeWithSignature("createBridgeAgent(address,address,address)"), abi.encode(address(8)));
+        vm.mockCall(
+            address(0), abi.encodeWithSignature("createBridgeAgent(address,address,address)"), abi.encode(address(8))
+        );
 
         // Mock Call to represent failed Port state update
         vm.mockCall(address(localPortAddress), abi.encodeWithSignature("isBridgeAgent(address)"), abi.encode(false));
