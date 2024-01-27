@@ -548,6 +548,262 @@ contract ArbitrumBranchTest is Test {
         require(testRootBridgeAgent.getBranchBridgeAgent(rootChainId) == address(arbTestBranchBridgeAgent));
     }
 
+    function testAddBridgeAgentArbitrum_unrecognizedFactory() public {
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // New router
+        BaseBranchRouter arbTestRouter = new BaseBranchRouter();
+
+        // Wrong factory address
+        address wrongFactory = address(0x1234);
+
+        // Encode Data
+        bytes memory data = abi.encode(
+            address(arbTestRouter),
+            wrongFactory,
+            address(multicallBridgeAgent),
+            address(bridgeAgentFactory),
+            address(this),
+            GasParams(0, 0)
+        );
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x02), data);
+
+        // Prank into Arb Core Bridge Agent
+        vm.prank(address(arbitrumCoreBridgeAgent.bridgeAgentExecutorAddress()));
+
+        // Call Execute no settlement
+        vm.expectRevert(abi.encodeWithSignature("UnrecognizedBridgeAgentFactory()"));
+        arbitrumCoreRouter.executeNoSettlement(packedData);
+    }
+
+    function testAddBridgeAgentArbitrum_unrecognizedBridgeAgent() public {
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // New router
+        BaseBranchRouter arbTestRouter = new BaseBranchRouter();
+
+        // Encode Data
+        bytes memory data = abi.encode(
+            address(arbTestRouter),
+            address(localBranchBridgeAgentFactory),
+            address(multicallBridgeAgent),
+            address(bridgeAgentFactory),
+            address(this),
+            GasParams(0, 0)
+        );
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x02), data);
+
+        // Mock Call to represent failed Port state update
+        vm.mockCall(address(localPortAddress), abi.encodeWithSignature("isBridgeAgent(address)"), abi.encode(false));
+
+        // Prank into Arb Core Bridge Agent
+        vm.prank(address(arbitrumCoreBridgeAgent.bridgeAgentExecutorAddress()));
+
+        // Call Execute no settlement
+        vm.expectRevert(abi.encodeWithSignature("UnrecognizedBridgeAgent()"));
+        arbitrumCoreRouter.executeNoSettlement(packedData);
+    }
+
+    //////////////////////////////////////
+    // EXECUTE NO SETTLEMENT DISPATCHER //
+    //////////////////////////////////////
+
+    function testExecuteNoSettlement_toggleBranchBridgeAgentFactory() public {
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // Encode Data
+        bytes memory data = abi.encode(address(localBranchBridgeAgentFactory));
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x03), data);
+
+        // Prank into Arb Core Bridge Agent
+        vm.prank(address(arbitrumCoreBridgeAgent.bridgeAgentExecutorAddress()));
+
+        // Perform call toggleBranchBridgeAgentFactory
+        vm.expectCall(
+            address(localPortAddress),
+            abi.encodeWithSignature("toggleBridgeAgentFactory(address)", address(localBranchBridgeAgentFactory))
+        );
+        arbitrumCoreRouter.executeNoSettlement(packedData);
+    }
+
+    function testExecuteNoSettlement_toggleStrategyToken() public {
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // Encode Data
+        bytes memory data = abi.encode(address(arbitrumNativeToken), 7000);
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x04), data);
+
+        // Prank into Arb Core Bridge Agent
+        vm.prank(address(arbitrumCoreBridgeAgent.bridgeAgentExecutorAddress()));
+
+        // Perform call toggleStrategyToken
+        vm.expectCall(
+            address(localPortAddress),
+            abi.encodeWithSignature("toggleStrategyToken(address,uint256)", address(arbitrumNativeToken), 7000)
+        );
+        arbitrumCoreRouter.executeNoSettlement(packedData);
+    }
+
+    function testExecuteNoSettlement_updateStrategyToken() public {
+        // Add Token
+        testExecuteNoSettlement_toggleStrategyToken();
+
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // Encode Data
+        bytes memory data = abi.encode(address(arbitrumNativeToken), 7500);
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x05), data);
+
+        // Prank into Arb Core Bridge Agent
+        vm.prank(address(arbitrumCoreBridgeAgent.bridgeAgentExecutorAddress()));
+
+        // Perform call updateStrategyToken
+        vm.expectCall(
+            address(localPortAddress),
+            abi.encodeWithSignature("updateStrategyToken(address,uint256)", address(arbitrumNativeToken), 7500)
+        );
+        arbitrumCoreRouter.executeNoSettlement(packedData);
+    }
+
+    function testExecuteNoSettlement_togglePortStrategy() public {
+        // Add strategy token
+        testExecuteNoSettlement_updateStrategyToken();
+
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // Encode Data
+        bytes memory data = abi.encode(address(this), address(arbitrumNativeToken), 10 ether, 7000);
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x06), data);
+
+        // Prank into Arb Core Bridge Agent
+        vm.prank(address(arbitrumCoreBridgeAgent.bridgeAgentExecutorAddress()));
+
+        // Perform call togglePortStrategy
+        vm.expectCall(
+            address(localPortAddress),
+            abi.encodeWithSignature(
+                "togglePortStrategy(address,address,uint256,uint256)",
+                address(this),
+                address(arbitrumNativeToken),
+                10 ether,
+                7000
+            )
+        );
+        arbitrumCoreRouter.executeNoSettlement(packedData);
+    }
+
+    function testExecuteNoSettlement_updatePortStrategy() public {
+        // Add strategy token
+        testExecuteNoSettlement_togglePortStrategy();
+
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // Encode Data
+        bytes memory data = abi.encode(address(this), address(arbitrumNativeToken), 10 ether, 7500);
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x07), data);
+
+        // Prank into Arb Core Bridge Agent
+        vm.prank(address(arbitrumCoreBridgeAgent.bridgeAgentExecutorAddress()));
+
+        // Perform call updatePortStrategy
+        vm.expectCall(
+            address(localPortAddress),
+            abi.encodeWithSignature(
+                "updatePortStrategy(address,address,uint256,uint256)",
+                address(this),
+                address(arbitrumNativeToken),
+                10 ether,
+                7500
+            )
+        );
+        arbitrumCoreRouter.executeNoSettlement(packedData);
+    }
+
+    function testExecuteNoSettlement_setCoreBranchRouter() public {
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // Encode Data
+        bytes memory data = abi.encode(address(this), address(9));
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x08), data);
+
+        // Prank into Arb Core Bridge Agent
+        vm.prank(address(arbitrumCoreBridgeAgent.bridgeAgentExecutorAddress()));
+
+        // Perform call setCoreBranchRouter
+        vm.expectCall(
+            address(localPortAddress),
+            abi.encodeWithSignature("setCoreBranchRouter(address,address)", address(this), address(9))
+        );
+        arbitrumCoreRouter.executeNoSettlement(packedData);
+    }
+
+    function testExecuteNoSettlement_sweep() public {
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // Encode Data
+        bytes memory data = abi.encode(address(this), address(9));
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x09), data);
+
+        // Prank into Arb Core Bridge Agent
+        vm.prank(address(arbitrumCoreBridgeAgent.bridgeAgentExecutorAddress()));
+
+        // Perform call sweep
+        vm.expectCall(address(localPortAddress), abi.encodeWithSignature("sweep(address)", address(this)));
+        arbitrumCoreRouter.executeNoSettlement(packedData);
+    }
+
+    function testFuzzExecuteNoSettlement_expectUnrecognizedFunctionId(bytes1 funcId) public {
+        // Treat fuzzed input
+        if (uint8(funcId) < 10) funcId = bytes1(0x10);
+
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // Encode Data
+        bytes memory data = abi.encode(address(this), address(9));
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(funcId, data);
+
+        // Prank into Arb Core Bridge Agent
+        vm.prank(address(arbitrumCoreBridgeAgent.bridgeAgentExecutorAddress()));
+
+        // Perform call sweep
+        vm.expectRevert(abi.encodeWithSignature("UnrecognizedFunctionId()"));
+        arbitrumCoreRouter.executeNoSettlement(packedData);
+    }
+
+    /////////////////////////////////
+    //   TOKEN DEPOSIT FUNCITONS   //
+    /////////////////////////////////
+
     function testDepositToPort() public {
         // Set up
         testAddLocalTokenArbitrum();
@@ -586,6 +842,10 @@ contract ArbitrumBranchTest is Test {
         arbitrumMulticallBridgeAgent.depositToPort(address(arbitrumNativeToken), 100 ether);
     }
 
+    /////////////////////////////////
+    //   TOKEN WITHDRAW FUNCITONS  //
+    /////////////////////////////////
+
     function testWithdrawFromPort() public {
         // Deposit Tokens
         testDepositToPort();
@@ -609,14 +869,9 @@ contract ArbitrumBranchTest is Test {
         arbitrumMulticallBridgeAgent.withdrawFromPort(address(arbitrumNativeToken), 100 ether);
     }
 
-    function testRetrySettlementRevert() public {
-        // Call withdraw from port
-        vm.expectRevert();
-
-        arbitrumMulticallBridgeAgent.retrySettlement(
-            1, "", [GasParams(1 ether, 0.5 ether), GasParams(1 ether, 0.5 ether)], true
-        );
-    }
+    /////////////////////////////////
+    //      CALLOUT FUNCITONS      //
+    /////////////////////////////////
 
     function testCallOutWithDeposit() public {
         // Set up
@@ -1296,6 +1551,19 @@ contract ArbitrumBranchTest is Test {
         );
     }
 
+    function testRetrySettlementRevert() public {
+        // Call withdraw from port
+        vm.expectRevert();
+
+        arbitrumMulticallBridgeAgent.retrySettlement(
+            1, "", [GasParams(1 ether, 0.5 ether), GasParams(1 ether, 0.5 ether)], true
+        );
+    }
+
+    /////////////////////////////////
+    //           HELPERS           //
+    /////////////////////////////////
+
     function testCreateDepositSingle(
         ArbitrumBranchBridgeAgent _bridgeAgent,
         uint32 _depositNonce,
@@ -1342,8 +1610,6 @@ contract ArbitrumBranchTest is Test {
 
         require(deposit.status == 0, "Deposit status should be succesful.");
     }
-
-    //////////////////////////////////////////////////////////////////////////   HELPERS   ////////////////////////////////////////////////////////////////////
 
     function encodeCallNoDeposit(
         address payable _fromBridgeAgent,
