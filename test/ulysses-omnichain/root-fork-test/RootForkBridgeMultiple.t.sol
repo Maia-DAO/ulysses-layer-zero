@@ -84,7 +84,7 @@ contract RootForkBridgeMultipleTest is RootForkSetupTest {
         );
     }
 
-    function _test_CallOutAndBridgeMultiple_withLocalToken(
+    function test_CallOutAndBridgeMultiple_withLocalToken(
         address[] memory hTokens,
         address[] memory tokens,
         uint256[] memory amounts,
