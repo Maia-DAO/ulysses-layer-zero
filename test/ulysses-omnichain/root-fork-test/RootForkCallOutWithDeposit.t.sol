@@ -69,7 +69,7 @@ contract RootForkCallOutWithDepositTest is RootForkAddTokenTest {
     }
 
     function _testCallOutWithDepositArbtirum() public {
-        _callOutWithDepositArbtirum(address(this), 100 ether, 100 ether, 100 ether, 50 ether);
+        _testFuzzCallOutWithDepositArbtirum(address(this), 100 ether, 100 ether, 100 ether, 50 ether);
     }
 
     function _testFuzzCallOutWithDepositArbtirum(
@@ -78,22 +78,12 @@ contract RootForkCallOutWithDepositTest is RootForkAddTokenTest {
         uint256 _deposit,
         uint256 _amountOut,
         uint256 _depositOut
-    ) public {
-        (_user, _amount, _deposit, _amountOut, _depositOut) =
-            BranchBridgeAgentHelper.adjustValues(_user, _amount, _deposit, _amountOut, _depositOut);
-
-        _callOutWithDepositArbtirum(_user, _amount, _deposit, _amountOut, _depositOut);
-    }
-
-    function _callOutWithDepositArbtirum(
-        address _user,
-        uint256 _amount,
-        uint256 _deposit,
-        uint256 _amountOut,
-        uint256 _depositOut
     ) internal {
         //Set up
         _testAddLocalTokenArbitrum();
+
+        (_user, _amount, _deposit, _amountOut, _depositOut) =
+            BranchBridgeAgentHelper.adjustValues(_user, _amount, _deposit, _amountOut, _depositOut);
 
         // Prepare data
         bytes memory packedData = prepareMulticallSingleOutput_singleTransfer(

@@ -59,23 +59,43 @@ library BranchBridgeAgentHelper {
                         CREATE DEPOSIT HELPERS
     //////////////////////////////////////////////////////////////*/
 
+    address private constant CONSOLE2_ADDRESS = 0x000000000000000000636F6e736F6c652e6c6f67;
+
     function adjustValues(address _user, uint256 _amount, uint256 _deposit, uint256 _amountOut, uint256 _depositOut)
         public
         view
         returns (address, uint256, uint256, uint256, uint256)
     {
-        // Input restrictions
-        _amount %= type(uint256).max / 1 ether;
+        // Input max restrictions
+        _amount %= type(uint224).max;
+        _deposit %= type(uint224).max;
+        _amountOut %= type(uint224).max;
+        _depositOut %= type(uint224).max;
 
+        /**
+         * Should be equivalent to:
+         *
+         * uint256 size;
+         * assembly ("memory-safe") {
+         *     size := extcodesize(_user)
+         * }
+         *
+         * hevm.assume(
+         *     _user != address(0) && size == 0 && _amount > _deposit && _amount >= _amountOut
+         *         && _amount - _amountOut >= _depositOut && _depositOut < _amountOut
+         * );
+         */
         uint256 size;
         assembly ("memory-safe") {
             size := extcodesize(_user)
         }
 
-        if (_user == address(0) || size > 0) _user = address(0xDEAD);
+        // Can't be zero address and avoid any precompiles or cheatcodes that would revert when sending eth
+        if (_user < address(100) || size > 0 || _user == CONSOLE2_ADDRESS) {
+            _user = address(0xDEAD);
+        }
 
         if (_amount <= _deposit) {
-            _deposit %= type(uint256).max;
             _amount = _deposit + 1;
         }
 

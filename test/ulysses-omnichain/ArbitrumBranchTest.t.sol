@@ -1039,6 +1039,10 @@ contract ArbitrumBranchTest is Test {
         arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(packedData, depositInput, gasParams, true);
     }
 
+    function testFuzzCallOutWithDeposit() public {
+        testFuzzCallOutWithDeposit(address(this), 100 ether, 100 ether, 100 ether, 50 ether);
+    }
+
     function testFuzzCallOutWithDeposit(
         address _user,
         uint256 _amount,
@@ -1046,11 +1050,11 @@ contract ArbitrumBranchTest is Test {
         uint256 _amountOut,
         uint256 _depositOut
     ) public {
-        (_user, _amount, _deposit, _amountOut, _depositOut) =
-            BranchBridgeAgentHelper.adjustValues(_user, _amount, _deposit, _amountOut, _depositOut);
-
         // Set up
         testAddLocalTokenArbitrum();
+
+        (_user, _amount, _deposit, _amountOut, _depositOut) =
+            BranchBridgeAgentHelper.adjustValues(_user, _amount, _deposit, _amountOut, _depositOut);
 
         //Gas Params
         GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
