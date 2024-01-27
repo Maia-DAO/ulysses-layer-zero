@@ -49,7 +49,15 @@ import {BridgeAgentConstants} from "@omni/interfaces/BridgeAgentConstants.sol";
 import {Deposit, DepositMultipleInput, DepositInput} from "@omni/interfaces/IBranchBridgeAgent.sol";
 import {ICoreRootRouter} from "@omni/interfaces/ICoreRootRouter.sol";
 import {IRootRouter} from "@omni/interfaces/IRootRouter.sol";
-import {Settlement, SettlementInput, SettlementMultipleInput, GasParams} from "@omni/interfaces/IRootBridgeAgent.sol";
+import {
+    Settlement,
+    SettlementParams,
+    SettlementInput,
+    SettlementMultipleInput,
+    GasParams
+} from "@omni/interfaces/IRootBridgeAgent.sol";
+
+import {SettlementMultipleParams} from "@omni/interfaces/BridgeAgentStructs.sol";
 
 import {AddressCodeSize} from "@omni/lib/AddressCodeSize.sol";
 import {DecodeBridgeInMultipleParams} from "@omni/lib/DecodeBridgeInMultipleParams.sol";

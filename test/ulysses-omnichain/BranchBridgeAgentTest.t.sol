@@ -1249,6 +1249,124 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
     }
 
     //////////////////////////////////////
+    //      BRIDGE AGENT EXECUTOR       //
+    //////////////////////////////////////
+
+    function testExecuteWithSettlement_noCalldata() public {
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        //Create sParams
+        SettlementParams memory sParams = SettlementParams({
+            settlementNonce: 1,
+            recipient: address(bRouter),
+            hToken: address(testToken),
+            token: address(underlyingToken),
+            amount: 100 ether,
+            deposit: 100 ether
+        });
+
+        // Mint underlying to localPort
+        underlyingToken.mint(localPortAddress, 100 ether);
+
+        // Mock call
+        vm.mockCall(
+            address(bRouter),
+            abi.encodeWithSignature("executeSettlement(bytes,(uint32,address,address,address,uint256,uint256))"),
+            abi.encode(true)
+        );
+
+        // Expect call
+        vm.expectCall(
+            address(bRouter),
+            abi.encodeWithSignature(
+                "executeSettlement(bytes,(uint32,address,address,address,uint256,uint256))", "", sParams
+            )
+        );
+
+        console2.logAddress(BranchBridgeAgentExecutor(bRouter.bridgeAgentExecutorAddress()).owner());
+        console2.logAddress(address(bAgent));
+
+        // Prank into bridge agent
+        vm.startPrank(address(bAgent));
+        BranchBridgeAgentExecutor(bRouter.bridgeAgentExecutorAddress()).executeWithSettlement(
+            address(bRouter),
+            abi.encodePacked(
+                bytes1(0x01),
+                address(bRouter),
+                sParams.settlementNonce,
+                sParams.hToken,
+                sParams.token,
+                sParams.amount,
+                sParams.deposit,
+                ""
+            )
+        );
+    }
+
+    function testExecuteWithSettlementMultiple_noCalldata() public {
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // Prepare input arrays
+        address[] memory _hTokens = new address[](2);
+        address[] memory _tokens = new address[](2);
+        uint256[] memory _amounts = new uint256[](2);
+        uint256[] memory _deposits = new uint256[](2);
+
+        _hTokens[0] = address(testToken);
+        _hTokens[1] = address(testToken2);
+        _tokens[0] = address(underlyingToken);
+        _tokens[1] = address(rewardToken);
+        _amounts[0] = 100 ether;
+        _amounts[1] = 100 ether;
+        _deposits[0] = 100 ether;
+        _deposits[1] = 100 ether;
+
+        //Create sParams
+        SettlementMultipleParams memory sParams =
+            SettlementMultipleParams(2, address(bRouter), 1, _hTokens, _tokens, _amounts, _deposits);
+
+        // Mint underlying to localPort
+        underlyingToken.mint(localPortAddress, 100 ether);
+        rewardToken.mint(localPortAddress, 100 ether);
+
+        // Mock call
+        vm.mockCall(
+            address(bRouter),
+            abi.encodeWithSignature(
+                "executeSettlementMultiple(bytes,(uint8,address,uint32,address[],address[],uint256[],uint256[]))"
+            ),
+            abi.encode(true)
+        );
+
+        // Expect call
+        vm.expectCall(
+            address(bRouter),
+            abi.encodeWithSignature(
+                "executeSettlementMultiple(bytes,(uint8,address,uint32,address[],address[],uint256[],uint256[]))", "", sParams
+            )
+        );
+
+        // Prank into bridge agent
+        vm.startPrank(address(bAgent));
+        BranchBridgeAgentExecutor(bRouter.bridgeAgentExecutorAddress()).executeWithSettlementMultiple(
+            address(bRouter),
+            abi.encodePacked(
+                bytes1(0x03),
+                address(bRouter),
+                uint8(2),
+                sParams.settlementNonce,
+                sParams.hTokens,
+                sParams.tokens,
+                sParams.amounts,
+                sParams.deposits,
+                ""
+            )
+        );
+    }
+
+    //////////////////////////////////////
     //       CORE BRANCH ROUTER         //
     //////////////////////////////////////
 
