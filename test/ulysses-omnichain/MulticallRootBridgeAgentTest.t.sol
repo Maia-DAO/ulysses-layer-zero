@@ -311,6 +311,30 @@ contract MulticallRootBridgeAgentTest is Test {
         checkNonceState(multicallBridgeAgent, chainNonce[avaxChainId] - 1, avaxChainId);
     }
 
+    function testMulticallDepositSingleNoCalldata() public {
+        // Add Local Token from Avax
+        testSetLocalToken();
+
+        //GasParams
+        GasParams memory gasParams = GasParams(5_000_000, 0);
+
+        encodeCallWithDeposit(
+            payable(avaxMulticallBridgeAgentAddress),
+            payable(multicallBridgeAgent),
+            chainNonce[avaxChainId]++,
+            address(avaxLocalWrappedNativeTokenAddress),
+            address(avaxUnderlyingWrappedNativeTokenAddress),
+            100 ether,
+            100 ether,
+            "",
+            gasParams,
+            avaxChainId,
+            true
+        );
+
+        checkNonceState(multicallBridgeAgent, chainNonce[avaxChainId] - 1, avaxChainId);
+    }
+
     function testMulticallDepositSingleShouldRevert() public {
         // Add Local Token from Avax
         testSetLocalToken();
@@ -394,6 +418,43 @@ contract MulticallRootBridgeAgentTest is Test {
             inputTokenAmounts,
             inputTokenDeposits,
             packedData,
+            GasParams(5_000_000, 0),
+            avaxChainId,
+            true
+        );
+
+        checkNonceState(multicallBridgeAgent, chainNonce[avaxChainId] - 1, avaxChainId);
+    }
+
+    function testMulticallDepositMultipleNoCalldata() public {
+        // Add Local Token from Avax
+        testSetLocalToken();
+
+        // Prepare input token arrays
+        address[] memory inputHTokenAddresses = new address[](2);
+        address[] memory inputTokenAddresses = new address[](2);
+        uint256[] memory inputTokenAmounts = new uint256[](2);
+        uint256[] memory inputTokenDeposits = new uint256[](2);
+
+        inputHTokenAddresses[0] = address(avaxLocalWrappedNativeTokenAddress);
+        inputTokenAddresses[0] = address(avaxUnderlyingWrappedNativeTokenAddress);
+        inputTokenAmounts[0] = 100 ether;
+        inputTokenDeposits[0] = 100 ether;
+
+        inputHTokenAddresses[1] = address(avaxNativeAssethToken);
+        inputTokenAddresses[1] = address(avaxNativeToken);
+        inputTokenAmounts[1] = 100 ether;
+        inputTokenDeposits[1] = 100 ether;
+
+        encodeCallWithDepositMultiple(
+            payable(avaxMulticallBridgeAgentAddress),
+            payable(multicallBridgeAgent),
+            chainNonce[avaxChainId]++,
+            inputHTokenAddresses,
+            inputTokenAddresses,
+            inputTokenAmounts,
+            inputTokenDeposits,
+            "",
             GasParams(5_000_000, 0),
             avaxChainId,
             true
@@ -524,6 +585,32 @@ contract MulticallRootBridgeAgentTest is Test {
         checkNonceState(multicallBridgeAgent, chainNonce[avaxChainId] - 1, avaxChainId);
     }
 
+    function testMulticallDepositSingleSignedNoCalldata() public {
+        // Add Local Token from Avax
+        testSetLocalToken();
+
+        //GasParams
+        GasParams memory gasParams = GasParams(5_000_000, 0);
+
+        vm.expectRevert(abi.encodeWithSignature("UnrecognizedFunctionId()"));
+
+        encodeCallWithDepositSigned(
+            payable(avaxMulticallBridgeAgentAddress),
+            payable(multicallBridgeAgent),
+            address(this),
+            chainNonce[avaxChainId]++,
+            address(avaxLocalWrappedNativeTokenAddress),
+            address(avaxUnderlyingWrappedNativeTokenAddress),
+            100 ether,
+            100 ether,
+            "",
+            gasParams,
+            avaxChainId
+        );
+
+        checkNonceStateFail(multicallBridgeAgent, chainNonce[avaxChainId] - 1, avaxChainId);
+    }
+
     function testMulticallDepositMultipleSigned() public {
         // Add Local Token from Avax
         testSetLocalToken();
@@ -573,6 +660,45 @@ contract MulticallRootBridgeAgentTest is Test {
         );
 
         checkNonceState(multicallBridgeAgent, chainNonce[avaxChainId] - 1, avaxChainId);
+    }
+
+    function testMulticallDepositMultipleSignedNoCalldata() public {
+        // Add Local Token from Avax
+        testSetLocalToken();
+
+        // Prepare input token arrays
+        address[] memory inputHTokenAddresses = new address[](2);
+        address[] memory inputTokenAddresses = new address[](2);
+        uint256[] memory inputTokenAmounts = new uint256[](2);
+        uint256[] memory inputTokenDeposits = new uint256[](2);
+
+        inputHTokenAddresses[0] = address(avaxLocalWrappedNativeTokenAddress);
+        inputTokenAddresses[0] = address(avaxUnderlyingWrappedNativeTokenAddress);
+        inputTokenAmounts[0] = 100 ether;
+        inputTokenDeposits[0] = 100 ether;
+
+        inputHTokenAddresses[1] = address(avaxNativeAssethToken);
+        inputTokenAddresses[1] = address(avaxNativeToken);
+        inputTokenAmounts[1] = 100 ether;
+        inputTokenDeposits[1] = 100 ether;
+
+        vm.expectRevert(abi.encodeWithSignature("UnrecognizedFunctionId()"));
+
+        encodeCallWithDepositMultipleSigned(
+            payable(avaxMulticallBridgeAgentAddress),
+            payable(multicallBridgeAgent),
+            address(this),
+            chainNonce[avaxChainId]++,
+            inputHTokenAddresses,
+            inputTokenAddresses,
+            inputTokenAmounts,
+            inputTokenDeposits,
+            "",
+            GasParams(5_000_000, 0),
+            avaxChainId
+        );
+
+        checkNonceStateFail(multicallBridgeAgent, chainNonce[avaxChainId] - 1, avaxChainId);
     }
 
     /////////////////////////////////////////////////////////////////////// ALREADY EXECUTED /////////////////////////////////////////////////////////////////
