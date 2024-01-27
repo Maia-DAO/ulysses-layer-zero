@@ -1248,6 +1248,78 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         );
     }
 
+    //////////////////////////////////////
+    //       CORE BRANCH ROUTER         //
+    //////////////////////////////////////
+
+    function testFuzzExecuteNoSettlement_coreBranchRouter_expectUnrecognizedFunctionId(bytes1 funcId) public {
+        // Treat fuzzed input
+        if (uint8(funcId) < 10) funcId = bytes1(0x10);
+
+        // Deploy CoreBranchRouter
+        CoreBranchRouter coreBranchRouter = new CoreBranchRouter(address(0));
+
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // Encode Data
+        bytes memory data = abi.encode(address(this), address(9));
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(funcId, data);
+
+        // Prank into Arb Core Bridge Agent
+        vm.prank(coreBranchRouter.bridgeAgentExecutorAddress());
+
+        // Perform call sweep
+        vm.expectRevert(abi.encodeWithSignature("UnrecognizedFunctionId()"));
+        coreBranchRouter.executeNoSettlement(packedData);
+    }
+
+    function testAddBridgeAgent_coreBranchRouter_unrecognizedBridgeAgent() public {
+        //Get some gas
+        vm.deal(address(this), 2 ether);
+
+        // Deploy CoreBranchRouter
+        CoreBranchRouter coreBranchRouter = new CoreBranchRouter(address(0));
+
+        // Router init
+        coreBranchRouter.initialize(address(bAgent));
+
+        //BranchPort initialize
+        vm.prank(address(bRouter));
+        BranchPort(payable(localPortAddress)).setCoreBranchRouter(address(coreBranchRouter), address(bAgent));
+
+        // New router
+        BaseBranchRouter arbTestRouter = new BaseBranchRouter();
+
+        // Encode Data
+        bytes memory data = abi.encode(
+            address(coreBranchRouter), address(0), address(bAgent), address(0), address(this), GasParams(0, 0)
+        );
+
+        // Pack FuncId
+        bytes memory packedData = abi.encodePacked(bytes1(0x02), data);
+
+        // Mock Call to represent failed Port state update
+        vm.mockCall(
+            address(localPortAddress), abi.encodeWithSignature("isBridgeAgentFactory(address)"), abi.encode(true)
+        );
+
+        // Mock Call to create Bridge Agent
+        vm.mockCall(address(0), abi.encodeWithSignature("createBridgeAgent(address,address,address)"), abi.encode(address(8)));
+
+        // Mock Call to represent failed Port state update
+        vm.mockCall(address(localPortAddress), abi.encodeWithSignature("isBridgeAgent(address)"), abi.encode(false));
+
+        // Prank into Arb Core Bridge Agent
+        vm.prank(address(coreBranchRouter.bridgeAgentExecutorAddress()));
+
+        // Call Execute no settlement
+        vm.expectRevert(abi.encodeWithSignature("UnrecognizedBridgeAgent()"));
+        coreBranchRouter.executeNoSettlement(packedData);
+    }
+
     //////////////////////////////////////   HELPERS   //////////////////////////////////////
 
     function testCreateDeposit(
