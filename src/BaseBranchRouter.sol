@@ -131,7 +131,7 @@ contract BaseBranchRouter is IBranchRouter, ReentrancyGuard, Ownable {
     ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchRouter
-    function executeNoSettlement(bytes calldata) external payable virtual override requiresAgentExecutor {
+    function executeNoSettlement(bytes calldata) external payable virtual override {
         revert UnrecognizedFunctionId();
     }
 
