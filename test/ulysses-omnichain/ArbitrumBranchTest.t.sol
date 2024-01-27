@@ -451,6 +451,42 @@ contract ArbitrumBranchTest is Test {
         console2.log("Balance After: ", address(coreBridgeAgent).balance);
     }
 
+    address public newArbitrumAssetGlobalAddress_2;
+
+    function testAddLocalTokenArbitrum_2() internal {
+        // Get some gas.
+        vm.deal(address(this), 1 ether);
+
+        //Get gas params
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+
+        //Add new localToken
+        arbitrumCoreRouter.addLocalToken(address(rewardToken), gasParams);
+
+        newArbitrumAssetGlobalAddress_2 =
+            RootPort(rootPort).getLocalTokenFromUnderlying(address(rewardToken), rootChainId);
+
+        console2.log("New: ", newArbitrumAssetGlobalAddress_2);
+
+        require(
+            RootPort(rootPort).getGlobalTokenFromLocal(address(newArbitrumAssetGlobalAddress_2), rootChainId)
+                == address(newArbitrumAssetGlobalAddress_2),
+            "Token should be added"
+        );
+
+        require(
+            RootPort(rootPort).getLocalTokenFromGlobal(newArbitrumAssetGlobalAddress_2, rootChainId)
+                == address(newArbitrumAssetGlobalAddress_2),
+            "Token should be added"
+        );
+        require(
+            RootPort(rootPort).getUnderlyingTokenFromLocal(address(newArbitrumAssetGlobalAddress_2), rootChainId)
+                == address(rewardToken),
+            "Token should be added"
+        );
+    }
+
+
     function testAddLocalTokenArbitrumFailedIsGlobal() public {
         // Get some gas.
         vm.deal(address(this), 1 ether);
@@ -825,6 +861,66 @@ contract ArbitrumBranchTest is Test {
         require(multicallBridgeAgent.settlementNonce() == settlementNonce + 1, "Settlement nonce should be incremented");
         require(multicallBridgeAgent.getSettlementEntry(settlementNonce).status == 1, "Settlement should be failed");
     }
+
+    function testCallOutWithDepositMultipleFailedTriggerFallbackDestinationArbitrumBranch() public {
+        // Set up
+        testAddLocalTokenArbitrum();
+        testAddLocalTokenArbitrum_2();
+
+        // Store user
+        address user = address(this);
+
+        // Store multicallBridgeAgent settlement nonce
+        uint32 settlementNonce = multicallBridgeAgent.settlementNonce();
+
+        //Get gas
+        GasParams memory gasParams = GasParams(5_000_000, 0);
+
+        // Prank into rootPort
+        vm.startPrank(address(rootPort));
+
+        // Mint Underlying Token.
+        ERC20hToken(newArbitrumAssetGlobalAddress_2).mint(address(rootMulticallRouter), 100 ether);
+        ERC20hToken(newArbitrumAssetGlobalAddress).mint(address(rootMulticallRouter), 100 ether);
+
+        vm.stopPrank();
+
+        // Prank into rootMulticallRouter
+        vm.startPrank(address(rootMulticallRouter));
+
+        // Approve spend by router
+        ERC20hToken(newArbitrumAssetGlobalAddress).approve(address(rootPort), 100 ether);
+        ERC20hToken(newArbitrumAssetGlobalAddress_2).approve(address(rootPort), 100 ether);
+
+        // Create input arrays
+        address[] memory tokens = new address[](2);
+        tokens[0] = newArbitrumAssetGlobalAddress;
+        tokens[1] = newArbitrumAssetGlobalAddress_2;
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100 ether;
+        amounts[1] = 100 ether;
+
+        uint256[] memory deposits = new uint256[](2);
+        deposits[0] = 0;
+        deposits[1] = 0;
+
+        //Call Deposit function with Fallback on
+        multicallBridgeAgent.callOutAndBridgeMultiple(
+            payable(user),
+            user,
+            rootChainId,
+            "should fail",
+            SettlementMultipleInput(tokens, amounts, deposits),
+            gasParams,
+            true
+        );
+
+        // Check if settlement is set to failure
+        require(multicallBridgeAgent.settlementNonce() == settlementNonce + 1, "Settlement nonce should be incremented");
+        require(multicallBridgeAgent.getSettlementEntry(settlementNonce).status == 1, "Settlement should be failed");
+    }
+
 
     function testCallOutWithDepositFailedTriggerFallbackDestinationArbitrumBranchWithRootExecutionFailure() public {
         // Set up
