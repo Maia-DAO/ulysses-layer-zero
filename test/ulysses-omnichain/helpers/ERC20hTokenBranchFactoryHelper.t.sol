@@ -14,9 +14,19 @@ library ERC20hTokenBranchFactoryHelper {
         internal
         returns (ERC20hTokenBranchFactory _branchHTokenFactory)
     {
+        _branchHTokenFactory = _branchHTokenFactory._deploy(_branchPort, _name, _symbol, address(this));
+    }
+
+    function _deploy(
+        ERC20hTokenBranchFactory,
+        BranchPort _branchPort,
+        string memory _name,
+        string memory _symbol,
+        address _caller
+    ) internal returns (ERC20hTokenBranchFactory _branchHTokenFactory) {
         _branchHTokenFactory = new ERC20hTokenBranchFactory(address(_branchPort), _name, _symbol);
 
-        _branchHTokenFactory.check_deploy(_branchPort, _name, _symbol, address(this));
+        _branchHTokenFactory.check_deploy(_branchPort, _name, _symbol, _caller);
     }
 
     function check_deploy(

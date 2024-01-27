@@ -37,7 +37,7 @@ import {ArbitrumCoreBranchRouter} from "@omni/ArbitrumCoreBranchRouter.sol";
 
 import {ERC20hToken} from "@omni/token/ERC20hToken.sol";
 import {ERC20hTokenRootFactory} from "@omni/factories/ERC20hTokenRootFactory.sol";
-import {ERC20hTokenBranchFactory} from "@omni/factories/ERC20hTokenBranchFactory.sol";
+import {ERC20hTokenBranchFactory, IERC20hTokenBranchFactory} from "@omni/factories/ERC20hTokenBranchFactory.sol";
 import {RootBridgeAgentFactory} from "@omni/factories/RootBridgeAgentFactory.sol";
 import {BranchBridgeAgentFactory} from "@omni/factories/BranchBridgeAgentFactory.sol";
 import {ArbitrumBranchBridgeAgentFactory} from "@omni/factories/ArbitrumBranchBridgeAgentFactory.sol";
