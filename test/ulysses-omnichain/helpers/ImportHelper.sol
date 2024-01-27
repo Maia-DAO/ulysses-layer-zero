@@ -9,6 +9,8 @@ import {Ownable, SafeTransferLib} from "solady/Milady.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
+import {MockERC721} from "solmate/test/utils/mocks/MockERC721.sol";
+import {MockERC1155} from "solmate/test/utils/mocks/MockERC1155.sol";
 import {stdError} from "forge-std/StdError.sol";
 import {Test} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
