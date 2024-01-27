@@ -486,7 +486,6 @@ contract ArbitrumBranchTest is Test {
         );
     }
 
-
     function testAddLocalTokenArbitrumFailedIsGlobal() public {
         // Get some gas.
         vm.deal(address(this), 1 ether);
@@ -821,6 +820,38 @@ contract ArbitrumBranchTest is Test {
         );
     }
 
+    function testCallOutFailedTriggerFallbackDestinationArbitrumBranch_executeNoSettlementShouldRevert() public {
+        // Set up
+        testAddLocalTokenArbitrum();
+
+        // Store user
+        address user = address(this);
+
+        // Store multicallBridgeAgent settlement nonce
+        uint32 settlementNonce = multicallBridgeAgent.settlementNonce();
+
+        //Get gas
+        GasParams memory gasParams = GasParams(5_000_000, 0);
+
+        // Prank into rootMulticallRouter
+        vm.startPrank(address(rootMulticallRouter));
+
+        // Approve spend by router
+        ERC20hToken(newArbitrumAssetGlobalAddress).approve(address(rootPort), 100 ether);
+
+        //Call Deposit function with Fallback on
+        multicallBridgeAgent.callOut(payable(user), user, rootChainId, "should fail", gasParams);
+
+        // Check if settlement is set to failure
+        require(multicallBridgeAgent.settlementNonce() == settlementNonce + 1, "Settlement nonce should be incremented");
+        require(multicallBridgeAgent.getSettlementEntry(settlementNonce).status == 0, "Settlement should be success");
+
+        // Check arb branch bridge agent execution status on destination
+        require(
+            arbitrumMulticallBridgeAgent.executionState(settlementNonce) == 0, "Settlement should not be successfull"
+        );
+    }
+
     function testCallOutWithDepositFailedTriggerFallbackDestinationArbitrumBranch() public {
         // Set up
         testAddLocalTokenArbitrum();
@@ -920,7 +951,6 @@ contract ArbitrumBranchTest is Test {
         require(multicallBridgeAgent.settlementNonce() == settlementNonce + 1, "Settlement nonce should be incremented");
         require(multicallBridgeAgent.getSettlementEntry(settlementNonce).status == 1, "Settlement should be failed");
     }
-
 
     function testCallOutWithDepositFailedTriggerFallbackDestinationArbitrumBranchWithRootExecutionFailure() public {
         // Set up
