@@ -136,13 +136,7 @@ contract BaseBranchRouter is IBranchRouter, ReentrancyGuard, Ownable {
     }
 
     /// @inheritdoc IBranchRouter
-    function executeSettlement(bytes calldata, SettlementParams memory)
-        external
-        payable
-        virtual
-        override
-        requiresAgentExecutor
-    {
+    function executeSettlement(bytes calldata, SettlementParams memory) external payable virtual override {
         revert UnrecognizedFunctionId();
     }
 
@@ -152,7 +146,6 @@ contract BaseBranchRouter is IBranchRouter, ReentrancyGuard, Ownable {
         payable
         virtual
         override
-        requiresAgentExecutor
     {
         revert UnrecognizedFunctionId();
     }
