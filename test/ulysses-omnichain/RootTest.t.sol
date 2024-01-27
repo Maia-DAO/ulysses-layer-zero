@@ -668,12 +668,17 @@ contract RootTest is Test, BridgeAgentConstants {
         assertEq(rootPort.getTotalSupplyBranches(_hToken), priorTotalSupplyBranch);
     }
 
+    function test_bridgeToLocalBranchFromRoot_arbMockToken_ChainInsufficientBalance() public {
+        test_bridgeToLocalBranchFromRoot_arbMockToken_ChainInsufficientBalance(address(this), 100 ether, ftmChainId);
+    }
+
     function test_bridgeToLocalBranchFromRoot_arbMockToken_ChainInsufficientBalance(
         address _to,
         uint128 _amount,
         uint256 _dstChainId
     ) public {
         if (_amount == 0) _amount = 1;
+        if (_dstChainId == rootChainId) _dstChainId = rootChainId == 0 ? 1 : rootChainId - 1;
 
         // Bridge to a different branch
         test_bridgeToBranch_arbMockToken(_to, _amount, 0, _dstChainId);
