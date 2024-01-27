@@ -7,7 +7,7 @@ import "./helpers/RootForkHelper.t.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
-contract RootTest is DSTestPlus, BridgeAgentConstants {
+contract RootTest is Test, BridgeAgentConstants {
     using SafeTransferLib for address;
     using BaseBranchRouterHelper for BaseBranchRouter;
     using CoreRootRouterHelper for CoreRootRouter;
@@ -179,8 +179,8 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
         rootPort.initialize(address(bridgeAgentFactory), address(coreRootRouter));
 
-        hevm.deal(address(rootPort), 1 ether);
-        hevm.prank(address(rootPort));
+        vm.deal(address(rootPort), 1 ether);
+        vm.prank(address(rootPort));
         WETH(arbitrumWrappedNativeToken).deposit{value: 1 ether}();
 
         hTokenFactory.initialize(address(coreRootRouter));
@@ -367,7 +367,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         //  Add new branches to  Root Agents //
         ///////////////////////////////////////
 
-        hevm.deal(address(this), 3 ether);
+        vm.deal(address(this), 3 ether);
 
         coreRootRouter.addBranchToBridgeAgent{value: 1 ether}(
             address(multicallBridgeAgent),
@@ -484,10 +484,10 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint256 _deposit,
         uint256 _dstChainId
     ) internal {
-        hevm.prank(address(rootPort));
+        vm.prank(address(rootPort));
         MockERC20(_hToken).mint(_from, _amount);
 
-        hevm.prank(_from);
+        vm.prank(_from);
         _hToken.safeApprove(address(rootPort), _amount);
 
         uint256 priorBalanceOfFrom = _hToken.balanceOf(_from);
@@ -495,7 +495,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint256 priorBalanceOfBranch = rootPort.getBalanceOfBranch(_hToken, _dstChainId);
         uint256 priorTotalSupplyBranch = rootPort.getTotalSupplyBranches(_hToken);
 
-        hevm.prank(address(multicallBridgeAgent));
+        vm.prank(address(multicallBridgeAgent));
         rootPort.bridgeToBranch(_from, _hToken, _amount, _deposit, _dstChainId);
 
         uint256 balanceDiff = _amount - _deposit;
@@ -549,7 +549,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint256 priorBalanceOfBranch = rootPort.getBalanceOfBranch(_hToken, _srcChainId);
         uint256 priorTotalSupplyBranch = rootPort.getTotalSupplyBranches(_hToken);
 
-        hevm.prank(address(multicallBridgeAgent));
+        vm.prank(address(multicallBridgeAgent));
         rootPort.bridgeToRoot(_to, _hToken, _amount, _deposit, _srcChainId);
 
         uint256 balanceDiff = _amount - _deposit;
@@ -566,6 +566,18 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         }
     }
 
+    function test_bridgeToRoot_arbMockToken_ChainInsufficientBalance_ftm() public {
+        test_bridgeToRoot_arbMockToken_ChainInsufficientBalance(
+            address(this), 100 ether, 50 ether, ftmChainId, rootChainId
+        );
+    }
+
+    function test_bridgeToRoot_arbMockToken_ChainInsufficientBalance_avax() public {
+        test_bridgeToRoot_arbMockToken_ChainInsufficientBalance(
+            address(this), 100 ether, 50 ether, avaxChainId, rootChainId
+        );
+    }
+
     function test_bridgeToRoot_arbMockToken_ChainInsufficientBalance(
         address _to,
         uint256 _amount,
@@ -575,6 +587,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
     ) public {
         if (_amount == 0) _amount = 1;
         if (_dstChainId == _srcChainId) _dstChainId = _srcChainId == 0 ? 1 : _srcChainId - 1;
+        if (_to == address(rootPort)) _to = address(1);
 
         (_amount, _deposit) = _parseDepositAndWithdrawAmounts(_amount, _deposit);
 
@@ -582,12 +595,16 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         test_bridgeToBranch_arbMockToken(_to, _amount, _deposit, _dstChainId);
 
         if (_srcChainId == rootChainId) {
-            hevm.expectRevert(IRootPort.InsufficientBalance.selector);
+            vm.expectRevert(IRootPort.InsufficientBalance.selector);
         } else {
-            hevm.expectRevert(stdError.arithmeticError);
+            vm.expectRevert(stdError.arithmeticError);
         }
-        hevm.prank(address(multicallBridgeAgent));
+        vm.prank(address(multicallBridgeAgent));
         rootPort.bridgeToRoot(_to, newArbitrumAssetGlobalAddress, _amount, _deposit, _srcChainId);
+    }
+
+    function test_bridgeToRoot_arbMockToken_NoDeposit() public {
+        test_bridgeToRoot_arbMockToken_NoDeposit(address(this), 100 ether, 0, avaxChainId);
     }
 
     function test_bridgeToRoot_arbMockToken_NoDeposit(
@@ -603,8 +620,12 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         // Add arbitrumMockToken to the ecosystem as underlying
         testAddLocalTokenArbitrum();
 
-        hevm.expectRevert(stdError.arithmeticError);
-        hevm.prank(address(multicallBridgeAgent));
+        if (_srcChainId == rootChainId) {
+            vm.expectRevert(IRootPort.InsufficientBalance.selector);
+        } else {
+            vm.expectRevert(stdError.arithmeticError);
+        }
+        vm.prank(address(multicallBridgeAgent));
         rootPort.bridgeToRoot(_to, newArbitrumAssetGlobalAddress, _amount, _deposit, _srcChainId);
     }
 
@@ -617,7 +638,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddLocalTokenArbitrum();
 
         // Mock bridgeToRootFromLocalBranch
-        hevm.prank(address(rootPort));
+        vm.prank(address(rootPort));
         MockERC20(newArbitrumAssetGlobalAddress).mint(address(rootPort), _amount);
 
         _test_bridgeToLocalBranchFromRoot(_to, newArbitrumAssetGlobalAddress, _amount);
@@ -627,7 +648,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
     //     public
     // {
     // // Mock bridgeToRootFromLocalBranch
-    // hevm.prank(address(rootPort));
+    // vm.prank(address(rootPort));
     // MockERC20(newArbitrumAssetGlobalAddress).mint(address(rootPort), _amount);
 
     // _test_bridgeToLocalBranchFromRoot(_to, newArbitrumAssetGlobalAddress, _amount);
@@ -638,7 +659,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint256 priorBalanceOfPort = _hToken.balanceOf(address(rootPort));
         uint256 priorTotalSupplyBranch = rootPort.getTotalSupplyBranches(_hToken);
 
-        hevm.prank(address(arbitrumPort));
+        vm.prank(address(arbitrumPort));
         rootPort.bridgeToLocalBranchFromRoot(_to, _hToken, _amount);
 
         assertEq(_hToken.balanceOf(address(_to)), priorBalanceOfTo + _amount);
@@ -657,8 +678,8 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         // Bridge to a different branch
         test_bridgeToBranch_arbMockToken(_to, _amount, 0, _dstChainId);
 
-        hevm.expectRevert(IRootPort.InsufficientBalance.selector);
-        hevm.prank(address(arbitrumPort));
+        vm.expectRevert(IRootPort.InsufficientBalance.selector);
+        vm.prank(address(arbitrumPort));
         rootPort.bridgeToLocalBranchFromRoot(_to, newArbitrumAssetGlobalAddress, _amount);
     }
 
@@ -668,8 +689,8 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         // Add arbitrumMockToken to the ecosystem as underlying
         testAddLocalTokenArbitrum();
 
-        hevm.expectRevert(IRootPort.InsufficientBalance.selector);
-        hevm.prank(address(arbitrumPort));
+        vm.expectRevert(IRootPort.InsufficientBalance.selector);
+        vm.prank(address(arbitrumPort));
         rootPort.bridgeToLocalBranchFromRoot(_to, newArbitrumAssetGlobalAddress, _amount);
     }
 
@@ -677,7 +698,17 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
     //         Ecosystem Tokens         //
     //////////////////////////////////////
 
+    function testAddEcosystemToken() public {
+        testAddEcosystemToken(address(0xDEAD));
+    }
+
     function testAddEcosystemToken(address _ecosystemToken) public {
+        if (rootPort.isGlobalAddress(_ecosystemToken)) {
+            vm.expectRevert(IRootPort.AlreadyAddedEcosystemToken.selector);
+            rootPort.addEcosystemToken(_ecosystemToken);
+            return;
+        }
+
         rootPort.addEcosystemToken(_ecosystemToken);
 
         console2.log("New Ecosystem Token: ", _ecosystemToken);
@@ -717,8 +748,38 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testCallOutWithDeposit();
 
         // The admin can no longer add an ecosystem token because there were deposits
-        hevm.expectRevert(abi.encodeWithSignature("AlreadyAddedEcosystemToken()"));
+        vm.expectRevert(IRootPort.AlreadyAddedEcosystemToken.selector);
         rootPort.addEcosystemToken(address(arbitrumMockToken));
+    }
+
+    function testAddEcosystemToken_AlreadyAdded_RootLocalToken() public {
+        testAddEcosystemToken_AlreadyAdded_RootLocalToken(address(1), address(2), address(3));
+    }
+
+    function testAddEcosystemToken_AlreadyAdded_RootLocalToken(
+        address _globalAddress,
+        address _localAddress,
+        address _underlyingAddress
+    ) public {
+        // Addresses can't be zero and global and local addresses can't be the same
+        address nonZeroAddress = address(0xCAFE);
+        if (_globalAddress == address(0)) _globalAddress = nonZeroAddress;
+        if (_localAddress == address(0)) _localAddress = nonZeroAddress;
+        if (_underlyingAddress == address(0)) _underlyingAddress = nonZeroAddress;
+        if (_globalAddress == _localAddress) {
+            _localAddress = _globalAddress == nonZeroAddress ? address(0xDEAD) : nonZeroAddress;
+        }
+
+        // This should never happen, but testing adding an ecosystem token in case it does
+        vm.prank(address(coreRootRouter));
+        rootPort.setAddresses(_globalAddress, _localAddress, _underlyingAddress, rootChainId);
+
+        assertFalse(rootPort.isGlobalAddress(_localAddress));
+        assertNotEq(rootPort.getUnderlyingTokenFromLocal(_localAddress, rootChainId), address(0));
+
+        // The admin can no longer add an ecosystem token because there were deposits
+        vm.expectRevert(IRootPort.AlreadyAddedEcosystemToken.selector);
+        rootPort.addEcosystemToken(_localAddress);
     }
 
     //////////////////////////////////////
@@ -727,10 +788,10 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
     function testAddBridgeAgent() public {
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // Create Root Bridge Agent
         MulticallRootRouter testMulticallRouter =
@@ -773,11 +834,11 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddBridgeAgent();
 
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         RootBridgeAgent testRootBridgeAgent = RootBridgeAgent(payable(rootPort.bridgeAgents(2)));
 
-        hevm.expectRevert(abi.encodeWithSignature("AlreadyAddedBridgeAgent()"));
+        vm.expectRevert(abi.encodeWithSignature("AlreadyAddedBridgeAgent()"));
 
         // Allow new branch
         testRootBridgeAgent.approveBranchBridgeAgent(ftmChainId);
@@ -786,13 +847,13 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
     function testAddBridgeAgentAlreadyAddedOnSync() public {
         testAddBridgeAgent();
 
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
-        hevm.startPrank(address(coreRootRouter));
+        vm.startPrank(address(coreRootRouter));
 
         RootBridgeAgent testRootBridgeAgent = RootBridgeAgent(payable(rootPort.bridgeAgents(2)));
 
-        hevm.expectRevert(abi.encodeWithSignature("AlreadyAddedBridgeAgent()"));
+        vm.expectRevert(abi.encodeWithSignature("AlreadyAddedBridgeAgent()"));
 
         rootPort.syncBranchBridgeAgentWithRoot(address(9), address(testRootBridgeAgent), ftmChainId);
     }
@@ -800,13 +861,13 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
     function testAddBridgeAgentNotAllowedOnSync() public {
         testAddBridgeAgent();
 
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
-        hevm.startPrank(address(coreRootRouter));
+        vm.startPrank(address(coreRootRouter));
 
         RootBridgeAgent testRootBridgeAgent = RootBridgeAgent(payable(rootPort.bridgeAgents(2)));
 
-        hevm.expectRevert(abi.encodeWithSignature("BridgeAgentNotAllowed()"));
+        vm.expectRevert(abi.encodeWithSignature("BridgeAgentNotAllowed()"));
 
         rootPort.syncBranchBridgeAgentWithRoot(address(9), address(testRootBridgeAgent), avaxChainId);
     }
@@ -815,7 +876,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddBridgeAgent();
 
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // Create Root Bridge Agent
         MulticallRootRouter testMulticallRouter =
@@ -823,7 +884,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
         RootBridgeAgent testRootBridgeAgent = RootBridgeAgent(payable(rootPort.bridgeAgents(2)));
 
-        hevm.expectRevert(abi.encodeWithSignature("InvalidChainId()"));
+        vm.expectRevert(abi.encodeWithSignature("InvalidChainId()"));
 
         // Create Branch Bridge Agent
         coreRootRouter.addBranchToBridgeAgent{value: 0.05 ether}(
@@ -838,7 +899,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
     function testAddBridgeAgentNotApproved() public {
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // Create Root Bridge Agent
         MulticallRootRouter testMulticallRouter =
@@ -852,7 +913,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         // Initialize Router
         testMulticallRouter.initialize(address(testRootBridgeAgent));
 
-        hevm.expectRevert(abi.encodeWithSignature("UnauthorizedChainId()"));
+        vm.expectRevert(abi.encodeWithSignature("UnauthorizedChainId()"));
 
         // Create Branch Bridge Agent
         coreRootRouter.addBranchToBridgeAgent{value: 0.05 ether}(
@@ -867,7 +928,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
     function testAddBridgeAgentNotManager() public {
         // Get some gas
-        hevm.deal(address(89), 1 ether);
+        vm.deal(address(89), 1 ether);
 
         // Create Root Bridge Agent
         MulticallRootRouter testMulticallRouter =
@@ -881,9 +942,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         // Initialize Router
         testMulticallRouter.initialize(address(testRootBridgeAgent));
 
-        hevm.startPrank(address(89));
+        vm.startPrank(address(89));
 
-        hevm.expectRevert(abi.encodeWithSignature("UnauthorizedCallerNotManager()"));
+        vm.expectRevert(abi.encodeWithSignature("UnauthorizedCallerNotManager()"));
         // Create Branch Bridge Agent
         coreRootRouter.addBranchToBridgeAgent{value: 0.05 ether}(
             address(testRootBridgeAgent),
@@ -897,7 +958,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
     function testAddBridgeAgentWrongBranchFactory() public {
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         //Create Root Router
         MulticallRootRouter testMulticallRouter =
@@ -938,7 +999,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
     function testAddBridgeAgentFactory() public {
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         newFtmBranchBridgeAgentFactory = new BranchBridgeAgentFactory(
             ftmChainId, rootChainId, address(80), lzEndpointAddress, address(ftmCoreRouter), address(ftmPort), owner
@@ -959,13 +1020,13 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
     function testAddBridgeAgentFactoryUnrecognizedBridgeAgentFactory() public {
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         newFtmBranchBridgeAgentFactory = new BranchBridgeAgentFactory(
             ftmChainId, rootChainId, address(80), lzEndpointAddress, address(ftmCoreRouter), address(ftmPort), owner
         );
 
-        hevm.expectRevert(abi.encodeWithSignature("UnrecognizedBridgeAgentFactory()"));
+        vm.expectRevert(abi.encodeWithSignature("UnrecognizedBridgeAgentFactory()"));
         coreRootRouter.toggleBranchBridgeAgentFactory{value: 0.05 ether}(
             address(1),
             address(newFtmBranchBridgeAgentFactory),
@@ -981,7 +1042,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddBridgeAgentFactory();
 
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // Create Root Bridge Agent
         MulticallRootRouter testMulticallRouter =
@@ -1019,7 +1080,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddBridgeAgentFactory();
 
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         coreRootRouter.toggleBranchBridgeAgentFactory{value: 0.05 ether}(
             address(bridgeAgentFactory),
@@ -1055,7 +1116,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
     function testAddStrategyToken() public {
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         coreRootRouter.toggleStrategyToken{value: 0.05 ether}(
             address(102), 7000, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
@@ -1069,7 +1130,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddStrategyToken();
 
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         coreRootRouter.updateStrategyToken{value: 0.05 ether}(
             address(102), 8000, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
@@ -1081,7 +1142,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
     function testUpdateStrategyTokenUnrecognizedStrategyToken() public {
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // UnrecognizedStrategyToken();
         coreRootRouter.updateStrategyToken{value: 0.05 ether}(
@@ -1094,9 +1155,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
     function testAddStrategyTokenInvalidMinReserve() public {
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
-        hevm.expectRevert(abi.encodeWithSignature("InvalidMinimumReservesRatio()"));
+        vm.expectRevert(abi.encodeWithSignature("InvalidMinimumReservesRatio()"));
         coreRootRouter.toggleStrategyToken{value: 0.05 ether}(
             address(102), 30000, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
         );
@@ -1110,7 +1171,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddStrategyToken();
 
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         coreRootRouter.toggleStrategyToken{value: 0.05 ether}(
             address(102), 10000, address(this), ftmChainId, GasParams(0.05 ether, 0.05 ether)
@@ -1125,7 +1186,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddStrategyToken();
 
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         coreRootRouter.togglePortStrategy{value: 0.05 ether}(
             address(50), address(102), 7000, 7000, address(this), ftmChainId, GasParams(0.05 ether, 0)
@@ -1141,7 +1202,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddPortStrategy();
 
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         coreRootRouter.togglePortStrategy{value: 0.05 ether}(
             address(50), address(102), 7000, 7000, address(this), ftmChainId, GasParams(0.05 ether, 0)
@@ -1154,7 +1215,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
     function testAddPortStrategyNotToken() public {
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // UnrecognizedStrategyToken();
         coreRootRouter.togglePortStrategy{value: 0.1 ether}(
@@ -1171,7 +1232,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddPortStrategy();
 
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         coreRootRouter.updatePortStrategy{value: 0.05 ether}(
             address(50), address(102), 8000, 8000, address(this), ftmChainId, GasParams(0.05 ether, 0)
@@ -1187,7 +1248,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddPortStrategy();
 
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // UnrecognizedStrategyToken();
         coreRootRouter.updatePortStrategy{value: 0.05 ether}(
@@ -1208,7 +1269,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddPortStrategy();
 
         // Get some gas
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // UnrecognizedStrategyToken();
         coreRootRouter.updatePortStrategy{value: 0.05 ether}(
@@ -1233,7 +1294,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
     ERC20hTokenBranchFactory newFtmHTokenFactory;
 
     function testSetBranchRouter() public {
-        hevm.deal(address(this), 1000 ether);
+        vm.deal(address(this), 1000 ether);
 
         // Deploy new root core
 
@@ -1319,7 +1380,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint256 prevBalance = address(this).balance;
 
         // Mock accumulated balance
-        hevm.deal(address(rootPort), 100 ether);
+        vm.deal(address(rootPort), 100 ether);
 
         // Reques sweep to address(this)
         rootPort.sweep(address(this));
@@ -1332,13 +1393,13 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
     }
 
     function testSweepBranchPort(uint128 amount) public {
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         // Save previous balance
         uint256 prevBalance = address(this).balance - 0.05 ether;
 
         // Mock accumulated balance
-        hevm.deal(address(ftmPort), amount);
+        vm.deal(address(ftmPort), amount);
 
         // Reques sweep to address(this)
         coreRootRouter.sweep{value: 0.05 ether}(address(this), address(this), ftmChainId, GasParams(0.05 ether, 0));
@@ -1357,7 +1418,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
     address public newAvaxAssetGlobalAddress;
 
     function testAddLocalToken() public {
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         avaxCoreRouter.addLocalToken{value: 0.1 ether}(address(avaxMockAssetToken), GasParams(0.5 ether, 0.5 ether));
 
@@ -1420,7 +1481,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         testAddGlobalToken();
 
         // Get some gas.
-        hevm.deal(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
 
         //Add new localToken
         arbitrumCoreRouter.addLocalToken{value: 0.0005 ether}(
@@ -1477,12 +1538,78 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         );
     }
 
+    function testGetUnderlyingTokenFromGlobal(
+        address _globalAddress,
+        address _localAddress,
+        address _underlyingAddress,
+        uint256 _srcChainId
+    ) public {
+        // Set non-zero addresses and different global and local addresses
+        address nonZeroAddress = address(0xCAFE);
+        if (_globalAddress == address(0)) _globalAddress = nonZeroAddress;
+        if (_localAddress == address(0)) _localAddress = nonZeroAddress;
+        if (_underlyingAddress == address(0)) _underlyingAddress = nonZeroAddress;
+        if (_globalAddress == _localAddress) _localAddress = address(0xDEAD);
+
+        // Setup the mapping using setAddresses
+        vm.prank(address(coreRootRouter));
+        rootPort.setAddresses(_globalAddress, _localAddress, _underlyingAddress, _srcChainId);
+
+        // Assert that the returned address matches the expected underlying address
+        address returnedAddress = rootPort.getUnderlyingTokenFromGlobal(_globalAddress, _srcChainId);
+        assertEq(returnedAddress, _underlyingAddress, "Underlying token address does not match expected value");
+    }
+
+    function testIsLocalToken() public {
+        testIsLocalToken(address(0xBEEF), address(0xCAFE), address(0xDEAD), 10, 11);
+    }
+
+    function testIsLocalTokenSameChain() public {
+        testIsLocalToken(address(0xBEEF), address(0xCAFE), address(0xDEAD), 10, 10);
+    }
+
+    function testIsLocalToken(
+        address _srcChainLocalAddress,
+        address _dstChainLocalAddress,
+        address _globalAddress,
+        uint256 _srcChainId,
+        uint256 _dstChainId
+    ) public {
+        // Set non-zero addresses and different global and local addresses
+        address nonZeroAddress = address(0xCAFE);
+        if (_srcChainLocalAddress < address(2)) _srcChainLocalAddress = nonZeroAddress;
+        if (_dstChainLocalAddress < address(2)) _dstChainLocalAddress = nonZeroAddress;
+        if (_globalAddress < address(2)) _globalAddress = nonZeroAddress;
+        if (_srcChainId == _dstChainId) _srcChainLocalAddress = _dstChainLocalAddress;
+
+        // Setup the mappings using setAddresses and setLocalAddress
+        vm.startPrank(address(coreRootRouter));
+        rootPort.setAddresses(_globalAddress, _srcChainLocalAddress, address(1), _srcChainId);
+        rootPort.setLocalAddress(_globalAddress, _dstChainLocalAddress, _dstChainId);
+        vm.stopPrank();
+
+        // Assert that isLocalToken returns true for a valid origin local token
+        assertTrue(
+            rootPort.isLocalToken(_srcChainLocalAddress, _srcChainId, _srcChainId), "Expected to be a valid local token"
+        );
+
+        // Assert that isLocalToken returns true for a valid destination local token
+        assertTrue(
+            rootPort.isLocalToken(_dstChainLocalAddress, _dstChainId, _srcChainId), "Expected to be a valid local token"
+        );
+
+        // Test with an invalid local address
+        assertFalse(
+            rootPort.isLocalToken(address(1), _srcChainId, _srcChainId), "Expected to be an invalid local token"
+        );
+    }
+
     //////////////////////////////////////
     //          TOKEN TRANSFERS         //
     //////////////////////////////////////
 
     function testCallOutWithDeposit() public {
-        _testFuzzCallOutWithDeposit(address(this), 100 ether, 100 ether, 100 ether, 50 ether);
+        testFuzzCallOutWithDeposit(address(this), 100 ether, 100 ether, 100 ether, 50 ether);
     }
 
     function testFuzzCallOutWithDeposit(
@@ -1491,22 +1618,12 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint256 _deposit,
         uint256 _amountOut,
         uint256 _depositOut
-    ) public {
-        (_user, _amount, _deposit, _amountOut, _depositOut) =
-            BranchBridgeAgentHelper.adjustValues(_user, _amount, _deposit, _amountOut, _depositOut);
-
-        _testFuzzCallOutWithDeposit(_user, _amount, _deposit, _amountOut, _depositOut);
-    }
-
-    function _testFuzzCallOutWithDeposit(
-        address _user,
-        uint256 _amount,
-        uint256 _deposit,
-        uint256 _amountOut,
-        uint256 _depositOut
     ) internal {
         // Set up
         testAddLocalTokenArbitrum();
+
+        (_user, _amount, _deposit, _amountOut, _depositOut) =
+            BranchBridgeAgentHelper.adjustValues(_user, _amount, _deposit, _amountOut, _depositOut);
 
         // Prepare data
         bytes memory packedData;
@@ -1532,13 +1649,13 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         }
 
         // Get some gas.
-        hevm.deal(_user, 1 ether);
+        vm.deal(_user, 1 ether);
 
         if (_amount - _deposit > 0) {
             // Assure there is enough balance for mock action
-            hevm.startPrank(address(rootPort));
+            vm.startPrank(address(rootPort));
             ERC20hToken(newArbitrumAssetGlobalAddress).mint(_user, _amount - _deposit);
-            hevm.stopPrank();
+            vm.stopPrank();
             arbitrumMockToken.mint(address(arbitrumPort), _amount - _deposit);
         }
 
@@ -1560,13 +1677,13 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         );
 
         // Call Deposit function
-        hevm.startPrank(_user);
+        vm.startPrank(_user);
         arbitrumMockToken.approve(address(arbitrumPort), _deposit);
         ERC20hToken(newArbitrumAssetGlobalAddress).approve(address(rootPort), _amount - _deposit);
         arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(
             packedData, depositInput, GasParams(0.5 ether, 0.5 ether), true
         );
-        hevm.stopPrank();
+        vm.stopPrank();
 
         // Test If Deposit was successful
         testCreateDepositSingle(
@@ -1621,20 +1738,20 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         address _user = address(0x420);
 
         // Get some gas.
-        hevm.deal(_user, 1 ether);
+        vm.deal(_user, 1 ether);
 
         // Assure there is enough balance for mock action
-        hevm.prank(address(rootPort));
+        vm.prank(address(rootPort));
         ERC20hToken(newAvaxAssetGlobalAddress).mint(address(multicallBridgeAgent), 150 ether);
-        hevm.prank(address(avaxPort));
+        vm.prank(address(avaxPort));
         ERC20hToken(avaxMockAssethToken).mint(_user, 50 ether);
 
-        hevm.startPrank(address(multicallBridgeAgent));
+        vm.startPrank(address(multicallBridgeAgent));
         ERC20hToken(newAvaxAssetGlobalAddress).approve(address(rootPort), 50 ether);
         rootPort.bridgeToBranch(
             address(multicallBridgeAgent), newAvaxAssetGlobalAddress, 150 ether, 100 ether, avaxChainId
         );
-        hevm.stopPrank();
+        vm.stopPrank();
 
         // Mint Underlying Token.
         avaxMockAssetToken.mint(_user, 100 ether);
@@ -1650,14 +1767,14 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         //GasParams
         GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
 
-        hevm.startPrank(_user);
+        vm.startPrank(_user);
 
         // Call Deposit function
         avaxMockAssetToken.approve(address(avaxPort), 100 ether);
 
         avaxMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(packedData, depositInput, gasParams, false);
 
-        hevm.stopPrank();
+        vm.stopPrank();
     }
 
     function testRetrieveDeposit() public {
@@ -1668,9 +1785,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint32 depositNonce = avaxMulticallBridgeAgent.depositNonce() - 1;
 
         // Get some gas.
-        hevm.deal(_user, 10 ether);
+        vm.deal(_user, 10 ether);
 
-        hevm.prank(_user);
+        vm.prank(_user);
         avaxMulticallBridgeAgent.retrieveDeposit(depositNonce, GasParams(0.5 ether, 0.5 ether));
 
         Deposit memory deposit = avaxMulticallBridgeAgent.getDepositEntry(depositNonce);
@@ -1687,10 +1804,10 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint32 depositNonce = avaxMulticallBridgeAgent.depositNonce() - 1;
 
         // Get some gas.
-        hevm.deal(_user, 10 ether);
+        vm.deal(_user, 10 ether);
 
-        hevm.prank(_user);
-        hevm.expectRevert(abi.encodeWithSignature("DepositAlreadyRetrieved()"));
+        vm.prank(_user);
+        vm.expectRevert(abi.encodeWithSignature("DepositAlreadyRetrieved()"));
         avaxMulticallBridgeAgent.retrieveDeposit(depositNonce, GasParams(0.5 ether, 0.5 ether));
     }
 
@@ -1702,9 +1819,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint32 depositNonce = avaxMulticallBridgeAgent.depositNonce() - 1;
 
         // Get some gas.
-        hevm.deal(_user, 10 ether);
+        vm.deal(_user, 10 ether);
 
-        hevm.prank(_user);
+        vm.prank(_user);
         avaxMulticallBridgeAgent.retrieveDeposit(depositNonce, GasParams(0.5 ether, 0.5 ether));
 
         Deposit memory deposit = avaxMulticallBridgeAgent.getDepositEntry(depositNonce);
@@ -1723,9 +1840,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint32 depositNonce = avaxMulticallBridgeAgent.depositNonce() - 1;
 
         // Get some gas.
-        hevm.deal(_user, 10 ether);
+        vm.deal(_user, 10 ether);
 
-        hevm.prank(_user);
+        vm.prank(_user);
         avaxMulticallBridgeAgent.retrieveDeposit(depositNonce, GasParams(0.5 ether, 0.5 ether));
 
         Deposit memory deposit = avaxMulticallBridgeAgent.getDepositEntry(depositNonce);
@@ -1744,9 +1861,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint32 depositNonce = avaxMulticallBridgeAgent.depositNonce() - 1;
 
         // Get some gas.
-        hevm.deal(_user, 10 ether);
+        vm.deal(_user, 10 ether);
 
-        hevm.prank(_user);
+        vm.prank(_user);
         avaxMulticallBridgeAgent.redeemDeposit(depositNonce, _user, address(avaxMockAssethToken));
 
         Deposit memory deposit = avaxMulticallBridgeAgent.getDepositEntry(depositNonce);
@@ -1763,9 +1880,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint32 depositNonce = avaxMulticallBridgeAgent.depositNonce() - 1;
 
         // Get some gas.
-        hevm.deal(_user, 10 ether);
+        vm.deal(_user, 10 ether);
 
-        hevm.prank(_user);
+        vm.prank(_user);
         avaxMulticallBridgeAgent.redeemDeposit(depositNonce, _user);
 
         Deposit memory deposit = avaxMulticallBridgeAgent.getDepositEntry(depositNonce);
@@ -1804,20 +1921,20 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
             packedData = abi.encodePacked(bytes1(0x02), data);
         }
         // Get some gas.
-        hevm.deal(_user, 1 ether);
+        vm.deal(_user, 1 ether);
 
         // Assure there is enough balance for mock action
-        hevm.prank(address(rootPort));
+        vm.prank(address(rootPort));
         ERC20hToken(newAvaxAssetGlobalAddress).mint(address(multicallBridgeAgent), 150 ether);
-        hevm.prank(address(avaxPort));
+        vm.prank(address(avaxPort));
         ERC20hToken(avaxMockAssethToken).mint(_user, 50 ether);
 
-        hevm.startPrank(address(multicallBridgeAgent));
+        vm.startPrank(address(multicallBridgeAgent));
         ERC20hToken(newAvaxAssetGlobalAddress).approve(address(rootPort), 50 ether);
         rootPort.bridgeToBranch(
             address(multicallBridgeAgent), newAvaxAssetGlobalAddress, 150 ether, 100 ether, avaxChainId
         );
-        hevm.stopPrank();
+        vm.stopPrank();
 
         // Mint Underlying Token.
         avaxMockAssetToken.mint(_user, 100 ether);
@@ -1835,14 +1952,14 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
         MockEndpoint(lzEndpointAddress).toggleFallback(1);
 
-        hevm.startPrank(_user);
+        vm.startPrank(_user);
 
         // Call Deposit function
         avaxMockAssetToken.approve(address(avaxPort), 100 ether);
 
         avaxMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(packedData, depositInput, gasParams, false);
 
-        hevm.stopPrank();
+        vm.stopPrank();
 
         MockEndpoint(lzEndpointAddress).toggleFallback(0);
 
@@ -1913,15 +2030,15 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         }
 
         // Get some gas.
-        hevm.deal(_user, 1 ether);
+        vm.deal(_user, 1 ether);
 
         // Assure there is enough balance for mock action
-        hevm.prank(address(rootPort));
+        vm.prank(address(rootPort));
         ERC20hToken(newAvaxAssetGlobalAddress).mint(address(multicallBridgeAgent), 300 ether);
-        hevm.prank(address(avaxPort));
+        vm.prank(address(avaxPort));
         ERC20hToken(avaxMockAssethToken).mint(_user, 100 ether);
 
-        hevm.startPrank(address(multicallBridgeAgent));
+        vm.startPrank(address(multicallBridgeAgent));
         ERC20hToken(newAvaxAssetGlobalAddress).approve(address(rootPort), 100 ether);
         rootPort.bridgeToBranch(
             address(multicallBridgeAgent), newAvaxAssetGlobalAddress, 300 ether, 200 ether, avaxChainId
@@ -1929,10 +2046,10 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
         address virtualAccount = address(rootPort.fetchVirtualAccount(_user));
 
-        hevm.stopPrank();
+        vm.stopPrank();
 
         // Assure there is enough balance for mock action
-        hevm.prank(address(rootPort));
+        vm.prank(address(rootPort));
         ERC20hToken(newArbitrumAssetGlobalAddress).mint(virtualAccount, 150 ether);
 
         // Mint Underlying Token.
@@ -1951,7 +2068,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
 
         MockEndpoint(lzEndpointAddress).toggleFallback(1);
 
-        hevm.startPrank(_user);
+        vm.startPrank(_user);
 
         // Call Deposit function
         avaxMockAssetToken.approve(address(avaxPort), 200 ether);
@@ -1960,7 +2077,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
             packedData, depositInput, gasParams, false
         );
 
-        hevm.stopPrank();
+        vm.stopPrank();
 
         MockEndpoint(lzEndpointAddress).toggleFallback(0);
 
@@ -1981,9 +2098,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint32 settlementNonce = previousNonce;
 
         // Get some gas.
-        hevm.deal(_user, 1 ether);
+        vm.deal(_user, 1 ether);
 
-        hevm.prank(_user);
+        vm.prank(_user);
         //Retry Settlement
         rootMulticallRouter.retrySettlement{value: 1 ether}(
             settlementNonce, address(this), "", GasParams(0.5 ether, 0.5 ether), true
@@ -2004,9 +2121,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint32 settlementNonce = previousNonce;
 
         // Get some gas.
-        hevm.deal(_user, 1 ether);
+        vm.deal(_user, 1 ether);
 
-        hevm.prank(_user);
+        vm.prank(_user);
         //Retry Settlement
         rootMulticallRouter.retrySettlement{value: 1 ether}(
             settlementNonce, address(this), "", GasParams(0.5 ether, 0.5 ether), true
@@ -2029,9 +2146,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         GasParams[2] memory gParams = [GasParams(0.5 ether, 1 ether), GasParams(0.5 ether, 0.5 ether)];
 
         // Get some gas.
-        hevm.deal(_user, 10 ether);
+        vm.deal(_user, 10 ether);
 
-        hevm.prank(_user);
+        vm.prank(_user);
         //Retry Settlement
         avaxMulticallBridgeAgent.retrySettlement{value: 1 ether}(settlementNonce, "", gParams, true);
 
@@ -2050,9 +2167,9 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint32 settlementNonce = previousNonce;
 
         // Get some gas.
-        hevm.deal(_user, 10 ether);
+        vm.deal(_user, 10 ether);
 
-        hevm.prank(_user);
+        vm.prank(_user);
         //Retry Settlement
         multicallBridgeAgent.retrieveSettlement{value: 1 ether}(settlementNonce, GasParams(0.5 ether, 0.5 ether));
 
@@ -2074,14 +2191,14 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         uint32 settlementNonce = previousNonce;
 
         // Get some gas.
-        hevm.deal(_user, 10 ether);
+        vm.deal(_user, 10 ether);
 
-        hevm.expectRevert(IRootBridgeAgent.SettlementRedeemUnavailable.selector);
-        hevm.prank(_user);
+        vm.expectRevert(IRootBridgeAgent.SettlementRedeemUnavailable.selector);
+        vm.prank(_user);
         //Retry Settlement
         multicallBridgeAgent.retrieveSettlement{value: 1 ether}(settlementNonce, GasParams(0.5 ether, 0.5 ether));
 
-        hevm.stopPrank();
+        vm.stopPrank();
 
         Settlement memory settlement = multicallBridgeAgent.getSettlementEntry(settlementNonce);
 
@@ -2123,20 +2240,20 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
             }
 
             // Get some gas.
-            hevm.deal(_user, 1 ether);
+            vm.deal(_user, 1 ether);
 
             // Assure there is enough balance for mock action
-            hevm.prank(address(rootPort));
+            vm.prank(address(rootPort));
             ERC20hToken(newAvaxAssetGlobalAddress).mint(address(multicallBridgeAgent), 150 ether);
-            hevm.prank(address(avaxPort));
+            vm.prank(address(avaxPort));
             ERC20hToken(avaxMockAssethToken).mint(_user, 50 ether);
 
-            hevm.startPrank(address(multicallBridgeAgent));
+            vm.startPrank(address(multicallBridgeAgent));
             ERC20hToken(newAvaxAssetGlobalAddress).approve(address(rootPort), 50 ether);
             rootPort.bridgeToBranch(
                 address(multicallBridgeAgent), newAvaxAssetGlobalAddress, 150 ether, 100 ether, avaxChainId
             );
-            hevm.stopPrank();
+            vm.stopPrank();
 
             // Mint Underlying Token.
             avaxMockAssetToken.mint(_user, 100 ether);
@@ -2159,7 +2276,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
             //GasParams
             GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
 
-            hevm.startPrank(_user);
+            vm.startPrank(_user);
 
             // Call Deposit function
             avaxMockAssetToken.approve(address(avaxPort), 100 ether);
@@ -2178,14 +2295,14 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
             require(settlement.status == STATUS_SUCCESS, "Settlement status should be success.");
 
             // Get some gas.
-            hevm.deal(_user, 1 ether);
+            vm.deal(_user, 1 ether);
 
             //Retry Settlement
             rootMulticallRouter.retrySettlement{value: 1 ether}(
                 settlementNonce, address(_user), "", GasParams(0.5 ether, 0.5 ether), true
             );
 
-            hevm.stopPrank();
+            vm.stopPrank();
 
             settlement = multicallBridgeAgent.getSettlementEntry(settlementNonce);
 
@@ -2217,20 +2334,20 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         }
 
         // Get some gas.
-        hevm.deal(_user, 1 ether);
+        vm.deal(_user, 1 ether);
 
         // Assure there is enough balance for mock action
-        hevm.prank(address(rootPort));
+        vm.prank(address(rootPort));
         ERC20hToken(newAvaxAssetGlobalAddress).mint(address(multicallBridgeAgent), 150 ether);
-        hevm.prank(address(avaxPort));
+        vm.prank(address(avaxPort));
         ERC20hToken(avaxMockAssethToken).mint(_user, 50 ether);
 
-        hevm.startPrank(address(multicallBridgeAgent));
+        vm.startPrank(address(multicallBridgeAgent));
         ERC20hToken(newAvaxAssetGlobalAddress).approve(address(rootPort), 50 ether);
         rootPort.bridgeToBranch(
             address(multicallBridgeAgent), newAvaxAssetGlobalAddress, 150 ether, 100 ether, avaxChainId
         );
-        hevm.stopPrank();
+        vm.stopPrank();
 
         // Mint Underlying Token.
         avaxMockAssetToken.mint(_user, 100 ether);
@@ -2253,7 +2370,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         //GasParams
         GasParams memory _gasParams = GasParams(0.5 ether, 0.5 ether);
 
-        hevm.startPrank(_user);
+        vm.startPrank(_user);
 
         // Call Deposit function
         avaxMockAssetToken.approve(address(avaxPort), 100 ether);
@@ -2272,14 +2389,14 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         require(_settlement.status == STATUS_SUCCESS, "Settlement status should be success.");
 
         // Get some gas.
-        hevm.deal(_user, 1 ether);
+        vm.deal(_user, 1 ether);
 
         //Retry Settlement
         rootMulticallRouter.retrySettlement{value: 1 ether}(
             _settlementNonce, address(_user), "", GasParams(0.5 ether, 0.5 ether), true
         );
 
-        hevm.stopPrank();
+        vm.stopPrank();
 
         _settlement = multicallBridgeAgent.getSettlementEntry(_settlementNonce);
 
@@ -2318,20 +2435,20 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         address _user = address(this);
 
         // Get some gas.
-        hevm.deal(_user, 1 ether);
+        vm.deal(_user, 1 ether);
 
         // Assure there is enough balance for mock action
-        hevm.prank(address(rootPort));
+        vm.prank(address(rootPort));
         ERC20hToken(newAvaxAssetGlobalAddress).mint(address(multicallBridgeAgent), 150 ether);
-        hevm.prank(address(avaxPort));
+        vm.prank(address(avaxPort));
         ERC20hToken(avaxMockAssethToken).mint(_user, 50 ether);
 
-        hevm.startPrank(address(multicallBridgeAgent));
+        vm.startPrank(address(multicallBridgeAgent));
         ERC20hToken(newAvaxAssetGlobalAddress).approve(address(rootPort), 50 ether);
         rootPort.bridgeToBranch(
             address(multicallBridgeAgent), newAvaxAssetGlobalAddress, 150 ether, 100 ether, avaxChainId
         );
-        hevm.stopPrank();
+        vm.stopPrank();
 
         // Mint Underlying Token.
         avaxMockAssetToken.mint(_user, 100 ether);
@@ -2415,20 +2532,20 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
             }
 
             // Get some gas.
-            hevm.deal(_user, 1 ether);
+            vm.deal(_user, 1 ether);
 
             // Assure there is enough balance for mock action
-            hevm.prank(address(rootPort));
+            vm.prank(address(rootPort));
             ERC20hToken(newAvaxAssetGlobalAddress).mint(address(multicallBridgeAgent), 150 ether);
-            hevm.prank(address(avaxPort));
+            vm.prank(address(avaxPort));
             ERC20hToken(avaxMockAssethToken).mint(_user, 50 ether);
 
-            hevm.startPrank(address(multicallBridgeAgent));
+            vm.startPrank(address(multicallBridgeAgent));
             ERC20hToken(newAvaxAssetGlobalAddress).approve(address(rootPort), 50 ether);
             rootPort.bridgeToBranch(
                 address(multicallBridgeAgent), newAvaxAssetGlobalAddress, 150 ether, 100 ether, avaxChainId
             );
-            hevm.stopPrank();
+            vm.stopPrank();
 
             // Mint Underlying Token.
             avaxMockAssetToken.mint(_user, 100 ether);
@@ -2504,20 +2621,20 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         }
 
         // Get some gas.
-        hevm.deal(_user, 1 ether);
+        vm.deal(_user, 1 ether);
 
         // Assure there is enough balance for mock action
-        hevm.prank(address(rootPort));
+        vm.prank(address(rootPort));
         ERC20hToken(newAvaxAssetGlobalAddress).mint(address(multicallBridgeAgent), 150 ether);
-        hevm.prank(address(avaxPort));
+        vm.prank(address(avaxPort));
         ERC20hToken(avaxMockAssethToken).mint(_user, 50 ether);
 
-        hevm.startPrank(address(multicallBridgeAgent));
+        vm.startPrank(address(multicallBridgeAgent));
         ERC20hToken(newAvaxAssetGlobalAddress).approve(address(rootPort), 50 ether);
         rootPort.bridgeToBranch(
             address(multicallBridgeAgent), newAvaxAssetGlobalAddress, 150 ether, 100 ether, avaxChainId
         );
-        hevm.stopPrank();
+        vm.stopPrank();
 
         // Mint Underlying Token.
         avaxMockAssetToken.mint(_user, 100 ether);
@@ -2584,7 +2701,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
     }
 
     function testAddChainAlreadyAdded() public {
-        hevm.expectRevert(abi.encodeWithSignature("AlreadyAddedChain()"));
+        vm.expectRevert(abi.encodeWithSignature("AlreadyAddedChain()"));
 
         // Add new chain
         rootPort.addNewChain(address(0xBABA), 42161, "GasToken", "GTKN", 18, address(0xFAFA), address(0xDADA));
@@ -2627,27 +2744,27 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         if (rootPort.getBridgeAgentManager(address(_rootBridgeAgent)) != _transferCaller) {
             hasReverted = true;
             // If invalid owner, revert
-            hevm.expectRevert(IRootBridgeAgent.UnrecognizedBridgeAgentManager.selector);
+            vm.expectRevert(IRootBridgeAgent.UnrecognizedBridgeAgentManager.selector);
         } else if (_newManager == address(0)) {
             hasReverted = true;
             // If new manager is zero, revert
-            hevm.expectRevert(IRootBridgeAgent.InvalidInputParams.selector);
+            vm.expectRevert(IRootBridgeAgent.InvalidInputParams.selector);
         }
 
-        hevm.prank(_transferCaller);
+        vm.prank(_transferCaller);
         _rootBridgeAgent.transferManagementRole(_newManager);
 
         if (!rootPort.isBridgeAgent(address(_rootBridgeAgent))) {
             hasReverted = true;
             // If invalid root bridge agent, revert
-            hevm.expectRevert(IRootPort.UnrecognizedBridgeAgent.selector);
+            vm.expectRevert(IRootPort.UnrecognizedBridgeAgent.selector);
         } else if (_rootBridgeAgent.pendingBridgeAgentManagerAddress() != _acceptCaller) {
             hasReverted = true;
             // If invalid pending manager, revert
-            hevm.expectRevert(IRootBridgeAgent.UnrecognizedBridgeAgentManager.selector);
+            vm.expectRevert(IRootBridgeAgent.UnrecognizedBridgeAgentManager.selector);
         }
 
-        hevm.prank(_acceptCaller);
+        vm.prank(_acceptCaller);
         _rootBridgeAgent.acceptManagementRole();
 
         if (!hasReverted) {
@@ -2662,15 +2779,15 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
     }
 
     function test_fuzz_renounceOwnership(bytes32 _salt, address _deployer, uint256 _localChainId) public {
-        hevm.prank(_deployer);
+        vm.prank(_deployer);
         _test_renounceOwnership(_deployer, new RootPort{salt: _salt}(_localChainId));
     }
 
     function _test_renounceOwnership(address _deployer, RootPort _rootPort) public {
         if (_deployer == address(this)) {
-            hevm.expectRevert(IRootPort.RenounceOwnershipNotAllowed.selector);
+            vm.expectRevert(IRootPort.RenounceOwnershipNotAllowed.selector);
         } else {
-            hevm.expectRevert(Ownable.Unauthorized.selector);
+            vm.expectRevert(Ownable.Unauthorized.selector);
         }
         _rootPort.renounceOwnership();
     }
@@ -2732,7 +2849,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
         if (_user == address(0)) {
             assertEq(address(virtualAccount), address(0));
 
-            hevm.expectRevert(IRootPort.InvalidUserAddress.selector);
+            vm.expectRevert(IRootPort.InvalidUserAddress.selector);
             virtualAccount = _rootPort.fetchVirtualAccount(_user);
 
             assertEq(address(virtualAccount), address(0));
@@ -2741,7 +2858,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
             // If not zero address, should be equal to computed address
             assertEq(address(virtualAccount), ComputeVirtualAccount.computeAddress(address(_rootPort), _user));
         } else {
-            hevm.expectEmit(true, true, true, true);
+            vm.expectEmit(true, true, true, true);
             emit VirtualAccountCreated(_user, ComputeVirtualAccount.computeAddress(address(_rootPort), _user));
         }
 
@@ -2809,7 +2926,7 @@ contract RootTest is DSTestPlus, BridgeAgentConstants {
     }
 }
 
-contract MockEndpoint is DSTestPlus {
+contract MockEndpoint is Test {
     uint256 constant rootChain = 42161;
 
     address public sourceBridgeAgent;
@@ -2834,8 +2951,6 @@ contract MockEndpoint is DSTestPlus {
         console2.log("sourceBridgeAgent:", sourceBridgeAgent);
         console2.log("destinationBridgeAgent:", destinationBridgeAgent);
         console2.log("srcChainId:", BranchBridgeAgent(payable(sourceBridgeAgent)).localChainId());
-
-        hevm.deal(address(this), (gasLimit + remoteBranchExecutionGas) * tx.gasprice);
 
         bytes memory fallbackData = abi.encodePacked(
             BranchBridgeAgent(payable(sourceBridgeAgent)).localChainId() == rootChain ? 0x09 : 0x04, nonce
