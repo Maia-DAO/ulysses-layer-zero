@@ -464,8 +464,10 @@ contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
         uint16 dstChainId,
         GasParams memory gasParams
     ) internal virtual {
-        // Approve Root Port to spend/send output hTokens.
-        outputToken.safeApprove(localPortAddress, amountOut - depositOut);
+        if (amountsOut[i] - depositsOut[i] > 0) {
+            // Approve Root Port to spend/send output hTokens.
+            outputToken.safeApprove(localPortAddress, amountOut - depositOut);
+        }
 
         //Move output hTokens from Root to Branch and call 'clearToken'.
         IBridgeAgent(bridgeAgentAddress).callOutAndBridge{value: msg.value}(
@@ -499,8 +501,11 @@ contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
     ) internal virtual {
         // For each output token
         for (uint256 i = 0; i < outputTokens.length;) {
-            // Approve Root Port to spend output hTokens.
-            outputTokens[i].safeApprove(localPortAddress, amountsOut[i] - depositsOut[i]); // TODO: CHECK TO AVOID UNNCECESSARY APPROVALS
+            if (amountsOut[i] - depositsOut[i] > 0) {
+                // Approve Root Port to spend output hTokens.
+                outputTokens[i].safeApprove(localPortAddress, amountsOut[i] - depositsOut[i]);
+            }
+
             unchecked {
                 ++i;
             }
