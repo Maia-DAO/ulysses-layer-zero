@@ -927,7 +927,7 @@ contract MulticallRootRouterTest is Test {
 
     ////////////////////////////////////////////////////////////////////////// MULTIPLE OUTPUT ////////////////////////////////////////////////////////////////////
 
-    function testMulticallMultipleOutputNoDepositW() public {
+    function testMulticallMultipleOutputNoDeposit() public {
         // Add Local Token from Avax
         testSetLocalToken();
 

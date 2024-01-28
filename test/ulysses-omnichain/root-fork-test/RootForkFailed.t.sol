@@ -438,7 +438,6 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest, BridgeAgentConsta
 
         //Prank address 18
         vm.startPrank(user);
-        vm.etch(user, address(avaxMulticallBridgeAgent).code);
 
         //Call Deposit function
         avaxMulticallBridgeAgent.retrySettlement{value: 100 ether}(
@@ -470,7 +469,53 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest, BridgeAgentConsta
         );
     }
 
-    function testRetrySettlementNoFallback() public {
+    bytes tokenBytecode;
+
+    function testRetrySettlementFailedNoFallback() public {
+        _testRetrySettlementFailed(false);
+
+        _checkRootNonce(multicallRootBridgeAgent, false);
+
+        require(
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == STATUS_SUCCESS,
+            "Settlement status should be success."
+        );
+
+        switchToLzChain(ftmChainId);
+
+        vm.etch(address(newAvaxAssetFtmLocalToken), tokenBytecode);
+
+        switchToLzChain(rootChainId);
+
+        require(
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot - 1).status == STATUS_SUCCESS,
+            "Settlement status should be stay unexecuted after failure."
+        );
+    }
+
+    function testRetrySettlementFailedFallback() public {
+        _testRetrySettlementFailed(true);
+
+        _checkRootNonce(multicallRootBridgeAgent, false);
+
+        require(
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == STATUS_SUCCESS,
+            "Settlement status should be success."
+        );
+
+        switchToLzChain(ftmChainId);
+
+        vm.etch(address(newAvaxAssetFtmLocalToken), tokenBytecode);
+
+        switchToLzChain(rootChainId);
+
+        require(
+            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot - 1).status == STATUS_FAILED,
+            "Settlement status should be stay unexecuted after failure."
+        );
+    }
+
+    function _testRetrySettlementFailed(bool _hasFallbackToggled) public {
         //Set up
         testRetryDepositUnexpectedSettlementFailure();
 
@@ -516,7 +561,7 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest, BridgeAgentConsta
 
         switchToLzChainWithoutExecutePendingOrPacketUpdate(ftmChainId);
 
-        bytes memory bytecode = address(newAvaxAssetFtmLocalToken).code;
+        tokenBytecode = address(newAvaxAssetFtmLocalToken).code;
 
         vm.etch(address(newAvaxAssetFtmLocalToken), "");
 
@@ -530,7 +575,7 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest, BridgeAgentConsta
 
         // Call Retry Seetlement function
         avaxMulticallBridgeAgent.retrySettlement{value: 100 ether}(
-            prevNonceBranch - 1, "", [GasParams(1_000_000, 0.1 ether), GasParams(300_000, 0)], false
+            prevNonceBranch - 1, "", [GasParams(1_000_000, 0.1 ether), GasParams(300_000, 1 ether)], _hasFallbackToggled
         );
 
         //Stop prank
@@ -539,29 +584,11 @@ contract RootForkFailedTest is RootForkCallOutWithDepositTest, BridgeAgentConsta
         _checkBranchNonce(avaxMulticallBridgeAgent, false);
 
         switchToLzChain(rootChainId);
-
-        _checkRootNonce(multicallRootBridgeAgent, false);
-
-        require(
-            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot).status == STATUS_SUCCESS,
-            "Settlement status should be success."
-        );
-
-        switchToLzChain(ftmChainId);
-
-        vm.etch(address(newAvaxAssetFtmLocalToken), bytecode);
-
-        switchToLzChain(rootChainId);
-
-        require(
-            multicallRootBridgeAgent.getSettlementEntry(prevNonceRoot - 1).status == STATUS_SUCCESS,
-            "Settlement status should be stay unexecuted after failure."
-        );
     }
 
     function testRetrieveSettlement() public {
         //Set up
-        testRetrySettlementNoFallback();
+        testRetrySettlementFailedNoFallback();
 
         //Get some ether.
         vm.deal(user, 10 ether);

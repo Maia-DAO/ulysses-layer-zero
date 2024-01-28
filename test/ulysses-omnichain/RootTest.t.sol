@@ -2122,7 +2122,7 @@ contract RootTest is Test, BridgeAgentConstants {
         previousNonce = settlementNonce;
     }
 
-    function testRetrySettlementW() public {
+    function testRetrySettlement() public {
         testSettlementFailed();
 
         address _user = address(0x420);

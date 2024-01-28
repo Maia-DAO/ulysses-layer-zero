@@ -503,11 +503,7 @@ abstract contract LzForkTest is Test {
 
                 deal(address(this), nativeForDst * tx.gasprice);
                 (bool success,) = addressOnDst.call{value: nativeForDst * tx.gasprice}("");
-                if (success) {
-                    console2.log("Gas airdrop successful");
-                } else {
-                    console2.log("Gas airdrop failed");
-                }
+                if (!success) console2.log("Gas airdrop failed");
             }
         } else {
             gasLimit = 200_000;
