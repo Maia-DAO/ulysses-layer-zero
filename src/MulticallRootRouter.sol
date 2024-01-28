@@ -464,7 +464,7 @@ contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
         uint16 dstChainId,
         GasParams memory gasParams
     ) internal virtual {
-        if (amountsOut[i] - depositsOut[i] > 0) {
+        if (amountOut - depositOut > 0) {
             // Approve Root Port to spend/send output hTokens.
             outputToken.safeApprove(localPortAddress, amountOut - depositOut);
         }
