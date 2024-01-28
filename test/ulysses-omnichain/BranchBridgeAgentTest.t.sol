@@ -694,6 +694,16 @@ contract BranchBridgeAgentTest is TestHelper {
         require(underlyingToken.balanceOf(localPortAddress) == 0);
     }
 
+    function testRedeemDepositSpecifyToken_InvalidLocalAddress(uint32 _depositNonce, address _recipient)
+        public
+        returns (MockERC20 underlyingToken1, MockERC20 underlyingToken2)
+    {
+        vm.expectRevert(IBranchBridgeAgent.InvalidLocalAddress.selector);
+
+        // Call redeemDeposit
+        bAgent.redeemDeposit(_depositNonce, _recipient, address(0));
+    }
+
     function testRedeemDepositMultiple() public {
         // Create Test Deposit
         (MockERC20 underlyingToken1, MockERC20 underlyingToken2) =
@@ -773,7 +783,7 @@ contract BranchBridgeAgentTest is TestHelper {
 
     function testRedeemDepositAlreadyRedeemed() public {
         // Redeem once
-        testRedeemDeposit();
+        testRedeemDepositMultipleSpecifyToken();
 
         vm.expectRevert(abi.encodeWithSignature("DepositRedeemUnavailable()"));
 
@@ -802,6 +812,42 @@ contract BranchBridgeAgentTest is TestHelper {
         // Call redeemDeposit again
         vm.expectRevert(abi.encodeWithSignature("DepositRedeemUnavailable()"));
         bAgent.redeemDeposit(1, address(this));
+    }
+
+    function testRedeemDepositSpecifyTokenAlreadyRedeemed() public {
+        // Redeem once
+        testRedeemDeposit();
+
+        vm.expectRevert(abi.encodeWithSignature("DepositRedeemUnavailable()"));
+
+        // Call redeemDeposit again
+        bAgent.redeemDeposit(1, address(this), address(testToken));
+    }
+
+    function testRedeemDepositSpecifyTokenDoubleFallback() public {
+        // Create Test Deposit
+        testCallOutSignedAndBridgeMultiple(address(this), 100 ether, 100 ether);
+
+        vm.deal(localPortAddress, 1 ether);
+
+        // Encode Fallback message
+        bytes memory fallbackData = abi.encodePacked(bytes1(0x05), uint32(1));
+
+        // Call 'Fallback'
+        vm.prank(lzEndpointAddress);
+        bAgent.lzReceive(rootChainId, abi.encodePacked(rootBridgeAgentAddress, bAgent), 1, fallbackData);
+
+        // Call redeemDeposit
+        bAgent.redeemDeposit(1, address(this), address(testToken));
+        bAgent.redeemDeposit(1, address(this), address(testToken2));
+
+        // Call 'Fallback'
+        vm.prank(lzEndpointAddress);
+        bAgent.lzReceive(rootChainId, abi.encodePacked(rootBridgeAgentAddress, bAgent), 1, fallbackData);
+
+        // Call redeemDeposit again
+        vm.expectRevert(abi.encodeWithSignature("DepositRedeemUnavailable()"));
+        bAgent.redeemDeposit(1, address(this), address(testToken));
     }
 
     function testFuzzRedeemDeposit(address _user, uint256 _amount, uint256 _deposit, uint16 _dstChainId) public {
