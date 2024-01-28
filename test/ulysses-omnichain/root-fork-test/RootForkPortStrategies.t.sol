@@ -209,6 +209,47 @@ contract RootForkPortStrategiesTest is RootForkSetupTest {
         );
     }
 
+    function testManageNotTrusted() public {
+        // Add Strategy token and Port strategy
+        testAddPortStrategy();
+
+        // Switch Chain and Execute Incoming Packets
+        switchToLzChainWithoutExecutePendingOrPacketUpdate(ftmChainId);
+
+        // Add token balance to port
+        mockFtmPortToken.mint(address(ftmPort), 1000 ether);
+
+        // Get port balance before manage
+        uint256 portBalanceBefore = mockFtmPortToken.balanceOf(address(ftmPort));
+
+        // Get Strategy balance before manage
+        uint256 strategyBalanceBefore = mockFtmPortToken.balanceOf(mockFtmPortStrategyAddress);
+
+        uint256 strategyDailyLimitRemainingBefore =
+            ftmPort.strategyDailyLimitRemaining(mockFtmPortStrategyAddress, address(mockFtmPortToken));
+
+        vm.expectRevert(IBranchPort.UnrecognizedPortStrategy.selector);
+        // Prank into non trusted strategy
+        vm.prank(address(1));
+
+        // Request management of assets
+        ftmPort.manage(address(mockFtmPortToken), 250 ether);
+
+        // Veriy if assets have been transfered
+        assertEq(mockFtmPortToken.balanceOf(address(ftmPort)), portBalanceBefore);
+
+        assertEq(mockFtmPortToken.balanceOf(mockFtmPortStrategyAddress), strategyBalanceBefore);
+
+        assertEq(ftmPort.getPortStrategyTokenDebt(mockFtmPortStrategyAddress, address(mockFtmPortToken)), 0);
+
+        assertEq(ftmPort.strategyDailyLimitAmount(mockFtmPortStrategyAddress, address(mockFtmPortToken)), 250 ether);
+
+        assertEq(
+            ftmPort.strategyDailyLimitRemaining(mockFtmPortStrategyAddress, address(mockFtmPortToken)),
+            strategyDailyLimitRemainingBefore
+        );
+    }
+
     function testManageTwoDayLimits() public {
         // Add Strategy token and Port strategy
         testManage();

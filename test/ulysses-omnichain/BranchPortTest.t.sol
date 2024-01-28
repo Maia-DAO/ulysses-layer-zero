@@ -221,6 +221,60 @@ contract BranchPortTest is Test, BridgeAgentConstants {
         );
     }
 
+    function testManageNotTrusted() public {
+        // Add Strategy token and Port strategy
+        testAddPortStrategy();
+
+        // Warp to present day
+        vm.warp(1700495386);
+
+        // Add token balance to port
+        mockStrategyToken.mint(address(localPortAddress), 1000 ether);
+
+        // Get port balance before manage
+        uint256 portBalanceBefore = mockStrategyToken.balanceOf(address(localPortAddress));
+
+        // Get Strategy balance before manage
+        uint256 strategyBalanceBefore = mockStrategyToken.balanceOf(mockPortStrategyAddress);
+
+        uint256 strategyDailyLimitRemainingBefore = BranchPort(payable(localPortAddress)).strategyDailyLimitRemaining(
+            mockPortStrategyAddress, address(mockStrategyToken)
+        );
+
+        vm.expectRevert(IBranchPort.UnrecognizedPortStrategy.selector);
+        // Prank into non trusted strategy
+        vm.prank(address(1));
+
+        // Request management of assets
+        BranchPort(payable(localPortAddress)).manage(address(mockStrategyToken), 250 ether);
+
+        // Veriy if assets have been transfered
+        assertEq(mockStrategyToken.balanceOf(address(localPortAddress)), portBalanceBefore);
+
+        assertEq(mockStrategyToken.balanceOf(mockPortStrategyAddress), strategyBalanceBefore);
+
+        assertEq(
+            BranchPort(payable(localPortAddress)).getPortStrategyTokenDebt(
+                mockPortStrategyAddress, address(mockStrategyToken)
+            ),
+            0
+        );
+
+        assertEq(
+            BranchPort(payable(localPortAddress)).strategyDailyLimitAmount(
+                mockPortStrategyAddress, address(mockStrategyToken)
+            ),
+            250 ether
+        );
+
+        assertEq(
+            BranchPort(payable(localPortAddress)).strategyDailyLimitRemaining(
+                mockPortStrategyAddress, address(mockStrategyToken)
+            ),
+            strategyDailyLimitRemainingBefore
+        );
+    }
+
     function testManageTwoDayLimits() public {
         // Add Strategy token and Port strategy
         testManage();
