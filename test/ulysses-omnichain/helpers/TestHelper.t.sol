@@ -19,7 +19,7 @@ contract TestHelper is Test, BridgeAgentConstants {
         bytes memory _data,
         GasParams memory _gasParams,
         uint16 _srcChainIdId
-    ) internal {
+    ) internal returns (bool success) {
         vm.mockCall(mockApp, abi.encodeWithSignature("distro()"), abi.encode(0));
 
         //Get some gas
@@ -31,10 +31,10 @@ contract TestHelper is Test, BridgeAgentConstants {
         // Prank into user account
         vm.startPrank(lzEndpointAddress);
 
-        (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-        if (!success) console2.log("Failed to send gas");
+        (bool gasSent,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        if (!gasSent) console2.log("Failed to send gas");
 
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+        success = RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
             _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
         );
 
@@ -54,7 +54,7 @@ contract TestHelper is Test, BridgeAgentConstants {
         GasParams memory _gasParams,
         uint16 _srcChainIdId,
         bool _mockCall
-    ) internal {
+    ) internal returns (bool success) {
         vm.mockCall(mockApp, abi.encodeWithSignature("distro()"), abi.encode(0));
 
         //Get some gas
@@ -62,6 +62,8 @@ contract TestHelper is Test, BridgeAgentConstants {
 
         //Encode Data
         bytes memory inputCalldata = abi.encodePacked(bytes1(0x02), _nonce, _hToken, _token, _amount, _deposit, _data);
+
+        bytes memory path = abi.encodePacked(_fromBridgeAgent, _toBridgeAgent);
 
         if (_mockCall) {
             vm.mockCall(
@@ -75,13 +77,12 @@ contract TestHelper is Test, BridgeAgentConstants {
         vm.startPrank(lzEndpointAddress);
 
         {
-            (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-            if (!success) console2.log("Failed to send gas");
+            (bool gasSent,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+            if (!gasSent) console2.log("Failed to send gas");
         }
 
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
-            _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
-        );
+        success =
+            RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(_srcChainIdId, path, 1, inputCalldata);
 
         // Prank out of user account
         vm.stopPrank();
@@ -93,16 +94,17 @@ contract TestHelper is Test, BridgeAgentConstants {
         bytes memory _data,
         GasParams memory _gasParams,
         uint16 _srcChainIdId
-    ) internal {
+    ) internal returns (bool success) {
         //Get some gas
         vm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
         // Prank into user account
         vm.startPrank(lzEndpointAddress);
 
-        (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-        if (!success) console2.log("Failed to send gas");
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+        (bool gasSent,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        if (!gasSent) console2.log("Failed to send gas");
+
+        success = RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
             _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, _data
         );
 
@@ -122,7 +124,7 @@ contract TestHelper is Test, BridgeAgentConstants {
         GasParams memory _gasParams,
         uint16 _srcChainIdId,
         bool _mockCall
-    ) internal {
+    ) internal returns (bool success) {
         vm.mockCall(mockApp, abi.encodeWithSignature("distro()"), abi.encode(0));
 
         // Get some gas
@@ -131,6 +133,8 @@ contract TestHelper is Test, BridgeAgentConstants {
         bytes memory inputCalldata = abi.encodePacked(
             bytes1(0x03), uint8(_hTokens.length), _nonce, _hTokens, _tokens, _amounts, _deposits, _data
         );
+
+        bytes memory path = abi.encodePacked(_fromBridgeAgent, _toBridgeAgent);
 
         if (_mockCall) {
             vm.mockCall(
@@ -146,13 +150,12 @@ contract TestHelper is Test, BridgeAgentConstants {
         vm.startPrank(lzEndpointAddress);
 
         {
-            (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-            if (!success) console2.log("Failed to send gas");
+            (bool gasSent,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+            if (!gasSent) console2.log("Failed to send gas");
         }
 
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
-            _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
-        );
+        success =
+            RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(_srcChainIdId, path, 1, inputCalldata);
 
         // Prank out of user account
         vm.stopPrank();
@@ -164,16 +167,17 @@ contract TestHelper is Test, BridgeAgentConstants {
         bytes memory _data,
         GasParams memory _gasParams,
         uint16 _srcChainIdId
-    ) internal {
+    ) internal returns (bool success) {
         //Get some gas
         vm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
         // Prank into user account
         vm.startPrank(lzEndpointAddress);
 
-        (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-        if (!success) console2.log("Failed to send gas");
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+        (bool gasSent,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+
+        if (!gasSent) console2.log("Failed to send gas");
+        success = RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
             _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, _data
         );
 
@@ -189,7 +193,7 @@ contract TestHelper is Test, BridgeAgentConstants {
         bytes memory _data,
         GasParams memory _gasParams,
         uint16 _srcChainIdId
-    ) internal {
+    ) internal returns (bool success) {
         vm.mockCall(mockApp, abi.encodeWithSignature("distro()"), abi.encode(0));
 
         //Get some gas
@@ -201,9 +205,10 @@ contract TestHelper is Test, BridgeAgentConstants {
         // Prank into user account
         vm.startPrank(lzEndpointAddress);
 
-        (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-        if (!success) console2.log("Failed to send gas");
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+        (bool gasSent,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        if (!gasSent) console2.log("Failed to send gas");
+
+        success = RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
             _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
         );
 
@@ -223,7 +228,7 @@ contract TestHelper is Test, BridgeAgentConstants {
         bytes memory _data,
         GasParams memory _gasParams,
         uint16 _srcChainIdId
-    ) internal {
+    ) internal returns (bool success) {
         vm.mockCall(mockApp, abi.encodeWithSignature("distro()"), abi.encode(0));
 
         //Get some gas
@@ -236,14 +241,15 @@ contract TestHelper is Test, BridgeAgentConstants {
         bytes memory inputCalldata =
             abi.encodePacked(bytes1(0x05), _user, _nonce, _hToken, _token, _amount, _deposit, _data);
 
+        bytes memory path = abi.encodePacked(_fromBridgeAgent, _toBridgeAgent);
+
         {
-            (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-            if (!success) console2.log("Failed to send gas");
+            (bool gasSent,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+            if (!gasSent) console2.log("Failed to send gas");
         }
 
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
-            _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
-        );
+        success =
+            RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(_srcChainIdId, path, 1, inputCalldata);
 
         // Prank out of user account
         vm.stopPrank();
@@ -261,7 +267,7 @@ contract TestHelper is Test, BridgeAgentConstants {
         bytes memory _data,
         GasParams memory _gasParams,
         uint16 _srcChainIdId
-    ) internal {
+    ) internal returns (bool success) {
         vm.mockCall(mockApp, abi.encodeWithSignature("distro()"), abi.encode(0));
 
         //Get some gas
@@ -274,14 +280,15 @@ contract TestHelper is Test, BridgeAgentConstants {
             bytes1(0x06), _user, uint8(_hTokens.length), _nonce, _hTokens, _tokens, _amounts, _deposits, _data
         );
 
+        bytes memory path = abi.encodePacked(_fromBridgeAgent, _toBridgeAgent);
+
         {
-            (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-            if (!success) console2.log("Failed to send gas");
+            (bool gasSent,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+            if (!gasSent) console2.log("Failed to send gas");
         }
 
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
-            _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
-        );
+        success =
+            RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(_srcChainIdId, path, 1, inputCalldata);
 
         // Prank out of user account
         vm.stopPrank();
@@ -334,51 +341,5 @@ contract TestHelper is Test, BridgeAgentConstants {
                 adatperParams
             )
         );
-    }
-
-    function testCreateDepositSingle(
-        ArbitrumBranchBridgeAgent _bridgeAgent,
-        uint32 _depositNonce,
-        address _user,
-        address _hToken,
-        address _token,
-        uint256 _amount,
-        uint256 _deposit,
-        GasParams memory
-    ) internal view {
-        // Cast to Dynamic
-        address[] memory hTokens = new address[](1);
-        hTokens[0] = _hToken;
-        address[] memory tokens = new address[](1);
-        tokens[0] = _token;
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = _amount;
-        uint256[] memory deposits = new uint256[](1);
-        deposits[0] = _deposit;
-
-        // Get Deposit
-        Deposit memory deposit = _bridgeAgent.getDepositEntry(_depositNonce);
-
-        // Check deposit
-        require(deposit.owner == _user, "Deposit owner doesn't match");
-
-        require(
-            keccak256(abi.encodePacked(deposit.hTokens)) == keccak256(abi.encodePacked(hTokens)),
-            "Deposit local hToken doesn't match"
-        );
-        require(
-            keccak256(abi.encodePacked(deposit.tokens)) == keccak256(abi.encodePacked(tokens)),
-            "Deposit underlying token doesn't match"
-        );
-        require(
-            keccak256(abi.encodePacked(deposit.amounts)) == keccak256(abi.encodePacked(amounts)),
-            "Deposit amount doesn't match"
-        );
-        require(
-            keccak256(abi.encodePacked(deposit.deposits)) == keccak256(abi.encodePacked(deposits)),
-            "Deposit deposit doesn't match"
-        );
-
-        require(deposit.status == 0, "Deposit status should be succesful.");
     }
 }

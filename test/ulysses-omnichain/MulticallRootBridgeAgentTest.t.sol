@@ -1085,8 +1085,6 @@ contract MulticallRootBridgeAgentTest is TestHelper {
         newAvaxAssetGlobalAddress =
             RootPort(rootPort).getGlobalTokenFromLocal(address(avaxNativeAssethToken), avaxChainId);
 
-        console2.log("New: ", newAvaxAssetGlobalAddress);
-
         require(
             RootPort(rootPort).getGlobalTokenFromLocal(address(avaxNativeAssethToken), avaxChainId) != address(0),
             "Token should be added"
@@ -1171,7 +1169,5 @@ contract MulticallRootBridgeAgentTest is TestHelper {
                 == address(0),
             "No underlying should be added"
         );
-
-        console2.log("New: ", newAvaxAssetGlobalAddress);
     }
 }

@@ -535,9 +535,7 @@ contract MulticallRootRouterTest is Test {
 
         uint256 balanceFtmPortBefore = MockERC20(ftmGlobalToken).balanceOf(address(userVirtualAccount));
 
-        // vm.expectRevert();
-
-        // Call Deposit function
+        // Call should revert with IVirtualAccount.CallFailed.selector
         encodeCallNoDepositSigned(
             payable(avaxMulticallBridgeAgentAddress),
             payable(multicallBridgeAgent),
@@ -1152,20 +1150,6 @@ contract MulticallRootRouterTest is Test {
         uint256 balanceTokenAfter = MockERC20(newAvaxAssetGlobalAddress).balanceOf(userVirtualAccount);
         uint256 balanceTokenPortAfter = MockERC20(newAvaxAssetGlobalAddress).balanceOf(address(rootPort));
 
-        uint256 balanceFtmAfter = MockERC20(ftmGlobalToken).balanceOf(userVirtualAccount);
-        uint256 balanceFtmPortAfter = MockERC20(ftmGlobalToken).balanceOf(address(rootPort));
-
-        uint256 mockAppBalanceAfter = MockERC20(ftmGlobalToken).balanceOf(mockApp);
-
-        console2.log("Balances After:");
-        console2.log("Global Token Virtual Account Balance After:", balanceTokenAfter);
-        console2.log("Global Token Port Balance After:", balanceTokenPortAfter);
-
-        console2.log("Global Token Virtual Account Balance After:", balanceFtmPortAfter);
-        console2.log("Global FTM Port Balance After:", balanceFtmAfter);
-
-        console2.log("Mock App Balance After:", mockAppBalanceAfter);
-
         require(balanceTokenAfter == 0, "Virtual account should be empty");
         require(balanceTokenPortAfter == 100 ether, "Balance be in Port");
     }
@@ -1216,9 +1200,6 @@ contract MulticallRootRouterTest is Test {
             packedData = abi.encodePacked(bytes1(0x03), data);
         }
 
-        console2.log("Initiating Cross-Chain call");
-        console2.log("Messaging Layer Data Length:", packedData.length);
-
         uint256 balanceGlobalFtmBefore = MockERC20(ftmGlobalToken).balanceOf(address(rootPort));
 
         // Call Deposit function
@@ -1240,11 +1221,6 @@ contract MulticallRootRouterTest is Test {
         uint256 balanceGlobalTokenAfter = MockERC20(newAvaxAssetGlobalAddress).balanceOf(address(rootPort));
         uint256 balanceGlobalFtmAfter = MockERC20(ftmGlobalToken).balanceOf(address(rootPort));
         uint256 mockAppBalanceAfter = MockERC20(ftmGlobalToken).balanceOf(mockApp);
-
-        console2.log("Balances After:");
-        console2.log("Global Token Port Balance After:", balanceGlobalTokenAfter);
-        console2.log("Global FTM Port Balance After:", balanceGlobalFtmAfter);
-        console2.log("Mock App Balance After:", mockAppBalanceAfter);
 
         require(
             balanceGlobalTokenAfter == 100 ether,
@@ -1587,8 +1563,6 @@ contract MulticallRootRouterTest is Test {
             avaxChainId
         );
 
-        console2.log("HERE", currentNonce);
-
         require((multicallBridgeAgent).executionState(avaxChainId, currentNonce) == 0, "Nonce should not be executed");
     }
 
@@ -1604,8 +1578,6 @@ contract MulticallRootRouterTest is Test {
         // Pack FuncId
         bytes memory packedData = abi.encodePacked(bytes1(0x02), data);
 
-        uint256 balanceBefore = MockERC20(wrappedNativeToken).balanceOf(address(coreBridgeAgent));
-
         //Call Deposit function
         encodeCallNoDeposit(
             payable(avaxCoreBridgeAgentAddress),
@@ -1618,8 +1590,6 @@ contract MulticallRootRouterTest is Test {
 
         newAvaxAssetGlobalAddress =
             RootPort(rootPort).getGlobalTokenFromLocal(address(avaxNativeAssethToken), avaxChainId);
-
-        console2.log("New: ", newAvaxAssetGlobalAddress);
 
         require(
             RootPort(rootPort).getGlobalTokenFromLocal(address(avaxNativeAssethToken), avaxChainId) != address(0),
@@ -1635,9 +1605,6 @@ contract MulticallRootRouterTest is Test {
                 == address(avaxNativeToken),
             "Token should be added"
         );
-
-        console2.log("Balance Before: ", balanceBefore);
-        console2.log("Balance After: ", address(coreBridgeAgent).balance);
     }
 
     address public newFtmAssetGlobalAddress;
@@ -1711,7 +1678,7 @@ contract MulticallRootRouterTest is Test {
         bytes memory _data,
         GasParams memory _gasParams,
         uint16 _srcChainIdId
-    ) private {
+    ) private returns (bool success) {
         //Get some gas
         vm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
@@ -1721,10 +1688,8 @@ contract MulticallRootRouterTest is Test {
         // Prank into user account
         vm.startPrank(lzEndpointAddress);
 
-        (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-        if (!success) console2.log("Failed to send gas");
-
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        success = RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
             _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
         );
 
@@ -1739,7 +1704,7 @@ contract MulticallRootRouterTest is Test {
         bytes memory _data,
         GasParams memory _gasParams,
         uint16 _srcChainIdId
-    ) private {
+    ) private returns (bool success) {
         //Get some gas
         vm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
@@ -1749,9 +1714,8 @@ contract MulticallRootRouterTest is Test {
         // Prank into user account
         vm.startPrank(lzEndpointAddress);
 
-        (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-        if (!success) console2.log("Failed to send gas");
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        success = RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
             _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
         );
 
@@ -1765,16 +1729,15 @@ contract MulticallRootRouterTest is Test {
         bytes memory _data,
         GasParams memory _gasParams,
         uint16 _srcChainIdId
-    ) private {
+    ) private returns (bool success) {
         //Get some gas
         vm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
         // Prank into user account
         vm.startPrank(lzEndpointAddress);
 
-        (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-        if (!success) console2.log("Failed to send gas");
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        success = RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
             _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, _data
         );
 
@@ -1788,16 +1751,15 @@ contract MulticallRootRouterTest is Test {
         bytes memory _data,
         GasParams memory _gasParams,
         uint16 _srcChainIdId
-    ) private {
+    ) private returns (bool success) {
         //Get some gas
         vm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
 
         // Prank into user account
         vm.startPrank(lzEndpointAddress);
 
-        (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-        if (!success) console2.log("Failed to send gas");
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
+        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        success = RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
             _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, _data
         );
 

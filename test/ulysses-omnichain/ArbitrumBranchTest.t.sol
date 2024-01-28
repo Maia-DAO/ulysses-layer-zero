@@ -6,6 +6,8 @@ import "./helpers/TestHelper.t.sol";
 import "./helpers/RootForkHelper.t.sol";
 
 contract ArbitrumBranchTest is TestHelper {
+    using BranchBridgeAgentHelper for BranchBridgeAgent;
+
     receive() external payable {}
 
     uint32 nonce;
@@ -310,20 +312,21 @@ contract ArbitrumBranchTest is TestHelper {
         // Pack FuncId
         bytes memory packedData = abi.encodePacked(bytes1(0x02), data);
 
-        uint256 balanceBefore = MockERC20(wrappedNativeToken).balanceOf(address(coreBridgeAgent));
-
         // Call Deposit function
         GasParams memory gasParams = GasParams(1 ether, 0.5 ether);
 
         //Call Deposit function
         encodeCallNoDeposit(
-            payable(avaxCoreBridgeAgentAddress), payable(address(coreBridgeAgent)), packedData, gasParams, avaxChainId
+            payable(avaxCoreBridgeAgentAddress),
+            payable(address(coreBridgeAgent)),
+            nonce++,
+            packedData,
+            gasParams,
+            avaxChainId
         );
 
         newAvaxAssetGlobalAddress =
             RootPort(rootPort).getGlobalTokenFromLocal(address(avaxNativeAssethToken), avaxChainId);
-
-        console2.log("New: ", newAvaxAssetGlobalAddress);
 
         require(
             RootPort(rootPort).getGlobalTokenFromLocal(address(avaxNativeAssethToken), avaxChainId) != address(0),
@@ -339,9 +342,6 @@ contract ArbitrumBranchTest is TestHelper {
                 == address(avaxNativeToken),
             "Token should be added"
         );
-
-        console2.log("Balance Before: ", balanceBefore);
-        console2.log("Balance After: ", address(coreBridgeAgent).balance);
     }
 
     address public newFtmAssetGlobalAddress;
@@ -364,7 +364,12 @@ contract ArbitrumBranchTest is TestHelper {
 
         // Call Deposit function
         encodeCallNoDeposit(
-            payable(ftmCoreBridgeAgentAddress), payable(address(coreBridgeAgent)), packedData, _gasParams, ftmChainId
+            payable(ftmCoreBridgeAgentAddress),
+            payable(address(coreBridgeAgent)),
+            nonce++,
+            packedData,
+            _gasParams,
+            ftmChainId
         );
         // State change occurs in setLocalToken
     }
@@ -386,7 +391,12 @@ contract ArbitrumBranchTest is TestHelper {
 
         //Call Deposit function
         encodeCallNoDeposit(
-            payable(ftmCoreBridgeAgentAddress), payable(address(coreBridgeAgent)), packedData, _gasParams, ftmChainId
+            payable(ftmCoreBridgeAgentAddress),
+            payable(address(coreBridgeAgent)),
+            nonce++,
+            packedData,
+            _gasParams,
+            ftmChainId
         );
 
         require(
@@ -415,12 +425,8 @@ contract ArbitrumBranchTest is TestHelper {
         //Add new localToken
         arbitrumCoreRouter.addLocalToken(address(arbitrumNativeToken), gasParams);
 
-        uint256 balanceBefore = MockERC20(wrappedNativeToken).balanceOf(address(coreBridgeAgent));
-
         newArbitrumAssetGlobalAddress =
             RootPort(rootPort).getLocalTokenFromUnderlying(address(arbitrumNativeToken), rootChainId);
-
-        console2.log("New: ", newArbitrumAssetGlobalAddress);
 
         require(
             RootPort(rootPort).getGlobalTokenFromLocal(address(newArbitrumAssetGlobalAddress), rootChainId)
@@ -438,9 +444,6 @@ contract ArbitrumBranchTest is TestHelper {
                 == address(arbitrumNativeToken),
             "Token should be added"
         );
-
-        console2.log("Balance Before: ", balanceBefore);
-        console2.log("Balance After: ", address(coreBridgeAgent).balance);
     }
 
     address public newArbitrumAssetGlobalAddress_2;
@@ -457,8 +460,6 @@ contract ArbitrumBranchTest is TestHelper {
 
         newArbitrumAssetGlobalAddress_2 =
             RootPort(rootPort).getLocalTokenFromUnderlying(address(rewardToken), rootChainId);
-
-        console2.log("New: ", newArbitrumAssetGlobalAddress_2);
 
         require(
             RootPort(rootPort).getGlobalTokenFromLocal(address(newArbitrumAssetGlobalAddress_2), rootChainId)
@@ -530,8 +531,6 @@ contract ArbitrumBranchTest is TestHelper {
             rootChainId,
             [GasParams(6_000_000, 15 ether), GasParams(1_000_000, 0)]
         );
-
-        console2.log("new branch bridge agent", localPortAddress.bridgeAgents(2));
 
         BranchBridgeAgent arbTestBranchBridgeAgent = BranchBridgeAgent(payable(localPortAddress.bridgeAgents(2)));
 
@@ -925,29 +924,22 @@ contract ArbitrumBranchTest is TestHelper {
         //Call Deposit function
         arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(packedData, depositInput, gasParams, true);
 
-        // Test If Deposit was successful
-        testCreateDepositSingle(
-            arbitrumMulticallBridgeAgent,
+        BranchBridgeAgent(arbitrumMulticallBridgeAgent)._testCreateDepositSingle(
             uint32(1),
             address(this),
             address(newArbitrumAssetGlobalAddress),
             address(arbitrumNativeToken),
             100 ether,
-            100 ether,
-            1 ether,
-            0.5 ether
+            100 ether
         );
 
-        console2.log("LocalPort Balance:", MockERC20(arbitrumNativeToken).balanceOf(address(localPortAddress)));
         require(
             MockERC20(arbitrumNativeToken).balanceOf(address(localPortAddress)) == 50 ether,
             "LocalPort should have 50 tokens"
         );
 
-        console2.log("User Balance:", MockERC20(arbitrumNativeToken).balanceOf(address(this)));
         require(MockERC20(arbitrumNativeToken).balanceOf(address(this)) == 50 ether, "User should have 50 tokens");
 
-        console2.log("User Global Balance:", MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(this)));
         require(
             MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(this)) == 49 ether,
             "User should have 50 global tokens"
@@ -1038,29 +1030,20 @@ contract ArbitrumBranchTest is TestHelper {
         //Call Deposit function
         arbitrumMulticallRouter.callOutAndBridge{value: 1 ether}(packedData, depositInput, gasParams);
 
-        // Test If Deposit was successful
-        testCreateDepositSingle(
-            arbitrumMulticallBridgeAgent,
+        BranchBridgeAgent(arbitrumMulticallBridgeAgent)._testCreateDepositSingle(
             uint32(1),
             address(this),
             address(newArbitrumAssetGlobalAddress),
             address(arbitrumNativeToken),
             150 ether,
-            100 ether,
-            1 ether,
-            0.5 ether
+            100 ether
         );
 
-        console2.log("LocalPort Balance:", MockERC20(arbitrumNativeToken).balanceOf(address(localPortAddress)));
         require(
             MockERC20(arbitrumNativeToken).balanceOf(address(localPortAddress)) == 100 ether,
             "LocalPort should have 100 tokens"
         );
 
-        console2.log(
-            "Multicall Root Router Global Balance:",
-            MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(rootMulticallRouter))
-        );
         require(
             MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(rootMulticallRouter)) == 150 ether,
             "rootMulticallRouter should have 150 global tokens"
@@ -1264,8 +1247,6 @@ contract ArbitrumBranchTest is TestHelper {
         // Set up
         testCallOutWithDeposit();
 
-        console2.log(MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(this)));
-
         //Get gas
         GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
 
@@ -1308,8 +1289,6 @@ contract ArbitrumBranchTest is TestHelper {
         // Approve spend by router
         ERC20hToken(newArbitrumAssetGlobalAddress).approve(address(rootPort), 49 ether);
 
-        console2.log(MockERC20(arbitrumNativeToken).balanceOf(address(this)));
-
         // Approve spend by router
         arbitrumNativeToken.approve(address(localPortAddress), 50 ether);
 
@@ -1321,34 +1300,27 @@ contract ArbitrumBranchTest is TestHelper {
             deposit: 50 ether
         });
 
-        console2.log("round 2");
+        // Round 2
 
         //Call Deposit function
         arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(packedData, depositInput, gasParams, true);
 
-        // Test If Deposit was successful
-        testCreateDepositSingle(
-            arbitrumMulticallBridgeAgent,
+        BranchBridgeAgent(arbitrumMulticallBridgeAgent)._testCreateDepositSingle(
             uint32(2),
             address(this),
             address(newArbitrumAssetGlobalAddress),
             address(arbitrumNativeToken),
             99 ether,
-            50 ether,
-            1 ether,
-            0.5 ether
+            50 ether
         );
 
-        console2.log("LocalPort Balance:", MockERC20(arbitrumNativeToken).balanceOf(address(localPortAddress)));
         require(
             MockERC20(arbitrumNativeToken).balanceOf(address(localPortAddress)) == 2 ether,
             "LocalPort should have 2 tokens difference"
         );
 
-        console2.log("User Balance:", MockERC20(arbitrumNativeToken).balanceOf(address(this)));
         require(MockERC20(arbitrumNativeToken).balanceOf(address(this)) == 98 ether, "User should have 98 tokens");
 
-        console2.log("User Global Balance:", MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(this)));
         require(
             MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(this)) == 0, "User should have spent all hTokens"
         );
@@ -1481,12 +1453,6 @@ contract ArbitrumBranchTest is TestHelper {
             deposit: _deposit
         });
 
-        console2.log("BALANCE BEFORE:");
-        console2.log("arbitrumNativeToken Balance:", MockERC20(arbitrumNativeToken).balanceOf(_user));
-        console2.log(
-            "newArbitrumAssetGlobalAddress Balance:", MockERC20(newArbitrumAssetGlobalAddress).balanceOf(_user)
-        );
-
         // Mock token decimals call
         vm.mockCall(address(arbitrumNativeToken), abi.encodeWithSignature("decimals()"), abi.encode(18));
 
@@ -1497,50 +1463,24 @@ contract ArbitrumBranchTest is TestHelper {
         arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(packedData, depositInput, gasParams, true);
         vm.stopPrank();
 
-        // Test If Deposit was successful
-        testCreateDepositSingle(
-            arbitrumMulticallBridgeAgent,
-            uint32(1),
-            _user,
-            address(newArbitrumAssetGlobalAddress),
-            address(arbitrumNativeToken),
-            _amount,
-            _deposit,
-            1 ether,
-            0.5 ether
+        BranchBridgeAgent(arbitrumMulticallBridgeAgent)._testCreateDepositSingle(
+            uint32(1), _user, address(newArbitrumAssetGlobalAddress), address(arbitrumNativeToken), _amount, _deposit
         );
 
-        console2.log("Values");
-        console2.log(_amount);
-        console2.log(_deposit);
-        console2.log(_amountOut);
-        console2.log(_depositOut);
-
         address userAccount = address(RootPort(rootPort).getUserAccount(_user));
-
-        console2.log("LocalPort Balance:", MockERC20(arbitrumNativeToken).balanceOf(address(localPortAddress)));
-        console2.log("Expected:", _amount - _depositOut);
         require(
             MockERC20(arbitrumNativeToken).balanceOf(address(localPortAddress)) == _amount - _depositOut,
             "LocalPort tokens"
         );
 
-        console2.log("RootPort Balance:", MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(rootPort)));
-        console2.log("Expected:0");
         require(MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(rootPort)) == 0, "RootPort tokens");
 
-        console2.log("User Balance:", MockERC20(arbitrumNativeToken).balanceOf(_user));
-        console2.log("Expected:", _depositOut);
         require(MockERC20(arbitrumNativeToken).balanceOf(_user) == _depositOut, "User tokens");
 
-        console2.log("User Global Balance:", MockERC20(newArbitrumAssetGlobalAddress).balanceOf(_user));
-        console2.log("Expected:", _amountOut - _depositOut);
         require(
             MockERC20(newArbitrumAssetGlobalAddress).balanceOf(_user) == _amountOut - _depositOut, "User Global tokens"
         );
 
-        console2.log("User Account Balance:", MockERC20(newArbitrumAssetGlobalAddress).balanceOf(userAccount));
-        console2.log("Expected:", _amount - _amountOut);
         require(
             MockERC20(newArbitrumAssetGlobalAddress).balanceOf(userAccount) == _amount - _amountOut,
             "User Account tokens"
@@ -1548,93 +1488,10 @@ contract ArbitrumBranchTest is TestHelper {
     }
 
     function testRetrySettlementRevert() public {
-        // Call withdraw from port
         vm.expectRevert();
 
         arbitrumMulticallBridgeAgent.retrySettlement(
             1, "", [GasParams(1 ether, 0.5 ether), GasParams(1 ether, 0.5 ether)], true
         );
-    }
-
-    /////////////////////////////////
-    //           HELPERS           //
-    /////////////////////////////////
-
-    function testCreateDepositSingle(
-        ArbitrumBranchBridgeAgent _bridgeAgent,
-        uint32 _depositNonce,
-        address _user,
-        address _hToken,
-        address _token,
-        uint256 _amount,
-        uint256 _deposit,
-        uint128,
-        uint128
-    ) private view {
-        // Cast to Dynamic
-        address[] memory hTokens = new address[](1);
-        hTokens[0] = _hToken;
-        address[] memory tokens = new address[](1);
-        tokens[0] = _token;
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = _amount;
-        uint256[] memory deposits = new uint256[](1);
-        deposits[0] = _deposit;
-
-        // Get Deposit
-        Deposit memory deposit = _bridgeAgent.getDepositEntry(_depositNonce);
-
-        // Check deposit
-        require(deposit.owner == _user, "Deposit owner doesn't match");
-
-        require(
-            keccak256(abi.encodePacked(deposit.hTokens)) == keccak256(abi.encodePacked(hTokens)),
-            "Deposit local hToken doesn't match"
-        );
-        require(
-            keccak256(abi.encodePacked(deposit.tokens)) == keccak256(abi.encodePacked(tokens)),
-            "Deposit underlying token doesn't match"
-        );
-        require(
-            keccak256(abi.encodePacked(deposit.amounts)) == keccak256(abi.encodePacked(amounts)),
-            "Deposit amount doesn't match"
-        );
-        require(
-            keccak256(abi.encodePacked(deposit.deposits)) == keccak256(abi.encodePacked(deposits)),
-            "Deposit deposit doesn't match"
-        );
-
-        require(deposit.status == 0, "Deposit status should be succesful.");
-    }
-
-    function encodeCallNoDeposit(
-        address payable _fromBridgeAgent,
-        address payable _toBridgeAgent,
-        bytes memory _data,
-        GasParams memory _gasParams,
-        uint16 _srcChainIdId
-    ) private {
-        //Get some gas
-        vm.deal(lzEndpointAddress, _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
-        //Encode Data
-        bytes memory inputCalldata = abi.encodePacked(bytes1(0x01), nonce++, _data);
-
-        // Prank into user account
-        vm.startPrank(lzEndpointAddress);
-
-        // Perform Call
-        (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-        if (success) {
-            console2.log("Gas airdrop successful");
-        } else {
-            console2.log("Gas airdrop failed");
-        }
-
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
-            _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
-        );
-
-        // Prank out of user account
-        vm.stopPrank();
     }
 }

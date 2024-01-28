@@ -303,7 +303,7 @@ contract CoreRootBridgeAgentTest is TestHelper {
 
     function testAddLocalTokenNotEnoughGas() public {
         //Gas Params
-        GasParams memory gasParams = GasParams(0.0001 ether, 0.00005 ether);
+        GasParams memory gasParams = GasParams(50_000, 0.00005 ether);
 
         //Encode Data
         bytes memory data =
@@ -316,13 +316,15 @@ contract CoreRootBridgeAgentTest is TestHelper {
         vm.expectRevert();
 
         // Call Deposit function
-        encodeCallNoDeposit(
-            payable(avaxCoreBridgeAgentAddress),
-            payable(address(coreBridgeAgent)),
-            chainNonce[avaxChainId]++,
-            packedData,
-            gasParams,
-            avaxChainId
+        assertFalse(
+            encodeCallNoDeposit(
+                payable(avaxCoreBridgeAgentAddress),
+                payable(address(coreBridgeAgent)),
+                chainNonce[avaxChainId]++,
+                packedData,
+                gasParams,
+                avaxChainId
+            )
         );
     }
 
@@ -335,8 +337,6 @@ contract CoreRootBridgeAgentTest is TestHelper {
 
         //Get new address
         newGlobalAddress = RootPort(rootPort).getLocalTokenFromUnderlying(address(arbAssetToken), rootChainId);
-
-        console2.log("New Global Token Address: ", newGlobalAddress);
 
         require(
             RootPort(rootPort).getGlobalTokenFromLocal(address(newGlobalAddress), rootChainId)
@@ -428,13 +428,15 @@ contract CoreRootBridgeAgentTest is TestHelper {
 
         vm.expectRevert();
         // Call Deposit function
-        encodeCallNoDeposit(
-            payable(ftmCoreBridgeAgentAddress),
-            payable(address(coreBridgeAgent)),
-            chainNonce[ftmChainId]++,
-            packedData,
-            gasParams[0],
-            ftmChainId
+        assertFalse(
+            encodeCallNoDeposit(
+                payable(ftmCoreBridgeAgentAddress),
+                payable(address(coreBridgeAgent)),
+                chainNonce[ftmChainId]++,
+                packedData,
+                gasParams[0],
+                ftmChainId
+            )
         );
 
         assertEq(

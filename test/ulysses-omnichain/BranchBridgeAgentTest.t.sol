@@ -201,9 +201,6 @@ contract BranchBridgeAgentTest is TestHelper {
         //Approve spend by router
         underlyingToken.approve(address(bRouter), _amount);
 
-        console2.log("Test CallOut Addresses:");
-        console2.log(address(testToken), address(underlyingToken));
-
         // Prepare deposit info
         DepositInput memory depositInput = DepositInput({
             hToken: address(testToken),
@@ -422,9 +419,6 @@ contract BranchBridgeAgentTest is TestHelper {
         //Approve spend by router
         underlyingToken.approve(localPortAddress, _amount);
 
-        console2.log("Test CallOut Addresses:");
-        console2.log(address(testToken), address(underlyingToken));
-
         // Prepare deposit info
         DepositInput memory depositInput = DepositInput({
             hToken: address(testToken),
@@ -547,9 +541,6 @@ contract BranchBridgeAgentTest is TestHelper {
         //Approve spend by router
         underlyingToken.approve(address(bRouter), 100 ether);
 
-        console2.log("Test CallOut TokenAddresses:");
-        console2.log(address(testToken), address(underlyingToken));
-
         // Prepare deposit info
         DepositInput memory depositInput = DepositInput({
             hToken: address(testToken),
@@ -576,9 +567,6 @@ contract BranchBridgeAgentTest is TestHelper {
 
         //Approve spend by router
         underlyingToken.approve(address(bRouter), 100 ether);
-
-        console2.logUint(1);
-        console2.log(address(testToken), address(underlyingToken));
 
         // Prepare deposit info
         DepositInput memory depositInput = DepositInput({
@@ -780,7 +768,7 @@ contract BranchBridgeAgentTest is TestHelper {
 
     function testRedeemDepositAlreadyRedeemed() public {
         // Redeem once
-        testRedeemDepositMultipleSpecifyToken();
+        testRedeemDepositMultipleSpecifyEveryToken();
 
         vm.expectRevert(abi.encodeWithSignature("DepositRedeemUnavailable()"));
 
@@ -1084,14 +1072,6 @@ contract BranchBridgeAgentTest is TestHelper {
         underToken.mint(_recipient, _deposit);
 
         vm.stopPrank();
-
-        console2.log("testFuzzClearToken Data:");
-        console2.log(_recipient);
-        console2.log(address(fuzzToken));
-        console2.log(address(underToken));
-        console2.log(_amount);
-        console2.log(_deposit);
-        console2.log(_dstChainId);
 
         // Perform deposit
         makeTestCallAndBridge(_recipient, address(fuzzToken), address(underToken), _amount, _deposit, gasParams);
@@ -1400,9 +1380,6 @@ contract BranchBridgeAgentTest is TestHelper {
             )
         );
 
-        console2.logAddress(BranchBridgeAgentExecutor(bRouter.bridgeAgentExecutorAddress()).owner());
-        console2.logAddress(address(bAgent));
-
         // Prank into bridge agent
         vm.startPrank(address(bAgent));
         BranchBridgeAgentExecutor(bRouter.bridgeAgentExecutorAddress()).executeWithSettlement(
@@ -1659,9 +1636,6 @@ contract BranchBridgeAgentTest is TestHelper {
 
                 require(MockERC20(hTokens[0]).balanceOf(localPortAddress) == 0, "Deposit hToken balance doesn't match");
             } else if (amounts[0] - deposits[0] > 0 && deposits[0] > 0) {
-                console2.log(_user);
-                console2.log(localPortAddress);
-
                 require(MockERC20(hTokens[0]).balanceOf(_user) == 0, "Deposit hToken balance doesn't match");
 
                 require(MockERC20(tokens[0]).balanceOf(_user) == 0, "Deposit token balance doesn't match");
@@ -1760,8 +1734,6 @@ contract BranchBridgeAgentTest is TestHelper {
         // Get some gas.
         vm.deal(_user, 1 ether);
 
-        console2.log(_hTokens[0], _deposits[0]);
-
         // Approve spend by router
         MockERC20(_hTokens[0]).approve(address(bRouter), _amounts[0] - _deposits[0]);
         MockERC20(_tokens[0]).approve(address(bRouter), _deposits[0]);
@@ -1795,8 +1767,6 @@ contract BranchBridgeAgentTest is TestHelper {
 
         // Get some gas.
         vm.deal(_user, 1 ether);
-
-        console2.log(_hTokens[0], _deposits[0]);
 
         // Approve spend by router
         MockERC20(_hTokens[0]).approve(address(localPortAddress), _amounts[0] - _deposits[0]);

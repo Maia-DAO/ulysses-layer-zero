@@ -10,6 +10,7 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 contract RootTest is Test, BridgeAgentConstants {
     using SafeTransferLib for address;
     using BaseBranchRouterHelper for BaseBranchRouter;
+    using BranchBridgeAgentHelper for BranchBridgeAgent;
     using CoreRootRouterHelper for CoreRootRouter;
     using MulticallRootRouterHelper for MulticallRootRouter;
     using RootBridgeAgentHelper for RootBridgeAgent;
@@ -722,8 +723,6 @@ contract RootTest is Test, BridgeAgentConstants {
 
         rootPort.addEcosystemToken(_ecosystemToken);
 
-        console2.log("New Ecosystem Token: ", _ecosystemToken);
-
         require(RootPort(rootPort).isGlobalAddress(_ecosystemToken), "Eco Token should be added");
         require(
             RootPort(rootPort).getGlobalTokenFromLocal(_ecosystemToken, rootChainId) == _ecosystemToken,
@@ -831,8 +830,6 @@ contract RootTest is Test, BridgeAgentConstants {
             ftmChainId,
             [GasParams(0.05 ether, 0.05 ether), GasParams(0.02 ether, 0)]
         );
-
-        console2.log("new branch bridge agent", ftmPort.bridgeAgents(2));
 
         BranchBridgeAgent ftmTestBranchBridgeAgent = BranchBridgeAgent(payable(ftmPort.bridgeAgents(2)));
 
@@ -1015,8 +1012,6 @@ contract RootTest is Test, BridgeAgentConstants {
         newFtmBranchBridgeAgentFactory = new BranchBridgeAgentFactory(
             ftmChainId, rootChainId, address(80), lzEndpointAddress, address(ftmCoreRouter), address(ftmPort), owner
         );
-
-        console2.log("Core Router Owner", coreRootRouter.owner());
 
         coreRootRouter.toggleBranchBridgeAgentFactory{value: 0.05 ether}(
             address(bridgeAgentFactory),
@@ -1437,9 +1432,6 @@ contract RootTest is Test, BridgeAgentConstants {
 
         newAvaxAssetGlobalAddress = RootPort(rootPort).getGlobalTokenFromLocal(avaxMockAssethToken, avaxChainId);
 
-        console2.log("New Global: ", newAvaxAssetGlobalAddress);
-        console2.log("New Local: ", avaxMockAssethToken);
-
         require(
             RootPort(rootPort).getGlobalTokenFromLocal(avaxMockAssethToken, avaxChainId) == newAvaxAssetGlobalAddress,
             "Token should be added"
@@ -1469,8 +1461,6 @@ contract RootTest is Test, BridgeAgentConstants {
         avaxCoreRouter.addGlobalToken{value: 0.15 ether}(newAvaxAssetGlobalAddress, ftmChainId, gasParams);
 
         newAvaxAssetLocalToken = RootPort(rootPort).getLocalTokenFromGlobal(newAvaxAssetGlobalAddress, ftmChainId);
-
-        console2.log("New Local: ", newAvaxAssetLocalToken);
 
         require(
             RootPort(rootPort).getLocalTokenFromGlobal(newAvaxAssetGlobalAddress, ftmChainId) == newAvaxAssetLocalToken,
@@ -1502,8 +1492,6 @@ contract RootTest is Test, BridgeAgentConstants {
         newArbitrumAssetGlobalAddress =
             RootPort(rootPort).getLocalTokenFromUnderlying(address(arbitrumMockToken), rootChainId);
 
-        console2.log("New: ", newArbitrumAssetGlobalAddress);
-
         require(
             RootPort(rootPort).getGlobalTokenFromLocal(address(newArbitrumAssetGlobalAddress), rootChainId)
                 == address(newArbitrumAssetGlobalAddress),
@@ -1534,8 +1522,6 @@ contract RootTest is Test, BridgeAgentConstants {
 
         newArbitrumAssetLocalTokenAvax =
             RootPort(rootPort).getLocalTokenFromGlobal(newArbitrumAssetGlobalAddress, avaxChainId);
-
-        console2.log("New Local in Avax: ", newArbitrumAssetLocalTokenAvax);
 
         require(
             RootPort(rootPort).getLocalTokenFromGlobal(newArbitrumAssetGlobalAddress, avaxChainId)
@@ -1681,12 +1667,6 @@ contract RootTest is Test, BridgeAgentConstants {
             deposit: _deposit
         });
 
-        console2.log("BALANCE BEFORE:");
-        console2.log("arbitrumMockToken Balance:", MockERC20(arbitrumMockToken).balanceOf(_user));
-        console2.log(
-            "newArbitrumAssetGlobalAddress Balance:", MockERC20(newArbitrumAssetGlobalAddress).balanceOf(_user)
-        );
-
         // Call Deposit function
         vm.startPrank(_user);
         arbitrumMockToken.approve(address(arbitrumPort), _deposit);
@@ -1696,43 +1676,25 @@ contract RootTest is Test, BridgeAgentConstants {
         );
         vm.stopPrank();
 
-        // Test If Deposit was successful
-        testCreateDepositSingle(
-            arbitrumMulticallBridgeAgent,
-            uint32(1),
-            _user,
-            address(newArbitrumAssetGlobalAddress),
-            address(arbitrumMockToken),
-            _amount,
-            _deposit,
-            GasParams(0.05 ether, 0.05 ether)
+        BranchBridgeAgent(arbitrumMulticallBridgeAgent)._testCreateDepositSingle(
+            uint32(1), _user, address(newArbitrumAssetGlobalAddress), address(arbitrumMockToken), _amount, _deposit
         );
 
         address userAccount = address(RootPort(rootPort).getUserAccount(_user));
 
-        console2.log("LocalPort Balance:", MockERC20(arbitrumMockToken).balanceOf(address(arbitrumPort)));
-        console2.log("Expected:", _amount - _deposit + _deposit - _depositOut);
         require(
             MockERC20(arbitrumMockToken).balanceOf(address(arbitrumPort)) == _amount - _deposit + _deposit - _depositOut,
             "LocalPort tokens"
         );
 
-        console2.log("RootPort Balance:", MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(rootPort)));
-        // console2.log("Expected:", 0); SINCE ORIGIN == DESTINATION == ARBITRUM
         require(MockERC20(newArbitrumAssetGlobalAddress).balanceOf(address(rootPort)) == 0, "RootPort tokens");
 
-        console2.log("User Balance:", MockERC20(arbitrumMockToken).balanceOf(_user));
-        console2.log("Expected:", _depositOut);
         require(MockERC20(arbitrumMockToken).balanceOf(_user) == _depositOut, "User tokens");
 
-        console2.log("User Global Balance:", MockERC20(newArbitrumAssetGlobalAddress).balanceOf(_user));
-        console2.log("Expected:", _amountOut - _depositOut);
         require(
             MockERC20(newArbitrumAssetGlobalAddress).balanceOf(_user) == _amountOut - _depositOut, "User Global tokens"
         );
 
-        console2.log("User Account Balance:", MockERC20(newArbitrumAssetGlobalAddress).balanceOf(userAccount));
-        console2.log("Expected:", _amount - _amountOut);
         require(
             MockERC20(newArbitrumAssetGlobalAddress).balanceOf(userAccount) == _amount - _amountOut,
             "User Account tokens"
@@ -2298,10 +2260,6 @@ contract RootTest is Test, BridgeAgentConstants {
                 deposit: 100 ether
             });
 
-            console2.log("BALANCE BEFORE:");
-            console2.log("User avaxMockAssetToken Balance:", MockERC20(avaxMockAssetToken).balanceOf(_user));
-            console2.log("User avaxMockAssethToken Balance:", MockERC20(avaxMockAssethToken).balanceOf(_user));
-
             //Set MockEndpoint _fallback mode ON
             MockEndpoint(lzEndpointAddress).toggleFallback(1);
 
@@ -2321,8 +2279,6 @@ contract RootTest is Test, BridgeAgentConstants {
             uint32 settlementNonce = multicallBridgeAgent.settlementNonce() - 1;
 
             Settlement memory settlement = multicallBridgeAgent.getSettlementEntry(settlementNonce);
-
-            console2.log("Status after fallback:", settlement.status == STATUS_FAILED ? "Failed" : "Success");
 
             require(settlement.status == STATUS_SUCCESS, "Settlement status should be success.");
 
@@ -2392,10 +2348,6 @@ contract RootTest is Test, BridgeAgentConstants {
             deposit: 100 ether
         });
 
-        console2.log("BALANCE BEFORE:");
-        console2.log("User avaxMockAssetToken Balance:", MockERC20(avaxMockAssetToken).balanceOf(_user));
-        console2.log("User avaxMockAssethToken Balance:", MockERC20(avaxMockAssethToken).balanceOf(_user));
-
         //Set MockEndpoint _fallback mode ON
         MockEndpoint(lzEndpointAddress).toggleFallback(1);
 
@@ -2415,8 +2367,6 @@ contract RootTest is Test, BridgeAgentConstants {
         uint32 _settlementNonce = multicallBridgeAgent.settlementNonce() - 1;
 
         Settlement memory _settlement = multicallBridgeAgent.getSettlementEntry(_settlementNonce);
-
-        console2.log("Status after fallback:", _settlement.status == STATUS_FAILED ? "Failed" : "Success");
 
         require(_settlement.status == STATUS_SUCCESS, "Settlement status should be success.");
 
@@ -2493,10 +2443,6 @@ contract RootTest is Test, BridgeAgentConstants {
             deposit: 100 ether
         });
 
-        console2.log("BALANCE BEFORE:");
-        console2.log("User avaxMockAssetToken Balance:", MockERC20(avaxMockAssetToken).balanceOf(_user));
-        console2.log("User avaxMockAssethToken Balance:", MockERC20(avaxMockAssethToken).balanceOf(_user));
-
         //Set MockEndpoint _fallback mode ON
         MockEndpoint(lzEndpointAddress).toggleFallback(1);
 
@@ -2517,8 +2463,6 @@ contract RootTest is Test, BridgeAgentConstants {
         uint32 settlementNonce = multicallBridgeAgent.settlementNonce() - 1;
 
         Settlement memory settlement = multicallBridgeAgent.getSettlementEntry(settlementNonce);
-
-        console2.log("Status after fallback:", settlement.status == STATUS_FAILED ? "Failed" : "Success");
 
         require(settlement.status == STATUS_FAILED, "Settlement status should be failed.");
 
@@ -2590,10 +2534,6 @@ contract RootTest is Test, BridgeAgentConstants {
                 deposit: 100 ether
             });
 
-            console2.log("BALANCE BEFORE:");
-            console2.log("User avaxMockAssetToken Balance:", MockERC20(avaxMockAssetToken).balanceOf(_user));
-            console2.log("User avaxMockAssethToken Balance:", MockERC20(avaxMockAssethToken).balanceOf(_user));
-
             //Set MockEndpoint _fallback mode ON
             MockEndpoint(lzEndpointAddress).toggleFallback(1);
 
@@ -2614,8 +2554,6 @@ contract RootTest is Test, BridgeAgentConstants {
             uint32 settlementNonce = multicallBridgeAgent.settlementNonce() - 1;
 
             Settlement memory settlement = multicallBridgeAgent.getSettlementEntry(settlementNonce);
-
-            console2.log("Status after fallback:", settlement.status == STATUS_FAILED ? "Failed" : "Success");
 
             require(settlement.status == STATUS_FAILED, "Settlement status should be failed.");
 
@@ -2679,10 +2617,6 @@ contract RootTest is Test, BridgeAgentConstants {
             deposit: 100 ether
         });
 
-        console2.log("BALANCE BEFORE:");
-        console2.log("User avaxMockAssetToken Balance:", MockERC20(avaxMockAssetToken).balanceOf(_user));
-        console2.log("User avaxMockAssethToken Balance:", MockERC20(avaxMockAssethToken).balanceOf(_user));
-
         //Set MockEndpoint _fallback mode ON
         MockEndpoint(lzEndpointAddress).toggleFallback(1);
 
@@ -2703,8 +2637,6 @@ contract RootTest is Test, BridgeAgentConstants {
         uint32 _settlementNonce = multicallBridgeAgent.settlementNonce() - 1;
 
         Settlement memory _settlement = multicallBridgeAgent.getSettlementEntry(_settlementNonce);
-
-        console2.log("Status after fallback:", _settlement.status == STATUS_FAILED ? "Failed" : "Success");
 
         require(_settlement.status == STATUS_FAILED, "Settlement status should be failed.");
 
@@ -2905,59 +2837,6 @@ contract RootTest is Test, BridgeAgentConstants {
 
     /// @notice Emitted when a new Virtual Account is created.
     event VirtualAccountCreated(address indexed user, address indexed account);
-
-    //////////////////////////////////////   HELPERS   //////////////////////////////////////
-
-    function testCreateDepositSingle(
-        ArbitrumBranchBridgeAgent _bridgeAgent,
-        uint32 _depositNonce,
-        address _user,
-        address _hToken,
-        address _token,
-        uint256 _amount,
-        uint256 _deposit,
-        GasParams memory
-    ) private view {
-        // Cast to Dynamic
-        address[] memory hTokens = new address[](1);
-        hTokens[0] = _hToken;
-        address[] memory tokens = new address[](1);
-        tokens[0] = _token;
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = _amount;
-        uint256[] memory deposits = new uint256[](1);
-        deposits[0] = _deposit;
-
-        // Get Deposit
-        Deposit memory deposit = _bridgeAgent.getDepositEntry(_depositNonce);
-
-        console2.log(deposit.hTokens[0], hTokens[0]);
-        console2.log(deposit.tokens[0], tokens[0]);
-        console2.log("owner", deposit.owner);
-        console2.log("user", _user);
-
-        // Check deposit
-        require(deposit.owner == _user, "Deposit owner doesn't match");
-
-        require(
-            keccak256(abi.encodePacked(deposit.hTokens)) == keccak256(abi.encodePacked(hTokens)),
-            "Deposit local hToken doesn't match"
-        );
-        require(
-            keccak256(abi.encodePacked(deposit.tokens)) == keccak256(abi.encodePacked(tokens)),
-            "Deposit underlying token doesn't match"
-        );
-        require(
-            keccak256(abi.encodePacked(deposit.amounts)) == keccak256(abi.encodePacked(amounts)),
-            "Deposit amount doesn't match"
-        );
-        require(
-            keccak256(abi.encodePacked(deposit.deposits)) == keccak256(abi.encodePacked(deposits)),
-            "Deposit deposit doesn't match"
-        );
-
-        require(deposit.status == 0, "Deposit status should be succesful.");
-    }
 }
 
 contract MockEndpoint is Test {
@@ -2998,14 +2877,14 @@ contract MockEndpoint is Test {
             fallbackData
         );
     }
-    // @notice send a LayerZero message to the specified address at a LayerZero endpoint.
-    // @param _dstChainId - the destination chain identifier
-    // @param _destination - the address on destination chain (in bytes). address length/format may vary by chains
-    // @param _payload - a custom bytes payload to send to the destination contract
-    // @param _refundAddress - if the source transaction is cheaper than the amount of value passed, refund the additional amount to this address
-    // @param _zroPaymentAddress - the address of the ZRO token holder who would pay for the transaction
-    // @param _adapterParams - parameters for custom functionality. e.g. receive airdropped native gas from the relayer on destination
 
+    /// @notice send a LayerZero message to the specified address at a LayerZero endpoint.
+    /// @param _dstChainId - the destination chain identifier
+    /// @param _destination - the address on destination chain (in bytes). address length/format may vary by chains
+    /// @param _payload - a custom bytes payload to send to the destination contract
+    /// @param  - if the source transaction is cheaper than the amount of value passed, refund the additional amount to this address
+    /// @param  - the address of the ZRO token holder who would pay for the transaction
+    /// @param _adapterParams - parameters for custom functionality. e.g. receive airdropped native gas from the relayer on destination
     function send(
         uint16 _dstChainId,
         bytes calldata _destination,
@@ -3049,8 +2928,7 @@ contract MockEndpoint is Test {
 
         if (!forceFallback) {
             // Perform Call
-            (bool success,) = destinationBridgeAgent.call{value: remoteBranchExecutionGas}("");
-            if (!success) console2.log("Failed to send gas");
+            destinationBridgeAgent.call{value: remoteBranchExecutionGas}("");
 
             RootBridgeAgent(payable(destinationBridgeAgent)).lzReceive{gas: gasLimit}(
                 BranchBridgeAgent(payable(msg.sender)).localChainId(), path, 1, data
@@ -3058,8 +2936,7 @@ contract MockEndpoint is Test {
         } else if (fallbackCountdown > 0) {
             console2.log("Execute LayerZero request...", fallbackCountdown--);
             // Perform Call
-            (bool success,) = destinationBridgeAgent.call{value: remoteBranchExecutionGas}("");
-            if (!success) console2.log("Failed to send gas");
+            destinationBridgeAgent.call{value: remoteBranchExecutionGas}("");
             RootBridgeAgent(payable(destinationBridgeAgent)).lzReceive{gas: gasLimit}(
                 BranchBridgeAgent(payable(msg.sender)).localChainId(), path, 1, data
             );
