@@ -1386,7 +1386,7 @@ contract RootTest is Test, BridgeAgentConstants {
     //               Sweep              //
     //////////////////////////////////////
 
-    function testSweepRootPort(uint256 amount) public {
+    function testSweepRootPort(uint128 amount) public {
         // Save previous balance
         uint256 prevBalance = address(this).balance;
 
