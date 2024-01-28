@@ -357,10 +357,14 @@ contract BranchBridgeAgentTest is TestHelper {
     }
 
     function testCallOutSigned() public {
-        testFuzzCallOutSigned(address(this));
+        testFuzzCallOutSigned(address(this), GasParams(0.5 ether, 0.5 ether));
     }
 
-    function testFuzzCallOutSigned(address _user) public {
+    function testCallOutSignedOverflow() public {
+        testFuzzCallOutSigned(address(this), GasParams(type(uint256).max, 0.5 ether));
+    }
+
+    function testFuzzCallOutSigned(address _user, GasParams memory gasParams) public {
         // Input restrictions
         if (_user < address(3)) _user = address(3);
         else if (_user == localPortAddress) _user = address(uint160(_user) - 10);
@@ -371,18 +375,21 @@ contract BranchBridgeAgentTest is TestHelper {
         // Get some gas.
         vm.deal(_user, 1 ether);
 
-        //GasParams
-        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
-
         uint32 depositNonce = bAgent.depositNonce();
 
-        expectLayerZeroSend(
-            1 ether,
-            abi.encodePacked(bytes1(0x04), _user, depositNonce, "testdata"),
-            _user,
-            gasParams,
-            BRANCH_BASE_CALL_OUT_SIGNED_GAS
-        );
+        bool willOverflow = gasParams.gasLimit > type(uint256).max - BRANCH_BASE_CALL_OUT_SIGNED_GAS;
+
+        if (willOverflow) {
+            vm.expectRevert(stdError.arithmeticError);
+        } else {
+            expectLayerZeroSend(
+                1 ether,
+                abi.encodePacked(bytes1(0x04), _user, depositNonce, "testdata"),
+                _user,
+                gasParams,
+                BRANCH_BASE_CALL_OUT_SIGNED_GAS
+            );
+        }
 
         //Call Deposit function
         bAgent.callOutSigned{value: 1 ether}("testdata", gasParams);
@@ -390,7 +397,7 @@ contract BranchBridgeAgentTest is TestHelper {
         // Prank out of user account
         vm.stopPrank();
 
-        assertEq(bAgent.depositNonce(), depositNonce + 1);
+        if (!willOverflow) assertEq(bAgent.depositNonce(), depositNonce + 1);
     }
 
     address storedFallbackUser;
