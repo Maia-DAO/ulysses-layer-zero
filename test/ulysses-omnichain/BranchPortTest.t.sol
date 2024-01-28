@@ -358,7 +358,7 @@ contract BranchPortTest is Test, BridgeAgentConstants {
         vm.startPrank(mockPortStrategyAddress);
 
         // Expect revert
-        vm.expectRevert();
+        vm.expectRevert(stdError.arithmeticError);
 
         // Request management of assets
         BranchPort(payable(localPortAddress)).manage(address(mockStrategyToken), 300 ether);
@@ -375,7 +375,7 @@ contract BranchPortTest is Test, BridgeAgentConstants {
         vm.startPrank(mockPortStrategyAddress);
 
         // Expect revert
-        vm.expectRevert();
+        vm.expectRevert(stdError.arithmeticError);
 
         // Request management of assets
         BranchPort(payable(localPortAddress)).manage(address(mockStrategyToken), 225 ether);
