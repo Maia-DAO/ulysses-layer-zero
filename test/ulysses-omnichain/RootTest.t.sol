@@ -1843,6 +1843,27 @@ contract RootTest is Test, BridgeAgentConstants {
         assertEq(multicallBridgeAgent.executionState(avaxChainId, depositNonce), STATUS_DONE);
     }
 
+    function testRetrieveDepositDoesNotExist() public {
+        testCallOutWithDepositFailed();
+
+        address _user = address(0x420);
+
+        uint32 depositNonce = avaxMulticallBridgeAgent.depositNonce() - 1;
+
+        // Get some gas.
+        vm.deal(_user, 10 ether);
+
+        vm.expectRevert(IBranchBridgeAgent.NotDepositOwner.selector);
+
+        vm.prank(_user);
+        avaxMulticallBridgeAgent.retrieveDeposit(10_000_000, GasParams(0.5 ether, 0.5 ether));
+
+        Deposit memory deposit = avaxMulticallBridgeAgent.getDepositEntry(depositNonce);
+
+        assertEq(deposit.status, STATUS_SUCCESS);
+        assertEq(deposit.owner, _user);
+    }
+
     function testRetrieveDepositMultipleAlreadyExecuted() public {
         testSettlementMultipleFailed();
 

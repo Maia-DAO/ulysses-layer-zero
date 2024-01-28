@@ -694,10 +694,7 @@ contract BranchBridgeAgentTest is TestHelper {
         require(underlyingToken.balanceOf(localPortAddress) == 0);
     }
 
-    function testRedeemDepositSpecifyToken_InvalidLocalAddress(uint32 _depositNonce, address _recipient)
-        public
-        returns (MockERC20 underlyingToken1, MockERC20 underlyingToken2)
-    {
+    function testRedeemDepositSpecifyToken_InvalidLocalAddress(uint32 _depositNonce, address _recipient) public {
         vm.expectRevert(IBranchBridgeAgent.InvalidLocalAddress.selector);
 
         // Call redeemDeposit
