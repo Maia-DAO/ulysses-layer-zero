@@ -148,6 +148,8 @@ contract RootTest is Test, BridgeAgentConstants {
 
     address dao = address(this);
 
+    address mockEcoystemToken = address(new MockERC20("ecosystem token", "ECO", 18));
+
     function setUp() public {
         /////////////////////////////////
         //      Deploy Root Utils      //
@@ -465,17 +467,16 @@ contract RootTest is Test, BridgeAgentConstants {
         _test_bridgeToBranch(_from, newArbitrumAssetGlobalAddress, _amount, _deposit, _dstChainId);
     }
 
-    // function test_bridgeToBranch_ecosystemToken(address _from, uint256 _amount, uint256 _deposit, uint256 _dstChainId)
-    //     public
-    // {
-    //     // TODO: Double check this - maybe allow deposits if origin chain
-    //     _deposit = 0;
+    function test_bridgeToBranch_ecosystemToken(address _from, uint256 _amount, uint256 _deposit, uint256 _dstChainId)
+        public
+    {
+        (_amount, _deposit) = _parseDepositAndWithdrawAmounts(_amount, _deposit);
 
-    //     // Add arbitrumMockToken to the ecosystem as underlying
-    //     testAddLocalTokenArbitrum();
+        // Add mockEcoystemToken as ecosystem token
+        testAddEcosystemToken();
 
-    //     _test_bridgeToBranch(_from, newArbitrumAssetGlobalAddress, _amount, _deposit, _dstChainId);
-    // }
+        _test_bridgeToBranch(_from, mockEcoystemToken, _amount, _deposit, _dstChainId);
+    }
 
     function _test_bridgeToBranch(
         address _from,
@@ -530,16 +531,18 @@ contract RootTest is Test, BridgeAgentConstants {
         _test_bridgeToRoot(_to, newArbitrumAssetGlobalAddress, _amount, _deposit, _srcChainId);
     }
 
-    // function test_bridgeToRoot_ecosystemToken(address _to, uint256 _amount, uint256 _deposit, uint256 _srcChainId)
-    //     public
-    // {
-    //     // TODO: Double check this - maybe allow deposits if origin chain
-    //     _deposit = 0;
+    function test_bridgeToRoot_ecosystemToken(address _to, uint256 _amount, uint256 _deposit, uint256 _srcChainId)
+        public
+    {
+        (_amount, _deposit) = _parseDepositAndWithdrawAmounts(_amount, _deposit);
 
-    //     test_bridgeToBranch_arbMockToken(_to, _amount, _deposit, _srcChainId);
+        // Add mockEcoystemToken as ecosystem token
+        testAddEcosystemToken();
 
-    //     _test_bridgeToRoot(_to, newArbitrumAssetGlobalAddress, _amount, _deposit, _srcChainId);
-    // }
+        test_bridgeToBranch_ecosystemToken(_to, _amount, _deposit, _srcChainId);
+
+        _test_bridgeToRoot(_to, mockEcoystemToken, _amount, _deposit, _srcChainId);
+    }
 
     function _test_bridgeToRoot(address _to, address _hToken, uint256 _amount, uint256 _deposit, uint256 _srcChainId)
         internal
@@ -644,15 +647,14 @@ contract RootTest is Test, BridgeAgentConstants {
         _test_bridgeToLocalBranchFromRoot(_to, newArbitrumAssetGlobalAddress, _amount);
     }
 
-    // function test_bridgeToLocalBranchFromRoot_ecosystemToken(address _to, uint256 _amount, uint256 _deposit)
-    //     public
-    // {
-    // // Mock bridgeToRootFromLocalBranch
-    // vm.prank(address(rootPort));
-    // MockERC20(newArbitrumAssetGlobalAddress).mint(address(rootPort), _amount);
+    function test_bridgeToLocalBranchFromRoot_ecosystemToken(address _to, uint256 _amount) public {
+        // Add mockEcoystemToken as ecosystem token
+        testAddEcosystemToken();
 
-    // _test_bridgeToLocalBranchFromRoot(_to, newArbitrumAssetGlobalAddress, _amount);
-    // }
+        MockERC20(mockEcoystemToken).mint(address(rootPort), _amount);
+
+        _test_bridgeToLocalBranchFromRoot(_to, mockEcoystemToken, _amount);
+    }
 
     function _test_bridgeToLocalBranchFromRoot(address _to, address _hToken, uint256 _amount) internal {
         uint256 priorBalanceOfTo = _hToken.balanceOf(_to);
@@ -704,6 +706,10 @@ contract RootTest is Test, BridgeAgentConstants {
     //////////////////////////////////////
 
     function testAddEcosystemToken() public {
+        testAddEcosystemToken(mockEcoystemToken);
+    }
+
+    function testAddEcosystemToken_NotTokenButPasses() public {
         testAddEcosystemToken(address(0xDEAD));
     }
 
@@ -2798,12 +2804,14 @@ contract RootTest is Test, BridgeAgentConstants {
     }
 
     function test_getLocalToken() public {
-        testAddGlobalToken(); // TODO: Veridy if this is actually adding an avax root token to ftm
+        testAddGlobalToken();
 
-        _test_getLocalToken(rootPort, avaxLocalWrappedNativeToken, avaxChainId, ftmChainId);
+        _test_getLocalToken(rootPort, newAvaxAssetLocalToken, ftmChainId, avaxChainId);
     }
 
     function test_getLocalToken(address _localAddress, uint256 _srcChainId, uint256 _dstChainId) public {
+        testAddGlobalToken();
+
         _test_getLocalToken(rootPort, _localAddress, _srcChainId, _dstChainId);
     }
 

@@ -3,7 +3,7 @@ pragma solidity ^0.8.16;
 
 import "./helpers/ImportHelper.sol";
 
-contract MulticallRootBridgeAgentTest is Test {
+contract MulticallRootBridgeAgentTest is Test, BridgeAgentConstants {
     uint32 nonce;
 
     MockERC20 avaxNativeAssethToken;
@@ -1399,12 +1399,12 @@ contract MulticallRootBridgeAgentTest is Test {
     function checkNonceState(RootBridgeAgent rootBridgeAgent, uint32 _nonce, uint16 _chainId) internal view {
         uint256 depositExecutionStateAfter = rootBridgeAgent.executionState(_chainId, _nonce);
 
-        require(depositExecutionStateAfter == 1, "Execution state should be 1");
+        require(depositExecutionStateAfter == STATUS_DONE, "Execution state should be 1");
     }
 
     function checkNonceStateFail(RootBridgeAgent rootBridgeAgent, uint32 _nonce, uint16 _chainId) internal view {
         uint256 depositExecutionStateAfter = rootBridgeAgent.executionState(_chainId, _nonce);
 
-        require(depositExecutionStateAfter == 0, "Execution state should be 0");
+        require(depositExecutionStateAfter == STATUS_READY, "Execution state should be 0");
     }
 }

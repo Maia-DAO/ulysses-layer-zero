@@ -5,7 +5,7 @@ import "./helpers/ImportHelper.sol";
 
 import "./helpers/RootForkHelper.t.sol";
 
-contract ArbitrumBranchTest is Test {
+contract ArbitrumBranchTest is Test, BridgeAgentConstants {
     receive() external payable {}
 
     uint32 nonce;
@@ -1099,11 +1099,15 @@ contract ArbitrumBranchTest is Test {
 
         // Check if settlement is set to failure
         require(multicallBridgeAgent.settlementNonce() == settlementNonce + 1, "Settlement nonce should be incremented");
-        require(multicallBridgeAgent.getSettlementEntry(settlementNonce).status == 0, "Settlement should be success");
+        require(
+            multicallBridgeAgent.getSettlementEntry(settlementNonce).status == STATUS_SUCCESS,
+            "Settlement should be success"
+        );
 
         // Check arb branch bridge agent execution status on destination
         require(
-            arbitrumMulticallBridgeAgent.executionState(settlementNonce) == 0, "Settlement should not be successfull"
+            arbitrumMulticallBridgeAgent.executionState(settlementNonce) == STATUS_READY,
+            "Settlement should not be successfull"
         );
     }
 

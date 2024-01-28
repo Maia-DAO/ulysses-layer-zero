@@ -19,7 +19,6 @@ library BranchBridgeAgentHelper {
         uint256 _amount,
         uint256 _deposit
     ) internal view {
-        // Cast to Dynamic TODO clean up
         address[] memory hTokens = new address[](1);
         hTokens[0] = _hToken;
         address[] memory tokens = new address[](1);
