@@ -45,10 +45,6 @@ contract Multicall2 {
         coinbase = block.coinbase;
     }
 
-    function getCurrentBlockDifficulty() public view returns (uint256 difficulty) {
-        difficulty = block.difficulty;
-    }
-
     function getCurrentBlockGasLimit() public view returns (uint256 gaslimit) {
         gaslimit = block.gaslimit;
     }

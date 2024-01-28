@@ -1,11 +1,11 @@
 //SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.16;
 
-import "./helpers/ImportHelper.sol";
+import "./helpers/TestHelper.t.sol";
 
 import "./helpers/RootForkHelper.t.sol";
 
-contract ArbitrumBranchTest is Test, BridgeAgentConstants {
+contract ArbitrumBranchTest is TestHelper {
     receive() external payable {}
 
     uint32 nonce;
@@ -32,11 +32,7 @@ contract ArbitrumBranchTest is Test, BridgeAgentConstants {
 
     CoreRootRouter rootCoreRouter;
 
-    MulticallRootRouter rootMulticallRouter;
-
     RootBridgeAgentFactory bridgeAgentFactory;
-
-    RootBridgeAgent coreBridgeAgent;
 
     RootBridgeAgent multicallBridgeAgent;
 
@@ -89,8 +85,6 @@ contract ArbitrumBranchTest is Test, BridgeAgentConstants {
     address ftmMulticallBridgeAgentAddress = address(0xACAC);
 
     address ftmPortAddressM = address(0xABAC);
-
-    address lzEndpointAddress = address(0xABFD);
 
     address owner = address(this);
 
@@ -408,8 +402,6 @@ contract ArbitrumBranchTest is Test, BridgeAgentConstants {
             "Token should not exist"
         );
     }
-
-    address public mockApp = address(0xDAFA);
 
     address public newArbitrumAssetGlobalAddress;
 
@@ -1631,7 +1623,13 @@ contract ArbitrumBranchTest is Test, BridgeAgentConstants {
         vm.startPrank(lzEndpointAddress);
 
         // Perform Call
-        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        (bool success,) = _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
+        if (success) {
+            console2.log("Gas airdrop successful");
+        } else {
+            console2.log("Gas airdrop failed");
+        }
+
         RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
             _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
         );

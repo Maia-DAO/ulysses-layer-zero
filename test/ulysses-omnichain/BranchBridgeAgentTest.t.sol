@@ -1,11 +1,11 @@
 //SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.0;
 
-import "./helpers/ImportHelper.sol";
+import "./helpers/TestHelper.t.sol";
 
 import "./helpers/RootForkHelper.t.sol";
 
-contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
+contract BranchBridgeAgentTest is TestHelper {
     MockERC20 underlyingToken;
 
     MockERC20 rewardToken;
@@ -23,8 +23,6 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
     uint16 localChainId = uint16(1088);
 
     address rootBridgeAgentAddress = address(0xBEEF);
-
-    address lzEndpointAddress = address(0xCAFE);
 
     address localPortAddress;
 
@@ -1584,11 +1582,6 @@ contract BranchBridgeAgentTest is Test, BridgeAgentConstants {
         }
 
         require(deposit.status == 0, "Deposit status should be succesful.");
-
-        console2.log("TEST DEPOSIT");
-
-        console2.logUint(amounts[0]);
-        console2.logUint(deposits[0]);
 
         if (hTokens[0] != address(0) || tokens[0] != address(0)) {
             if (amounts[0] > 0 && deposits[0] == 0) {

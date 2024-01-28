@@ -242,8 +242,7 @@ contract VirtualAccountTest is DSTestPlus {
                               TEST ERC721
     //////////////////////////////////////////////////////////////*/
     function test_receiveERC721(address _userAddress, bytes32 _tokenSalt, uint256 _tokenId) public {
-        (VirtualAccount virtualAccount, MockERC721 mockERC721) =
-            _testReceiveERC721(_userAddress, _tokenSalt, localPortAddress, _tokenId);
+        _testReceiveERC721(_userAddress, _tokenSalt, localPortAddress, _tokenId);
     }
 
     function test_withdrawERC721(address _userAddress, bytes32 _tokenSalt, uint256 _tokenId) public {
@@ -280,8 +279,7 @@ contract VirtualAccountTest is DSTestPlus {
     //////////////////////////////////////////////////////////////*/
 
     function test_receiveERC1155(address _userAddress, bytes32 _tokenSalt, uint256 _tokenId, uint256 _amount) public {
-        (VirtualAccount virtualAccount, MockERC1155 mockERC1155) =
-            _testReceiveERC1155(_userAddress, _tokenSalt, localPortAddress, _tokenId, _amount);
+        _testReceiveERC1155(_userAddress, _tokenSalt, localPortAddress, _tokenId, _amount);
     }
 
     function test_receiveERC1155_Batch(address _userAddress, bytes32 _tokenSalt) public {
@@ -294,8 +292,7 @@ contract VirtualAccountTest is DSTestPlus {
         amounts[0] = 10; // Amount for the first token
         amounts[1] = 20; // Amount for the second token
 
-        (VirtualAccount virtualAccount, MockERC1155 mockERC1155) =
-            _testReceiveERC1155Batch(_userAddress, _tokenSalt, localPortAddress, tokenIds, amounts);
+        _testReceiveERC1155Batch(_userAddress, _tokenSalt, localPortAddress, tokenIds, amounts);
     }
 
     function test_withdrawERC1155(address _userAddress, bytes32 _tokenSalt, uint256 _tokenId, uint256 _amount) public {

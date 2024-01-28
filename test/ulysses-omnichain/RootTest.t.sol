@@ -1391,7 +1391,7 @@ contract RootTest is Test, BridgeAgentConstants {
         uint256 prevBalance = address(this).balance;
 
         // Mock accumulated balance
-        vm.deal(address(rootPort), 100 ether);
+        vm.deal(address(rootPort), amount);
 
         // Reques sweep to address(this)
         rootPort.sweep(address(this));
@@ -1400,7 +1400,7 @@ contract RootTest is Test, BridgeAgentConstants {
         assertEq(address(rootPort).balance, 0);
 
         // Check this balance
-        assertEq(address(this).balance, prevBalance + 100 ether);
+        assertEq(address(this).balance, prevBalance + amount);
     }
 
     function testSweepBranchPort(uint128 amount) public {
@@ -3028,14 +3028,17 @@ contract MockEndpoint is Test {
 
         if (!forceFallback) {
             // Perform Call
-            destinationBridgeAgent.call{value: remoteBranchExecutionGas}("");
+            (bool success,) = destinationBridgeAgent.call{value: remoteBranchExecutionGas}("");
+            if (!success) console2.log("Failed to send gas");
+
             RootBridgeAgent(payable(destinationBridgeAgent)).lzReceive{gas: gasLimit}(
                 BranchBridgeAgent(payable(msg.sender)).localChainId(), path, 1, data
             );
         } else if (fallbackCountdown > 0) {
             console2.log("Execute LayerZero request...", fallbackCountdown--);
             // Perform Call
-            destinationBridgeAgent.call{value: remoteBranchExecutionGas}("");
+            (bool success,) = destinationBridgeAgent.call{value: remoteBranchExecutionGas}("");
+            if (!success) console2.log("Failed to send gas");
             RootBridgeAgent(payable(destinationBridgeAgent)).lzReceive{gas: gasLimit}(
                 BranchBridgeAgent(payable(msg.sender)).localChainId(), path, 1, data
             );

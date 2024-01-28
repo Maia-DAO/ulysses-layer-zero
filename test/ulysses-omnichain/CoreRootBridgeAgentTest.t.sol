@@ -1,9 +1,9 @@
 //SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.16;
 
-import "./helpers/ImportHelper.sol";
+import "./helpers/TestHelper.t.sol";
 
-contract CoreRootBridgeAgentTest is Test, BridgeAgentConstants {
+contract CoreRootBridgeAgentTest is TestHelper {
     uint32 nonce;
 
     MockERC20 wAvaxLocalhToken;
@@ -22,11 +22,7 @@ contract CoreRootBridgeAgentTest is Test, BridgeAgentConstants {
 
     CoreRootRouter rootCoreRouter;
 
-    MulticallRootRouter rootMulticallRouter;
-
     RootBridgeAgentFactory bridgeAgentFactory;
-
-    RootBridgeAgent coreBridgeAgent;
 
     RootBridgeAgent multicallBridgeAgent;
 
@@ -73,8 +69,6 @@ contract CoreRootBridgeAgentTest is Test, BridgeAgentConstants {
     address ftmMulticallBridgeAgentAddress = address(0xACAC);
 
     address ftmPortAddressM = address(0xABAC);
-
-    address lzEndpointAddress = address(0xCAFE);
 
     address owner = address(this);
 
@@ -639,69 +633,5 @@ contract CoreRootBridgeAgentTest is Test, BridgeAgentConstants {
         vm.prank(rootCoreRouter.bridgeAgentExecutorAddress());
         vm.expectRevert(IRootRouter.UnrecognizedFunctionId.selector);
         rootCoreRouter.execute(_data, _srcChainId);
-    }
-
-    ////////////////////////////////////////////////// HELPERS /////////////////////////////////////////////////////////////////
-
-    function encodeCallNoDeposit(
-        address payable _fromBridgeAgent,
-        address payable _toBridgeAgent,
-        uint32 _nonce,
-        bytes memory _data,
-        GasParams memory _gasParams,
-        uint16 _srcChainIdId
-    ) private {
-        //Get some gas
-        vm.deal(address(lzEndpointAddress), _gasParams.gasLimit + _gasParams.remoteBranchExecutionGas);
-        //Encode Data
-        bytes memory inputCalldata = abi.encodePacked(bytes1(0x01), _nonce, _data);
-
-        // Prank into user account
-        vm.startPrank(lzEndpointAddress);
-
-        _toBridgeAgent.call{value: _gasParams.remoteBranchExecutionGas}("");
-        RootBridgeAgent(_toBridgeAgent).lzReceive{gas: _gasParams.gasLimit}(
-            _srcChainIdId, abi.encodePacked(_fromBridgeAgent, _toBridgeAgent), 1, inputCalldata
-        );
-
-        // Prank out of user account
-        vm.stopPrank();
-    }
-
-    function _getAdapterParams(uint256 _gasLimit, uint256 _remoteBranchExecutionGas, address _callee)
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return abi.encodePacked(uint16(2), _gasLimit, _remoteBranchExecutionGas, _callee);
-    }
-
-    function expectLayerZeroSend(
-        uint16 _dstChainId,
-        address destinationBridgeAgent,
-        uint256 msgValue,
-        bytes memory data,
-        address refundee,
-        GasParams memory gasParams,
-        uint256 _baseGasCost
-    ) internal {
-        bytes memory adatperParams = _getAdapterParams(
-            gasParams.gasLimit + _baseGasCost, gasParams.remoteBranchExecutionGas, destinationBridgeAgent
-        );
-
-        vm.expectCall(
-            lzEndpointAddress,
-            msgValue,
-            abi.encodeWithSelector(
-                // "send(uint16,bytes,bytes,address,address,bytes)",
-                ILayerZeroEndpoint.send.selector,
-                _dstChainId,
-                abi.encodePacked(destinationBridgeAgent, coreBridgeAgent),
-                data,
-                refundee,
-                address(0),
-                adatperParams
-            )
-        );
     }
 }
