@@ -850,6 +850,26 @@ contract BranchBridgeAgentTest is TestHelper {
         bAgent.redeemDeposit(1, address(this), address(testToken));
     }
 
+    function testRedeemDepositMultipleSpecifySameToken() public {
+        // Create Test Deposit
+        (MockERC20 underlyingToken1, MockERC20 underlyingToken2) = testRedeemDepositMultipleSpecifyToken();
+
+        // Call redeemDeposit
+        bAgent.redeemDeposit(1, address(this), address(testToken));
+
+        // Check deposit state
+        require(bAgent.getDepositEntry(1).owner == address(this), "Deposit should not be deleted");
+
+        // Check if hToken was cleared from state
+        require(bAgent.getDepositEntry(1).hTokens[0] == address(0), "hToken should be address 0");
+
+        // Check balances
+        require(underlyingToken1.balanceOf(address(this)) == 100 ether);
+        require(underlyingToken2.balanceOf(address(this)) == 0);
+        require(underlyingToken1.balanceOf(localPortAddress) == 0);
+        require(underlyingToken2.balanceOf(localPortAddress) == 100 ether);
+    }
+
     function testFuzzRedeemDeposit(address _user, uint256 _amount, uint256 _deposit, uint16 _dstChainId) public {
         if (_dstChainId == 0) _dstChainId = 1;
 
