@@ -2466,6 +2466,11 @@ contract RootTest is Test, BridgeAgentConstants {
 
         require(settlement.status == STATUS_FAILED, "Settlement status should be failed.");
 
+        // Save port balance before
+        uint256 portBalanceBefore = ERC20hToken(newAvaxAssetGlobalAddress).balanceOf(address(rootPort));
+
+        uint256 tokenBranchBalanceBefore = rootPort.getBalanceOfBranch(newAvaxAssetGlobalAddress, avaxChainId);
+
         // Retry Settlement
         multicallBridgeAgent.redeemSettlement(settlementNonce, address(this));
 
@@ -2474,8 +2479,122 @@ contract RootTest is Test, BridgeAgentConstants {
         require(settlement.owner == address(0), "Settlement should cease to exist.");
 
         require(
-            MockERC20(newAvaxAssetGlobalAddress).balanceOf(_user) == 150 ether, "Settlement should have been redeemed"
+            MockERC20(newAvaxAssetGlobalAddress).balanceOf(address(rootPort)) == portBalanceBefore - 150 ether,
+            "Port balance should decrease"
         );
+
+        require(
+            rootPort.getBalanceOfBranch(newAvaxAssetGlobalAddress, avaxChainId) == tokenBranchBalanceBefore - 150 ether,
+            "Chain balance should decrease"
+        );
+
+        require(MockERC20(newAvaxAssetGlobalAddress).balanceOf(_user) == 150 ether, "User balance should increase");
+    }
+
+    function testRedeemSettlementDestinationArbitrum() public {
+        // Set up
+        testAddLocalTokenArbitrum();
+
+        // Prepare data
+        bytes memory packedData;
+
+        {
+            Multicall2.Call[] memory calls = new Multicall2.Call[](1);
+
+            // Mock Omnichain dApp call
+            calls[0] = Multicall2.Call({
+                target: newArbitrumAssetGlobalAddress,
+                callData: abi.encodeWithSelector(bytes4(0xa9059cbb), mockApp, 0 ether)
+            });
+
+            // Output Params with wrong recipient for settlement failure
+            OutputParams memory outputParams = OutputParams(
+                address(this), address(newArbitrumAssetGlobalAddress), newArbitrumAssetGlobalAddress, 150 ether, 0
+            );
+
+            // RLP Encode Calldata Call with no gas to bridge out and we top up.
+            bytes memory data = abi.encode(calls, outputParams, rootChainId);
+
+            // Pack FuncId
+            packedData = abi.encodePacked(bytes1(0x02), data);
+        }
+
+        address _user = address(this);
+
+        // Get some gas.
+        vm.deal(_user, 1 ether);
+
+        // Assure there is enough balance for mock action
+        // vm.prank(address(rootPort));
+        // ERC20hToken(newArbitrumAssetGlobalAddress).mint(address(multicallBridgeAgent), 150 ether);
+        vm.prank(address(rootPort));
+        ERC20hToken(newArbitrumAssetGlobalAddress).mint(_user, 50 ether);
+
+        // vm.startPrank(address(multicallBridgeAgent));
+        // ERC20hToken(newAvaxAssetGlobalAddress).approve(address(rootPort), 50 ether);
+        // rootPort.bridgeToBranch(
+        // address(multicallBridgeAgent), newAvaxAssetGlobalAddress, 150 ether, 100 ether, avaxChainId
+        // );
+        // vm.stopPrank();
+
+        // Mint Underlying Token.
+        arbitrumMockToken.mint(_user, 100 ether);
+
+        // Prepare deposit info
+        DepositInput memory depositInput = DepositInput({
+            hToken: address(newArbitrumAssetGlobalAddress),
+            token: address(arbitrumMockToken),
+            amount: 150 ether,
+            deposit: 100 ether
+        });
+
+        // //Set MockEndpoint _fallback mode ON
+        // MockEndpoint(lzEndpointAddress).toggleFallback(1);
+
+        //GasParams
+        GasParams memory gasParams = GasParams(0.5 ether, 0.5 ether);
+
+        // Call Deposit function
+        ERC20hToken(newArbitrumAssetGlobalAddress).approve(address(rootPort), 50 ether);
+        arbitrumMockToken.approve(address(arbitrumPort), 100 ether);
+
+        arbitrumMulticallBridgeAgent.callOutSignedAndBridge{value: 1 ether}(packedData, depositInput, gasParams, true);
+
+        // //Set MockEndpoint _fallback mode OFF
+        // MockEndpoint(lzEndpointAddress).toggleFallback(0);
+
+        // //Perform _fallback transaction back to root bridge agent
+        // MockEndpoint(lzEndpointAddress).sendFallback();
+
+        // Retrieve Settlement since it was in retry mode
+
+        uint32 settlementNonce = multicallBridgeAgent.settlementNonce() - 1;
+        
+        multicallBridgeAgent.retrieveSettlement(settlementNonce, GasParams(0, 0));
+
+        Settlement memory settlement = multicallBridgeAgent.getSettlementEntry(settlementNonce);
+
+        require(settlement.status == STATUS_FAILED, "Settlement status should be failed.");
+
+        // Redeem Settlement
+        multicallBridgeAgent.redeemSettlement(settlementNonce, address(this));
+
+        settlement = multicallBridgeAgent.getSettlementEntry(settlementNonce);
+
+        require(settlement.owner == address(0), "Settlement should cease to exist.");
+
+        require(MockERC20(newArbitrumAssetGlobalAddress).balanceOf(_user) == 150 ether, "User balance should increase");
+    }
+
+    function testRedeemSettlementRedeemUnavailable() public {
+        // Save Nonce
+        uint32 settlementNonce = multicallBridgeAgent.settlementNonce();
+
+        // Expect Revert
+        vm.expectRevert(IRootBridgeAgent.SettlementRedeemUnavailable.selector);
+
+        // Retry Settlement
+        multicallBridgeAgent.redeemSettlement(settlementNonce, address(this));
     }
 
     function testRedeemTwoSettlements() public {
