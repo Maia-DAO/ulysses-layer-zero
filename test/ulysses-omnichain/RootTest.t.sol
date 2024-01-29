@@ -2187,8 +2187,11 @@ contract RootTest is Test, BridgeAgentConstants {
         // Get some gas.
         vm.deal(_user, 10 ether);
 
+        // Expect revert
         vm.expectRevert(IRootBridgeAgent.SettlementRedeemUnavailable.selector);
+
         vm.prank(_user);
+
         //Retry Settlement
         multicallBridgeAgent.retrieveSettlement{value: 1 ether}(settlementNonce, GasParams(0.5 ether, 0.5 ether));
 
@@ -2202,6 +2205,27 @@ contract RootTest is Test, BridgeAgentConstants {
             avaxMulticallBridgeAgent.executionState(settlementNonce) == STATUS_RETRIEVE,
             "Settelement Executed in branch"
         );
+    }
+
+    function testRetrieveSettlementDoesNotExist() public {
+        testRetrieveSettlement();
+
+        address _user = address(0x420);
+
+        uint32 settlementNonce = uint32(487);
+
+        // Get some gas.
+        vm.deal(_user, 10 ether);
+
+        // Expect revert
+        vm.expectRevert(IRootBridgeAgent.NotSettlementOwner.selector);
+
+        vm.prank(_user);
+
+        //Retry Settlement
+        multicallBridgeAgent.retrieveSettlement{value: 1 ether}(settlementNonce, GasParams(0.5 ether, 0.5 ether));
+
+        vm.stopPrank();
     }
 
     function testRetryTwoSettlements() public {
@@ -2569,7 +2593,7 @@ contract RootTest is Test, BridgeAgentConstants {
         // Retrieve Settlement since it was in retry mode
 
         uint32 settlementNonce = multicallBridgeAgent.settlementNonce() - 1;
-        
+
         multicallBridgeAgent.retrieveSettlement(settlementNonce, GasParams(0, 0));
 
         Settlement memory settlement = multicallBridgeAgent.getSettlementEntry(settlementNonce);
