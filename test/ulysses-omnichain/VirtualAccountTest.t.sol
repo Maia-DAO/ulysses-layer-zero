@@ -356,6 +356,21 @@ contract VirtualAccountTest is DSTestPlus {
         assertEq(keccak256(returnData[0]), keccak256(abi.encodePacked(blockhash(block.number))));
     }
 
+    function test_call_two_calls() public {
+        address userAddress = address(this);
+        VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
+
+        // Test successful call
+        Call[] memory calls = new Call[](2);
+        calls[0] = Call(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
+        calls[1] = Call(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
+
+        bytes[] memory returnData = virtualAccount.call(calls);
+        assertEq(keccak256(returnData[0]), keccak256(abi.encodePacked(blockhash(block.number))));
+        assertEq(keccak256(returnData[1]), keccak256(abi.encodePacked(blockhash(block.number))));
+    }
+
+
     function test_call_unsuccessful() public {
         address userAddress = address(this);
         VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
