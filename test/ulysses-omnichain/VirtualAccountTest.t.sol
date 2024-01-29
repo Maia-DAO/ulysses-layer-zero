@@ -370,7 +370,6 @@ contract VirtualAccountTest is DSTestPlus {
         assertEq(keccak256(returnData[1]), keccak256(abi.encodePacked(blockhash(block.number))));
     }
 
-
     function test_call_unsuccessful() public {
         address userAddress = address(this);
         VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
@@ -390,6 +389,28 @@ contract VirtualAccountTest is DSTestPlus {
 
         hevm.expectRevert(IVirtualAccount.CallFailed.selector);
         virtualAccount.call(calls2);
+    }
+
+    function test_call_isEOA() public {
+        address userAddress = address(this);
+
+        address targetAddress = address(1);
+
+        Call memory call = Call(address(targetAddress), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
+
+        Call[] memory calls = new Call[](1);
+
+        calls[0] = call;
+
+        VirtualAccount virtualAccount = _deployVirtualAccount(userAddress, localPortAddress);
+
+        hevm.deal(userAddress, 1 ether);
+
+        hevm.startPrank(userAddress);
+
+        hevm.expectRevert(abi.encodeWithSignature("CallFailed()"));
+
+        virtualAccount.call(calls);
     }
 
     /*//////////////////////////////////////////////////////////////
