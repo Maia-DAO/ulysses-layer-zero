@@ -2177,6 +2177,24 @@ contract RootTest is Test, BridgeAgentConstants {
         );
     }
 
+    function testRetrieveSettlementNotOwner() public {
+        testSettlementFailed();
+
+        address _user = address(0x421);
+
+        uint32 settlementNonce = previousNonce;
+
+        // Get some gas.
+        vm.deal(_user, 10 ether);
+
+        // Expect revert
+        vm.expectRevert(IRootBridgeAgent.NotSettlementOwner.selector);
+
+        vm.prank(_user);
+        //Retry Settlement
+        multicallBridgeAgent.retrieveSettlement{value: 1 ether}(settlementNonce, GasParams(0.5 ether, 0.5 ether));
+    }
+
     function testAlreadyRetrieveSettlement() public {
         testRetrieveSettlement();
 
