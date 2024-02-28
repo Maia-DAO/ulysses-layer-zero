@@ -106,7 +106,7 @@ contract BaseBranchRouter is IBranchRouter, ReentrancyGuard, Ownable {
         GasParams calldata _gParams
     ) external payable override nonReentrant {
         //Transfer tokens to this contract.
-        _transferAndApproveMultipleTokens(_dParams.hTokens, _dParams.tokens, _dParams.amounts, _dParams.deposits);
+        _transferAndApproveMultipleTokens(_dParams);
 
         //Perform call to bridge agent.
         IBridgeAgent(localBridgeAgentAddress).callOutAndBridgeMultiple{value: msg.value}(
@@ -181,17 +181,12 @@ contract BaseBranchRouter is IBranchRouter, ReentrancyGuard, Ownable {
 
     /**
      * @notice Internal function to transfer multiple tokens into a contract.
-     *   @param _hTokens The addresses of the hTokens.
-     *   @param _tokens The addresses of the tokens.
-     *   @param _amounts The amounts of the hTokens.
-     *   @param _deposits The amounts of the tokens.
+     *   @param _dParams The DepositMultipleInput struct
      */
     function _transferAndApproveMultipleTokens(DepositMultipleInput calldata _dParams) internal {
-        uint256 len = _dParams._hTokens.length;
+        uint256 len = _dParams.hTokens.length;
         for (uint256 i = 0; i < len;) {
-            _transferAndApproveToken(
-                _dParams._hTokens[i], _dParams._tokens[i], _dParams._amounts[i], _dParams._deposits[i]
-            );
+            _transferAndApproveToken(_dParams.hTokens[i], _dParams.tokens[i], _dParams.amounts[i], _dParams.deposits[i]);
 
             unchecked {
                 ++i;
