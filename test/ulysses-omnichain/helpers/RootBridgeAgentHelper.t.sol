@@ -23,7 +23,6 @@ library RootBridgeAgentHelper {
     ) internal view {
         _bridgeAgent.check_factoryAddress(_factoryAddress);
         _bridgeAgent.check_rootChainId(_rootChainId);
-        _bridgeAgent.check_lzEndpointAddress(_lzEndpointAddress);
         _bridgeAgent.check_rootPort(_rootPort);
         _bridgeAgent.check_routerAddress(_routerAddress);
 
@@ -36,10 +35,6 @@ library RootBridgeAgentHelper {
 
     function check_rootChainId(RootBridgeAgent _bridgeAgent, uint256 _rootChainId) internal view {
         require(_bridgeAgent.localChainId() == _rootChainId, "Incorrect RootBridgeAgent Root Chain Id");
-    }
-
-    function check_lzEndpointAddress(RootBridgeAgent _bridgeAgent, address _lzEndpointAddress) internal view {
-        require(_bridgeAgent.lzEndpointAddress() == _lzEndpointAddress, "Incorrect RootBridgeAgent lzEndpointAddress");
     }
 
     function check_rootPort(RootBridgeAgent _bridgeAgent, RootPort _rootPort) internal view {

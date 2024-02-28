@@ -186,14 +186,12 @@ contract BaseBranchRouter is IBranchRouter, ReentrancyGuard, Ownable {
      *   @param _amounts The amounts of the hTokens.
      *   @param _deposits The amounts of the tokens.
      */
-    function _transferAndApproveMultipleTokens(
-        address[] memory _hTokens,
-        address[] memory _tokens,
-        uint256[] memory _amounts,
-        uint256[] memory _deposits
-    ) internal {
-        for (uint256 i = 0; i < _hTokens.length;) {
-            _transferAndApproveToken(_hTokens[i], _tokens[i], _amounts[i], _deposits[i]);
+    function _transferAndApproveMultipleTokens(DepositMultipleInput calldata _dParams) internal {
+        uint256 len = _dParams._hTokens.length;
+        for (uint256 i = 0; i < len;) {
+            _transferAndApproveToken(
+                _dParams._hTokens[i], _dParams._tokens[i], _dParams._amounts[i], _dParams._deposits[i]
+            );
 
             unchecked {
                 ++i;
