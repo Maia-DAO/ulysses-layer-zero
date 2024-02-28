@@ -61,14 +61,14 @@ contract RootBridgeAgent is BridgeAgentConstants, ReentrancyGuard, IRootBridgeAg
     /// @notice Root Port Address for asset management and system actions.
     address public immutable rootPortAddress;
 
-    /// @notice Local Layer Zero Endpoint Address for cross-chain communication.
-    address public immutable lzEndpointAddress;
-
     /// @notice The Root Bridge Agent's connected Root Bridge Agent Executor Address.
     address public immutable bridgeAgentExecutorAddress;
 
     /// @notice Address of the pending Root Bridge Agent Manager.
     address public pendingBridgeAgentManagerAddress;
+
+    /// @notice Local Layer Zero Endpoint Address for cross-chain communication.
+    address internal immutable lzEndpointAddress;
 
     /*///////////////////////////////////////////////////////////////
                         BRANCH BRIDGE AGENTS STATE
@@ -77,11 +77,11 @@ contract RootBridgeAgent is BridgeAgentConstants, ReentrancyGuard, IRootBridgeAg
     /// @notice Chain -> Branch Bridge Agent Address. For N chains, each Root Bridge Agent Address has M =< N Branch Bridge Agent Address.
     mapping(uint256 chainId => address branchBridgeAgent) public getBranchBridgeAgent;
 
-    /// @notice Message Path for each connected Branch Bridge Agent as bytes for Layzer Zero interaction = localAddress + destinationAddress abi.encodePacked()
-    mapping(uint256 chainId => bytes branchBridgeAgentPath) public getBranchBridgeAgentPath;
-
     /// @notice If true, bridge agent manager has allowed for a new given branch bridge agent to be synced/added.
     mapping(uint256 chainId => bool allowed) public isBranchBridgeAgentAllowed;
+
+    /// @notice Message Path for each connected Branch Bridge Agent as bytes for Layzer Zero interaction = localAddress + destinationAddress abi.encodePacked()
+    mapping(uint256 chainId => bytes branchBridgeAgentPath) internal getBranchBridgeAgentPath;
 
     /*///////////////////////////////////////////////////////////////
                             SETTLEMENTS STATE
