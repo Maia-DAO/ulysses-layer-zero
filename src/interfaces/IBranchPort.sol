@@ -260,8 +260,6 @@ interface IBranchPort {
 
     /// @notice Error emitted when amount requested is zero.
     error InvalidAmount();
-    /// @notice Error emitted when minimum reserves ratio is set too low.
-    error InvalidMinimumReservesRatio();
     /// @notice Error emitted when token deposit arrays have different lengths.
     error InvalidInputArrays();
     /// @notice Error emitted when an invalid underlying token address is provided.
