@@ -367,6 +367,7 @@ contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
             // use amountOut == CONTRACT_BALANCE as a flag to swap the entire balance of the contract
             if (outputParams.amountOut == CONTRACT_BALANCE) {
                 outputParams.amountOut = outputParams.outputToken.balanceOf(userAccount);
+                outputParams.depositOut = outputParams.amountOut;
             }
 
             // Withdraw assets from Virtual Account
@@ -401,6 +402,7 @@ contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
                 // use amountOut == CONTRACT_BALANCE as a flag to swap the entire balance of the contract
                 if (outputParams.amountsOut[i] == CONTRACT_BALANCE) {
                     outputParams.amountsOut[i] = outputParams.outputTokens[i].balanceOf(userAccount);
+                    outputParams.depositsOut[i] = outputParams.amountsOut[i];
                 }
 
                 IVirtualAccount(userAccount).withdrawERC20(outputParams.outputTokens[i], outputParams.amountsOut[i]);
