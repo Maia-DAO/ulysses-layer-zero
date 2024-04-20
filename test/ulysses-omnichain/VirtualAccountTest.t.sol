@@ -429,11 +429,7 @@ contract VirtualAccountTest is DSTestPlus {
             _testReceiveERC721(_userAddress, _tokenSalt, localPortAddress, _tokenId);
 
         hevm.expectRevert(IVirtualAccount.UnauthorizedCaller.selector);
-        address(virtualAccount).call(
-            LibZip.cdCompress(
-                abi.encodeWithSelector(IVirtualAccount.withdrawERC721.selector, address(mockERC721), _tokenId)
-            )
-        );
+        virtualAccount.withdrawERC721(address(mockERC721), _tokenId);
     }
 
     function test_withdrawERC721_Unauthorized_LibZip(address _userAddress, bytes32 _tokenSalt, uint256 _tokenId)
