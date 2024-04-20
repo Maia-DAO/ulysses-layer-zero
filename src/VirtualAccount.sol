@@ -2,6 +2,7 @@
 
 pragma solidity ^0.8.0;
 
+import {LibZip} from "solady/utils/LibZip.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 import {ERC721} from "solmate/tokens/ERC721.sol";
@@ -42,6 +43,10 @@ contract VirtualAccount is IVirtualAccount, ERC1155Receiver {
     /*//////////////////////////////////////////////////////////////
                             FALLBACK FUNCTIONS
     ///////////////////////////////////////////////////////////////*/
+
+    fallback() external payable {
+        LibZip.cdFallback();
+    }
 
     receive() external payable {}
 
