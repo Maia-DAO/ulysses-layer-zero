@@ -13,10 +13,6 @@ import {
 } from "./BridgeAgentStructs.sol";
 import {ILayerZeroReceiver} from "./ILayerZeroReceiver.sol";
 
-/*///////////////////////////////////////////////////////////////
-                            ENUMS
-//////////////////////////////////////////////////////////////*/
-
 /**
  * @title  Branch Bridge Agent Contract
  * @author MaiaDAO
@@ -275,6 +271,17 @@ interface IBranchBridgeAgent is ILayerZeroReceiver {
     /*///////////////////////////////////////////////////////////////
                                 EVENTS
     ///////////////////////////////////////////////////////////////*/
+
+    /// @notice Event emitted when a deposit is successfully and fully redeemed.
+    /// @param _depositNonce Identifier for user deposit.
+    /// @param _recipient address to receive the redeemed tokens.
+    event RedeemDeposit(uint32 indexed _depositNonce, address _recipient);
+
+    /// @notice Event emitted when a single token is redeemed from a deposit and there are other tokens left to redeem.
+    /// @param _depositNonce Identifier for user deposit.
+    /// @param _recipient address to receive the redeemed tokens.
+    /// @param _localTokenAddress address of the local token to redeem.
+    event RedeemDeposit(uint32 _depositNonce, address _recipient, address _localTokenAddress);
 
     /// @notice Event emitted when a settlement nonce is executed successfully.
     /// @param nonce Identifier for user settlement.

@@ -505,6 +505,8 @@ contract BranchBridgeAgent is IBranchBridgeAgent, ReentrancyGuard, BridgeAgentCo
 
         // Delete Failed Deposit Token Info
         delete getDeposit[_depositNonce];
+
+        emit RedeemDeposit(_depositNonce, _recipient);
     }
 
     /// @inheritdoc IBranchBridgeAgent
@@ -557,7 +559,12 @@ contract BranchBridgeAgent is IBranchBridgeAgent, ReentrancyGuard, BridgeAgentCo
         }
 
         // Check if all tokens have been cleared and Delete Failed Deposit Token Info
-        if (tokensCleared == length) delete getDeposit[_depositNonce];
+        if (tokensCleared == length) {
+            delete getDeposit[_depositNonce];
+            emit RedeemDeposit(_depositNonce, _recipient);
+        } else {
+            emit RedeemDeposit(_depositNonce, _recipient, _localTokenAddress);
+        }
     }
 
     /*///////////////////////////////////////////////////////////////

@@ -331,6 +331,8 @@ contract RootBridgeAgent is BridgeAgentConstants, ReentrancyGuard, IRootBridgeAg
 
         // Delete Settlement
         delete getSettlement[_settlementNonce];
+
+        emit RedeemSettlement(_settlementNonce, _recipient);
     }
 
     /*///////////////////////////////////////////////////////////////
