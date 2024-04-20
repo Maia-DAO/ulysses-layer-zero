@@ -495,7 +495,7 @@ contract RootBridgeAgent is BridgeAgentConstants, ReentrancyGuard, IRootBridgeAg
             // Parse deposit nonce
             nonce = uint32(bytes4(_payload[PARAMS_START_SIGNED:PARAMS_TKN_START_SIGNED]));
 
-            //Check if tx has already been executed
+            // Check if tx has already been executed
             if (executionState[_srcChainId][nonce] != STATUS_READY) {
                 revert AlreadyExecutedTransaction();
             }
@@ -524,12 +524,12 @@ contract RootBridgeAgent is BridgeAgentConstants, ReentrancyGuard, IRootBridgeAg
             // Toggle Router Virtual Account use for tx execution
             IPort(rootPortAddress).toggleVirtualAccountApproved(userAccount, rootRouterAddress);
 
-            //DEPOSIT FLAG: 5 (Call with Deposit + msg.sender)
+            // DEPOSIT FLAG: 5 (Call with Deposit + msg.sender)
         } else if (_payload[0] & 0x7F == 0x05) {
             // Parse deposit nonce
             nonce = uint32(bytes4(_payload[PARAMS_START_SIGNED:PARAMS_TKN_START_SIGNED]));
 
-            //Check if tx has already been executed
+            // Check if tx has already been executed
             if (executionState[_srcChainId][nonce] != STATUS_READY) {
                 revert AlreadyExecutedTransaction();
             }
