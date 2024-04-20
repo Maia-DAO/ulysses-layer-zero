@@ -4,7 +4,7 @@ pragma solidity ^0.8.16;
 //TEST
 import {LzForkTest} from "../../test-utils/fork/LzForkTest.t.sol";
 
-import {Ownable, SafeTransferLib} from "solady/Milady.sol";
+import {LibZip, Ownable, SafeTransferLib} from "solady/Milady.sol";
 
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
@@ -22,7 +22,14 @@ import {IBranchRouter} from "@omni/interfaces/IBranchRouter.sol";
 import {IRootPort, RootPort} from "@omni/RootPort.sol";
 import {ArbitrumBranchPort} from "@omni/ArbitrumBranchPort.sol";
 import {BranchPort, IBranchPort} from "@omni/BranchPort.sol";
-import {IVirtualAccount, Call, PayableCall, VirtualAccount} from "@omni/VirtualAccount.sol";
+import {
+    IVirtualAccount,
+    Call,
+    PayableCall,
+    VirtualAccount,
+    IERC721Receiver,
+    IERC1155Receiver
+} from "@omni/VirtualAccount.sol";
 
 import {IRootBridgeAgent, RootBridgeAgent, DepositParams, DepositMultipleParams} from "@omni/RootBridgeAgent.sol";
 import {RootBridgeAgentExecutor} from "@omni/RootBridgeAgentExecutor.sol";
