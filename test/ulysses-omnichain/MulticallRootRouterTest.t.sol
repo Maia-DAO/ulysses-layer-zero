@@ -88,6 +88,8 @@ contract MulticallRootRouterTest is Test {
 
     address dao = address(this);
 
+    fallback() external payable {}
+
     /// COPIED FROM MULTICALLROOTROUTER
     /// @dev Used for identifying cases when this contract's balance of a token is to be used as an input
     /// This value is equivalent to 1<<255, i.e. a singular 1 in the most significant bit.
@@ -696,7 +698,7 @@ contract MulticallRootRouterTest is Test {
         {
             outputToken = ftmGlobalToken;
             amountOut = CONTRACT_BALANCE;
-            depositOut = 25 ether;
+            depositOut = 50 ether;
 
             Multicall2.Call[] memory calls = new Multicall2.Call[](1);
 
@@ -739,13 +741,13 @@ contract MulticallRootRouterTest is Test {
 
         uint256 balanceFtmMockAppAfter = MockERC20(ftmGlobalToken).balanceOf(mockApp);
 
-        uint256 balanceFtmPortAfter = MockERC20(ftmGlobalToken).balanceOf(address(rootPort));
+        uint256 balanceRootPortAfter = MockERC20(ftmGlobalToken).balanceOf(address(rootPort));
 
         uint256 balanceFtmVirtualAccountAfter = MockERC20(ftmGlobalToken).balanceOf(userVirtualAccount);
 
         require(balanceFtmMockAppAfter == 50 ether, "Balance should be increased");
 
-        require(balanceFtmPortAfter == balanceFtmPortBefore + 25 ether, "Balance should be half");
+        require(balanceRootPortAfter == balanceFtmPortBefore, "Balance should be same, all native cleared");
 
         require(balanceFtmVirtualAccountAfter == 0, "Balance should stay 0");
     }
