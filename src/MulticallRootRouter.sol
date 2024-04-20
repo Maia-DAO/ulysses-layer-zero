@@ -240,6 +240,9 @@ contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
             // Perform Calls
             _multicall(callData);
 
+            // If there was any ETH sent in this call, send it to the Root Port.
+            if (msg.value > 0) localPortAddress.safeTransferETH(msg.value);
+
             /// FUNC ID: 2 (multicallSingleOutput)
         } else if (funcId == 0x02) {
             // Decode Params
@@ -355,6 +358,9 @@ contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
             // Make requested calls
             IVirtualAccount(userAccount).call(calls);
 
+            // If there was any ETH sent in this call, send it to the virtual account owner.
+            if (msg.value > 0) IVirtualAccount(userAccount).userAddress().safeTransferETH(msg.value);
+
             /// FUNC ID: 2 (multicallSingleOutput)
         } else if (funcId == 0x02) {
             // Decode Params
@@ -366,8 +372,9 @@ contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
 
             // use amountOut == CONTRACT_BALANCE as a flag to swap the entire balance of the contract
             if (outputParams.amountOut == CONTRACT_BALANCE) {
-                outputParams.amountOut = outputParams.outputToken.balanceOf(userAccount);
-                outputParams.depositOut = outputParams.amountOut;
+                uint256 virtualBalance = outputParams.outputToken.balanceOf(userAccount);
+                outputParams.depositOut = virtualBalance;
+                outputParams.amountOut = virtualBalance;
             }
 
             // Withdraw assets from Virtual Account
@@ -401,8 +408,9 @@ contract MulticallRootRouter is Ownable, ReentrancyGuard, IRootRouter {
             for (uint256 i = 0; i < outputParams.outputTokens.length;) {
                 // use amountOut == CONTRACT_BALANCE as a flag to swap the entire balance of the contract
                 if (outputParams.amountsOut[i] == CONTRACT_BALANCE) {
-                    outputParams.amountsOut[i] = outputParams.outputTokens[i].balanceOf(userAccount);
-                    outputParams.depositsOut[i] = outputParams.amountsOut[i];
+                    uint256 virtualBalance = outputParams.outputTokens[i].balanceOf(userAccount);
+                    outputParams.depositsOut[i] = virtualBalance;
+                    outputParams.amountsOut[i] = virtualBalance;
                 }
 
                 IVirtualAccount(userAccount).withdrawERC20(outputParams.outputTokens[i], outputParams.amountsOut[i]);
