@@ -91,7 +91,7 @@ contract ERC20hTokenBranchFactoryTest is Test {
 
         vm.expectRevert(IERC20hTokenBranchFactory.UnrecognizedCoreRouter.selector);
         vm.prank(_caller);
-        factory.createToken(_name, _symbol, _decimals, _addPrefix);
+        factory.createToken(_name, _symbol, _decimals);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -111,25 +111,20 @@ contract ERC20hTokenBranchFactoryTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_createToken() public {
-        test_createToken(mockNativeToken.name(), mockNativeToken.symbol(), mockNativeToken.decimals(), true);
+        test_createToken(mockNativeToken.name(), mockNativeToken.symbol(), mockNativeToken.decimals());
     }
 
-    function test_createToken(string memory _name, string memory _symbol, uint8 _decimals, bool _addPrefix) public {
+    function test_createToken(string memory _name, string memory _symbol, uint8 _decimals) public {
         uint256 hTokensLength = factory.getHTokens().length;
 
-        ERC20hToken newToken = factory.createToken(_name, _symbol, _decimals, _addPrefix);
+        ERC20hToken newToken = factory.createToken(_name, _symbol, _decimals);
 
         assertEq(factory.getHTokens().length, hTokensLength + 1);
         assertEq(address(newToken), address(factory.hTokens(hTokensLength)));
         assertEq(newToken.owner(), localPortAddress);
         assertEq(newToken.decimals(), _decimals);
 
-        if (_addPrefix) {
-            assertEq(newToken.name(), string.concat(factory.chainName(), _name));
-            assertEq(newToken.symbol(), string.concat(factory.chainSymbol(), _symbol));
-        } else {
-            assertEq(newToken.name(), _name);
-            assertEq(newToken.symbol(), _symbol);
-        }
+        assertEq(newToken.name(), _name);
+        assertEq(newToken.symbol(), _symbol);
     }
 }
