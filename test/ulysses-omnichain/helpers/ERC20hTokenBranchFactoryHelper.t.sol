@@ -51,14 +51,14 @@ library ERC20hTokenBranchFactoryHelper {
 
     function check_chainName(ERC20hTokenBranchFactory _branchHTokenFactory, string memory _name) internal view {
         require(
-            keccak256(bytes(_branchHTokenFactory.chainName())) == keccak256(bytes(string.concat(_name, " Ulysses "))),
+            keccak256(bytes(_branchHTokenFactory.chainName())) == keccak256(bytes(_name)),
             "Incorrect ERC20hTokenBranchFactory chain name"
         );
     }
 
     function check_chainSymbol(ERC20hTokenBranchFactory _branchHTokenFactory, string memory _symbol) internal view {
         require(
-            keccak256(bytes(_branchHTokenFactory.chainSymbol())) == keccak256(bytes(string.concat(_symbol, "-u"))),
+            keccak256(bytes(_branchHTokenFactory.chainSymbol())) == keccak256(bytes(_symbol)),
             "Incorrect ERC20hTokenBranchFactory chain symbol"
         );
     }
