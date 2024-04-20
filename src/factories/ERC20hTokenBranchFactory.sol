@@ -37,8 +37,8 @@ contract ERC20hTokenBranchFactory is Ownable, IERC20hTokenBranchFactory {
      */
     constructor(address _localPortAddress, string memory _chainName, string memory _chainSymbol) {
         require(_localPortAddress != address(0), "Port address cannot be 0");
-        chainName = string.concat(_chainName, " Ulysses ");
-        chainSymbol = string.concat(_chainSymbol, "-u");
+        chainName = _chainName;
+        chainSymbol = _chainSymbol;
         localPortAddress = _localPortAddress;
         _initializeOwner(msg.sender);
     }
@@ -58,8 +58,8 @@ contract ERC20hTokenBranchFactory is Ownable, IERC20hTokenBranchFactory {
 
         ERC20hToken newToken = new ERC20hToken(
             localPortAddress,
-            string.concat(chainName, ERC20(_wrappedNativeTokenAddress).name()),
-            string.concat(chainSymbol, ERC20(_wrappedNativeTokenAddress).symbol()),
+            ERC20(_wrappedNativeTokenAddress).name(),
+            ERC20(_wrappedNativeTokenAddress).symbol(),
             ERC20(_wrappedNativeTokenAddress).decimals()
         );
 
@@ -85,16 +85,12 @@ contract ERC20hTokenBranchFactory is Ownable, IERC20hTokenBranchFactory {
     ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IERC20hTokenBranchFactory
-    function createToken(string memory _name, string memory _symbol, uint8 _decimals, bool _addPrefix)
+    function createToken(string memory _name, string memory _symbol, uint8 _decimals)
         external
         requiresCoreRouter
         returns (ERC20hToken newToken)
     {
-        newToken = _addPrefix
-            ? new ERC20hToken(
-                localPortAddress, string.concat(chainName, _name), string.concat(chainSymbol, _symbol), _decimals
-            )
-            : new ERC20hToken(localPortAddress, _name, _symbol, _decimals);
+        newToken = new ERC20hToken(localPortAddress, _name, _symbol, _decimals);
 
         hTokens.push(newToken);
     }

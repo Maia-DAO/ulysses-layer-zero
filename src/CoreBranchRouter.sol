@@ -65,7 +65,7 @@ contract CoreBranchRouter is ICoreBranchRouter, BaseBranchRouter {
 
         //Create Token
         ERC20hToken newToken = ITokenFactory(hTokenFactoryAddress).createToken(
-            ERC20(_underlyingAddress).name(), ERC20(_underlyingAddress).symbol(), decimals, true
+            ERC20(_underlyingAddress).name(), ERC20(_underlyingAddress).symbol(), decimals
         );
 
         //Encode Data
@@ -193,7 +193,7 @@ contract CoreBranchRouter is ICoreBranchRouter, BaseBranchRouter {
         GasParams memory _gParams
     ) internal {
         //Create Token
-        ERC20hToken newToken = ITokenFactory(hTokenFactoryAddress).createToken(_name, _symbol, _decimals, false);
+        ERC20hToken newToken = ITokenFactory(hTokenFactoryAddress).createToken(_name, _symbol, _decimals);
 
         // Encode Data
         bytes memory params = abi.encode(_globalAddress, newToken);
