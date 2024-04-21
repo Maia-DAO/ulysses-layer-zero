@@ -273,15 +273,15 @@ interface IBranchBridgeAgent is ILayerZeroReceiver {
     ///////////////////////////////////////////////////////////////*/
 
     /// @notice Event emitted when a deposit is successfully and fully redeemed.
-    /// @param _depositNonce Identifier for user deposit.
-    /// @param _recipient address to receive the redeemed tokens.
-    event RedeemDeposit(uint32 indexed _depositNonce, address _recipient);
+    /// @param depositNonce Identifier for user deposit.
+    /// @param recipient address to receive the redeemed tokens.
+    event RedeemDeposit(uint256 indexed depositNonce, address indexed recipient);
 
     /// @notice Event emitted when a single token is redeemed from a deposit and there are other tokens left to redeem.
-    /// @param _depositNonce Identifier for user deposit.
-    /// @param _recipient address to receive the redeemed tokens.
-    /// @param _localTokenAddress address of the local token to redeem.
-    event RedeemDeposit(uint32 _depositNonce, address _recipient, address _localTokenAddress);
+    /// @param depositNonce Identifier for user deposit.
+    /// @param recipient address to receive the redeemed tokens.
+    /// @param localTokenAddress address of the local token to redeem.
+    event RedeemDeposit(uint256 indexed depositNonce, address indexed recipient, address indexed localTokenAddress);
 
     /// @notice Event emitted when a settlement nonce is executed successfully.
     /// @param nonce Identifier for user settlement.

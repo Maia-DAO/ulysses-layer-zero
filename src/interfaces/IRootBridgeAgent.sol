@@ -300,9 +300,9 @@ interface IRootBridgeAgent is ILayerZeroReceiver {
     ///////////////////////////////////////////////////////////////*/
 
     /// @notice Event emitted when a settlement is successfully and fully redeemed.
-    /// @param _settlementNonce Identifier for user settlement.
-    /// @param _recipient recipient of redeemed root/global tokens.
-    event RedeemSettlement(uint32 indexed _settlementNonce, address _recipient);
+    /// @param settlementNonce Identifier for user settlement.
+    /// @param recipient recipient of redeemed root/global tokens.
+    event RedeemSettlement(uint256 indexed settlementNonce, address indexed recipient);
 
     /// @notice Event emitted when fallback is received for a failed deposit nonce.
     /// @param depositNonce Identifier for user deposit.
