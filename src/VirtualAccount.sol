@@ -80,7 +80,7 @@ contract VirtualAccount is IVirtualAccount, ERC1155Receiver {
 
             if (_call.target.isContract()) (success, returnData[i]) = _call.target.call(_call.callData);
 
-            if (!success) revert CallFailed();
+            if (!success) revert CallFailed(returnData[i]);
 
             unchecked {
                 ++i;
@@ -113,7 +113,7 @@ contract VirtualAccount is IVirtualAccount, ERC1155Receiver {
 
             if (_call.target.isContract()) (success, returnData[i]) = _call.target.call{value: val}(_call.callData);
 
-            if (!success) revert CallFailed();
+            if (!success) revert CallFailed(returnData[i]);
 
             unchecked {
                 ++i;
@@ -121,7 +121,7 @@ contract VirtualAccount is IVirtualAccount, ERC1155Receiver {
         }
 
         // Finally, make sure the msg.value = SUM(call[0...i].value)
-        if (msg.value != valAccumulator) revert CallFailed();
+        if (msg.value != valAccumulator) revert EtherValueMismatch();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -159,8 +159,8 @@ contract VirtualAccount is IVirtualAccount, ERC1155Receiver {
 
     /// @notice Modifier that verifies msg sender is the approved to use the virtual account. Either the owner or an approved router.
     modifier requiresApprovedCaller() {
-        if (!IRootPort(localPortAddress).isRouterApproved(this, msg.sender)) {
-            if (msg.sender != userAddress) {
+        if (msg.sender != userAddress) {
+            if (!IRootPort(localPortAddress).isRouterApproved(this, msg.sender)) {
                 revert UnauthorizedCaller();
             }
         }

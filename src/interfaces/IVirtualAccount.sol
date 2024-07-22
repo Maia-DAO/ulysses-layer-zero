@@ -88,8 +88,14 @@ interface IVirtualAccount is IERC721Receiver {
                                 ERRORS
     ///////////////////////////////////////////////////////////////*/
 
-    /// @notice Error thrown when a call is not successfull.
-    error CallFailed();
+    /**
+     * @notice Error thrown when a call is not successfull.
+     * @param returnData The return data of the failed call.
+     */
+    error CallFailed(bytes returnData);
+
+    /// @notice Error thrown when ether used is different from msg.value.
+    error EtherValueMismatch();
 
     /// @notice Error thrown when caller is not an approved Virtual Account caller.
     error UnauthorizedCaller();
