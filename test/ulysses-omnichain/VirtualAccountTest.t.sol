@@ -88,6 +88,34 @@ contract VirtualAccountTest is DSTestPlus {
                             TEST PERMISSIONS
     //////////////////////////////////////////////////////////////*/
 
+    function callZipped(address _virtualAccount, bytes memory _data, bool _shouldPass, bytes memory _revertData)
+        internal
+    {
+        (bool success, bytes memory returnData) = _virtualAccount.call(LibZip.cdCompress(_data));
+
+        assertTrue(success == _shouldPass);
+
+        if (!_shouldPass) {
+            assertEq0(returnData, _revertData);
+        }
+    }
+
+    function callZippedValue(
+        address _virtualAccount,
+        bytes memory _data,
+        uint256 value,
+        bool _shouldPass,
+        bytes memory _revertData
+    ) internal {
+        (bool success, bytes memory returnData) = _virtualAccount.call{value: value}(LibZip.cdCompress(_data));
+
+        assertTrue(success == _shouldPass);
+
+        if (!_shouldPass) {
+            assertEq0(returnData, _revertData);
+        }
+    }
+
     function test_requiresApprovedCaller_withdrawNative(address _userAddress, uint256 _withdrawAmount)
         public
         returns (VirtualAccount virtualAccount)
@@ -108,9 +136,11 @@ contract VirtualAccountTest is DSTestPlus {
 
         virtualAccount = _deployVirtualAccount(_userAddress, localPortAddress);
 
-        hevm.expectRevert(IVirtualAccount.UnauthorizedCaller.selector);
-        address(virtualAccount).call(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.withdrawNative.selector, _withdrawAmount))
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.withdrawNative.selector, _withdrawAmount),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.UnauthorizedCaller.selector)
         );
     }
 
@@ -135,9 +165,11 @@ contract VirtualAccountTest is DSTestPlus {
 
         virtualAccount = _deployVirtualAccount(_userAddress, localPortAddress);
 
-        hevm.expectRevert(IVirtualAccount.UnauthorizedCaller.selector);
-        address(virtualAccount).call(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.withdrawERC20.selector, _token, _withdrawAmount))
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.withdrawERC20.selector, _token, _withdrawAmount),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.UnauthorizedCaller.selector)
         );
     }
 
@@ -161,9 +193,11 @@ contract VirtualAccountTest is DSTestPlus {
 
         virtualAccount = _deployVirtualAccount(_userAddress, localPortAddress);
 
-        hevm.expectRevert(IVirtualAccount.UnauthorizedCaller.selector);
-        address(virtualAccount).call(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.withdrawERC721.selector, _token, _tokenId))
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.withdrawERC721.selector, _token, _tokenId),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.UnauthorizedCaller.selector)
         );
     }
 
@@ -187,8 +221,12 @@ contract VirtualAccountTest is DSTestPlus {
 
         virtualAccount = _deployVirtualAccount(_userAddress, localPortAddress);
 
-        hevm.expectRevert(IVirtualAccount.UnauthorizedCaller.selector);
-        address(virtualAccount).call(LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.call.selector, _calls)));
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.call.selector, _calls),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.UnauthorizedCaller.selector)
+        );
     }
 
     function test_requiresApprovedCaller_payableCall(address _userAddress, PayableCall[] calldata _calls)
@@ -211,9 +249,11 @@ contract VirtualAccountTest is DSTestPlus {
 
         virtualAccount = _deployVirtualAccount(_userAddress, localPortAddress);
 
-        hevm.expectRevert(IVirtualAccount.UnauthorizedCaller.selector);
-        address(virtualAccount).call(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.payableCall.selector, _calls))
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.payableCall.selector, _calls),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.UnauthorizedCaller.selector)
         );
     }
 
@@ -253,8 +293,11 @@ contract VirtualAccountTest is DSTestPlus {
         virtualAccount = test_receiveETH(_userAddress, localPortAddress, _depositAmount);
 
         MockRootPort(localPortAddress).setRouterApproved(virtualAccount, address(this), true);
-        address(virtualAccount).call(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.withdrawNative.selector, _withdrawAmount))
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.withdrawNative.selector, _withdrawAmount),
+            true,
+            ""
         );
 
         assertEq(address(virtualAccount).balance, _depositAmount - _withdrawAmount);
@@ -283,9 +326,11 @@ contract VirtualAccountTest is DSTestPlus {
 
         virtualAccount = test_receiveETH(_userAddress, localPortAddress, _depositAmount);
 
-        hevm.expectRevert(IVirtualAccount.UnauthorizedCaller.selector);
-        address(virtualAccount).call(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.withdrawNative.selector, _withdrawAmount))
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.withdrawNative.selector, _withdrawAmount),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.UnauthorizedCaller.selector)
         );
     }
 
@@ -348,8 +393,11 @@ contract VirtualAccountTest is DSTestPlus {
         virtualAccount = _test_receiveERC20(_userAddress, localPortAddress, token, _depositAmount);
 
         MockRootPort(localPortAddress).setRouterApproved(virtualAccount, address(this), true);
-        address(virtualAccount).call(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.withdrawERC20.selector, token, _withdrawAmount))
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.withdrawERC20.selector, token, _withdrawAmount),
+            true,
+            ""
         );
 
         assertEq(token.balanceOf(address(virtualAccount)), _depositAmount - _withdrawAmount);
@@ -385,9 +433,11 @@ contract VirtualAccountTest is DSTestPlus {
 
         virtualAccount = _test_receiveERC20(_userAddress, localPortAddress, token, _depositAmount);
 
-        hevm.expectRevert(IVirtualAccount.UnauthorizedCaller.selector);
-        address(virtualAccount).call(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.withdrawERC20.selector, token, _withdrawAmount))
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.withdrawERC20.selector, token, _withdrawAmount),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.UnauthorizedCaller.selector)
         );
     }
 
@@ -413,10 +463,11 @@ contract VirtualAccountTest is DSTestPlus {
             _testReceiveERC721(_userAddress, _tokenSalt, localPortAddress, _tokenId);
 
         MockRootPort(localPortAddress).setRouterApproved(virtualAccount, address(this), true);
-        address(virtualAccount).call(
-            LibZip.cdCompress(
-                abi.encodeWithSelector(IVirtualAccount.withdrawERC721.selector, address(mockERC721), _tokenId)
-            )
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.withdrawERC721.selector, address(mockERC721), _tokenId),
+            true,
+            ""
         );
 
         assertEq(mockERC721.ownerOf(_tokenId), address(this));
@@ -440,11 +491,11 @@ contract VirtualAccountTest is DSTestPlus {
         (VirtualAccount virtualAccount, MockERC721 mockERC721) =
             _testReceiveERC721(_userAddress, _tokenSalt, localPortAddress, _tokenId);
 
-        hevm.expectRevert(IVirtualAccount.UnauthorizedCaller.selector);
-        address(virtualAccount).call(
-            LibZip.cdCompress(
-                abi.encodeWithSelector(IVirtualAccount.withdrawERC721.selector, address(mockERC721), _tokenId)
-            )
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.withdrawERC721.selector, address(mockERC721), _tokenId),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.UnauthorizedCaller.selector)
         );
     }
 
@@ -510,7 +561,9 @@ contract VirtualAccountTest is DSTestPlus {
 
         MockRootPort(localPortAddress).setRouterApproved(virtualAccount, address(this), true);
 
-        _withdrawERC1155UsingCall_LibZip(virtualAccount, address(mockERC1155), _tokenId, _amount, address(this));
+        _withdrawERC1155UsingCall_LibZip(
+            virtualAccount, address(mockERC1155), _tokenId, _amount, address(this), true, ""
+        );
 
         // Verify the balance after withdrawal
         assertEq(mockERC1155.balanceOf(address(this), _tokenId), _amount);
@@ -542,8 +595,15 @@ contract VirtualAccountTest is DSTestPlus {
         (VirtualAccount virtualAccount, MockERC1155 mockERC1155) =
             _testReceiveERC1155(_userAddress, _tokenSalt, localPortAddress, _tokenId, _amount);
 
-        hevm.expectRevert(IVirtualAccount.UnauthorizedCaller.selector);
-        _withdrawERC1155UsingCall_LibZip(virtualAccount, address(mockERC1155), _tokenId, _amount, address(this));
+        _withdrawERC1155UsingCall_LibZip(
+            virtualAccount,
+            address(mockERC1155),
+            _tokenId,
+            _amount,
+            address(this),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.UnauthorizedCaller.selector)
+        );
     }
 
     function test_OnERC1155Received() public {
@@ -614,7 +674,7 @@ contract VirtualAccountTest is DSTestPlus {
         calls[0] = Call(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
 
         bytes[] memory returnData = virtualAccount.call(calls);
-        assertEq(keccak256(returnData[0]), keccak256(abi.encodePacked(blockhash(block.number))));
+        assertEq0(returnData[0], (abi.encodePacked(blockhash(block.number))));
     }
 
     function test_call_LibZip() public {
@@ -630,7 +690,7 @@ contract VirtualAccountTest is DSTestPlus {
         );
 
         bytes[] memory returnData = abi.decode(ret, (bytes[]));
-        assertEq(keccak256(returnData[0]), keccak256(abi.encodePacked(blockhash(block.number))));
+        assertEq0(returnData[0], (abi.encodePacked(blockhash(block.number))));
     }
 
     function test_call_two_calls() public {
@@ -643,8 +703,8 @@ contract VirtualAccountTest is DSTestPlus {
         calls[1] = Call(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
 
         bytes[] memory returnData = virtualAccount.call(calls);
-        assertEq(keccak256(returnData[0]), keccak256(abi.encodePacked(blockhash(block.number))));
-        assertEq(keccak256(returnData[1]), keccak256(abi.encodePacked(blockhash(block.number))));
+        assertEq0(returnData[0], (abi.encodePacked(blockhash(block.number))));
+        assertEq0(returnData[1], (abi.encodePacked(blockhash(block.number))));
     }
 
     function test_call_two_calls_LibZip() public {
@@ -661,8 +721,8 @@ contract VirtualAccountTest is DSTestPlus {
         );
 
         bytes[] memory returnData = abi.decode(ret, (bytes[]));
-        assertEq(keccak256(returnData[0]), keccak256(abi.encodePacked(blockhash(block.number))));
-        assertEq(keccak256(returnData[1]), keccak256(abi.encodePacked(blockhash(block.number))));
+        assertEq0(returnData[0], (abi.encodePacked(blockhash(block.number))));
+        assertEq0(returnData[1], (abi.encodePacked(blockhash(block.number))));
     }
 
     function test_call_unsuccessful() public {
@@ -674,7 +734,9 @@ contract VirtualAccountTest is DSTestPlus {
         calls[0] = Call(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
         calls[1] = Call(address(callee), abi.encodeWithSignature("thisMethodReverts()"));
 
-        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
+        hevm.expectRevert(
+            abi.encodeWithSelector(IVirtualAccount.CallFailed.selector, abi.encodeWithSignature("Unsuccessful()"))
+        );
         virtualAccount.call(calls);
 
         // Should fail if we call a non-contract address
@@ -682,7 +744,7 @@ contract VirtualAccountTest is DSTestPlus {
         calls2[0] = Call(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
         calls2[1] = Call(address(1), "");
 
-        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
+        hevm.expectRevert(abi.encodeWithSelector(IVirtualAccount.CallFailed.selector, ""));
         virtualAccount.call(calls2);
     }
 
@@ -695,16 +757,24 @@ contract VirtualAccountTest is DSTestPlus {
         calls[0] = Call(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
         calls[1] = Call(address(callee), abi.encodeWithSignature("thisMethodReverts()"));
 
-        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
-        address(virtualAccount).call(LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.call.selector, calls)));
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.call.selector, calls),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.CallFailed.selector, abi.encodeWithSignature("Unsuccessful()"))
+        );
 
         // Should fail if we call a non-contract address
         Call[] memory calls2 = new Call[](2);
         calls2[0] = Call(address(callee), abi.encodeWithSignature("getBlockHash(uint256)", block.number));
         calls2[1] = Call(address(1), "");
 
-        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
-        address(virtualAccount).call(LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.call.selector, calls)));
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.call.selector, calls2),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.CallFailed.selector, "")
+        );
     }
 
     function test_call_isEOA() public {
@@ -724,7 +794,7 @@ contract VirtualAccountTest is DSTestPlus {
 
         hevm.startPrank(userAddress);
 
-        hevm.expectRevert(abi.encodeWithSignature("CallFailed()"));
+        hevm.expectRevert(abi.encodeWithSignature("CallFailed(bytes)", ""));
 
         virtualAccount.call(calls);
     }
@@ -746,9 +816,12 @@ contract VirtualAccountTest is DSTestPlus {
 
         hevm.startPrank(userAddress);
 
-        hevm.expectRevert(abi.encodeWithSignature("CallFailed()"));
-
-        address(virtualAccount).call(LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.call.selector, calls)));
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.call.selector, calls),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.CallFailed.selector, "")
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -822,7 +895,7 @@ contract VirtualAccountTest is DSTestPlus {
 
         hevm.startPrank(userAddress);
 
-        hevm.expectRevert(abi.encodeWithSignature("CallFailed()"));
+        hevm.expectRevert(abi.encodeWithSignature("CallFailed(bytes)", ""));
 
         virtualAccount.payableCall{value: 1 ether}(calls);
     }
@@ -844,10 +917,11 @@ contract VirtualAccountTest is DSTestPlus {
 
         hevm.startPrank(userAddress);
 
-        hevm.expectRevert(abi.encodeWithSignature("CallFailed()"));
-
-        address(virtualAccount).call{value: 1 ether}(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.payableCall.selector, calls))
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.payableCall.selector, calls),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.CallFailed.selector, "")
         );
     }
 
@@ -868,7 +942,7 @@ contract VirtualAccountTest is DSTestPlus {
 
         hevm.startPrank(userAddress);
 
-        hevm.expectRevert(abi.encodeWithSignature("CallFailed()"));
+        hevm.expectRevert(abi.encodeWithSignature("EtherValueMismatch()"));
 
         virtualAccount.payableCall{value: 2 ether}(calls);
     }
@@ -890,10 +964,12 @@ contract VirtualAccountTest is DSTestPlus {
 
         hevm.startPrank(userAddress);
 
-        hevm.expectRevert(abi.encodeWithSignature("CallFailed()"));
-
-        address(virtualAccount).call{value: 2 ether}(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.payableCall.selector, calls))
+        callZippedValue(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.payableCall.selector, calls),
+            2 ether,
+            false,
+            abi.encodeWithSelector(IVirtualAccount.EtherValueMismatch.selector)
         );
     }
 
@@ -907,7 +983,7 @@ contract VirtualAccountTest is DSTestPlus {
             PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 1);
         bytes[] memory returnData = virtualAccount.payableCall{value: 1}(calls);
 
-        assertEq(keccak256(returnData[0]), keccak256(abi.encodePacked(blockhash(block.number))));
+        assertEq0(returnData[0], (abi.encodePacked(blockhash(block.number))));
         assertEq(returnData[1].length, 0);
     }
 
@@ -925,7 +1001,7 @@ contract VirtualAccountTest is DSTestPlus {
         );
 
         bytes[] memory returnData = abi.decode(ret, (bytes[]));
-        assertEq(keccak256(returnData[0]), keccak256(abi.encodePacked(blockhash(block.number))));
+        assertEq0(returnData[0], (abi.encodePacked(blockhash(block.number))));
         assertEq(returnData[1].length, 0);
     }
 
@@ -940,7 +1016,9 @@ contract VirtualAccountTest is DSTestPlus {
         calls[2] =
             PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 0);
 
-        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
+        hevm.expectRevert(
+            abi.encodeWithSelector(IVirtualAccount.CallFailed.selector, abi.encodeWithSignature("Unsuccessful()"))
+        );
         virtualAccount.payableCall{value: 1}(calls);
 
         // Should fail if we call a non-contract address
@@ -950,7 +1028,7 @@ contract VirtualAccountTest is DSTestPlus {
         calls[2] =
             PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 0);
 
-        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
+        hevm.expectRevert(abi.encodeWithSelector(IVirtualAccount.CallFailed.selector, ""));
         virtualAccount.payableCall{value: 1}(calls2);
 
         // Should fail if we don't provide enough value
@@ -959,7 +1037,7 @@ contract VirtualAccountTest is DSTestPlus {
         calls3[1] =
             PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 1);
 
-        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
+        hevm.expectRevert(abi.encodeWithSelector(IVirtualAccount.CallFailed.selector, ""));
         virtualAccount.payableCall(calls3);
 
         // Works if we provide enough value
@@ -982,9 +1060,12 @@ contract VirtualAccountTest is DSTestPlus {
         calls[2] =
             PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 0);
 
-        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
-        address(virtualAccount).call{value: 1}(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.payableCall.selector, calls))
+        callZippedValue(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.payableCall.selector, calls),
+            1,
+            false,
+            abi.encodeWithSelector(IVirtualAccount.CallFailed.selector, abi.encodeWithSignature("Unsuccessful()"))
         );
 
         // Should fail if we call a non-contract address
@@ -994,9 +1075,12 @@ contract VirtualAccountTest is DSTestPlus {
         calls[2] =
             PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 0);
 
-        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
-        address(virtualAccount).call{value: 1}(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.payableCall.selector, calls2))
+        callZippedValue(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.payableCall.selector, calls2),
+            1,
+            false,
+            abi.encodeWithSelector(IVirtualAccount.CallFailed.selector, "")
         );
 
         // Should fail if we don't provide enough value
@@ -1005,9 +1089,11 @@ contract VirtualAccountTest is DSTestPlus {
         calls3[1] =
             PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 1);
 
-        hevm.expectRevert(IVirtualAccount.CallFailed.selector);
-        address(virtualAccount).call(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.payableCall.selector, calls3))
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.payableCall.selector, calls3),
+            false,
+            abi.encodeWithSelector(IVirtualAccount.CallFailed.selector, "")
         );
 
         // Works if we provide enough value
@@ -1016,8 +1102,8 @@ contract VirtualAccountTest is DSTestPlus {
         calls4[1] =
             PayableCall(address(callee), abi.encodeWithSignature("sendBackValue(address)", address(etherSink)), 1);
 
-        address(virtualAccount).call{value: 1}(
-            LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.payableCall.selector, calls4))
+        callZippedValue(
+            address(virtualAccount), abi.encodeWithSelector(IVirtualAccount.payableCall.selector, calls4), 1, true, ""
         );
     }
 
@@ -1161,7 +1247,9 @@ contract VirtualAccountTest is DSTestPlus {
         address erc1155Token,
         uint256 tokenId,
         uint256 amount,
-        address recipient
+        address recipient,
+        bool shouldPass,
+        bytes memory revertData
     ) internal {
         // Construct call data for ERC1155 safeTransferFrom function
         bytes memory callData = abi.encodeWithSignature(
@@ -1178,6 +1266,11 @@ contract VirtualAccountTest is DSTestPlus {
         calls[0] = Call({target: erc1155Token, callData: callData});
 
         // Execute the call
-        address(virtualAccount).call(LibZip.cdCompress(abi.encodeWithSelector(IVirtualAccount.call.selector, calls)));
+        callZipped(
+            address(virtualAccount),
+            abi.encodeWithSelector(IVirtualAccount.call.selector, calls),
+            shouldPass,
+            revertData
+        );
     }
 }
