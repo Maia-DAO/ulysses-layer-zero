@@ -3,8 +3,9 @@ src = 'src'
 out = 'out'
 libs = ['lib']
 solc = "0.8.19"
-optimizer_runs = 1_000_000
 via_ir = true
+optimizer = true
+optimizer_runs = 1_000_000
 
 # Necessary for testing
 gas_price = 10000
