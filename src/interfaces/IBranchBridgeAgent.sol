@@ -82,6 +82,11 @@ interface IBranchBridgeAgent is ILayerZeroReceiver {
     function bridgeAgentExecutorAddress() external view returns (address);
 
     /**
+     * @notice External function that returns the current deposit nonce.
+     */
+    function depositNonce() external view returns (uint32);
+
+    /**
      * @notice External function that returns a given deposit entry.
      *  @param depositNonce Identifier for user deposit.
      */
