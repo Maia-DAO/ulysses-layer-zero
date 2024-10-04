@@ -298,6 +298,8 @@ contract RootPort is Ownable, ReentrancyGuard, IRootPort {
         override
         requiresCoreRootRouter
     {
+        // Verify addresses are valid
+        if (_globalAddress == address(0)) revert InvalidGlobalAddress();
         if (_localAddress == address(0)) revert InvalidLocalAddress();
 
         getGlobalTokenFromLocal[_localAddress][_srcChainId] = _globalAddress;

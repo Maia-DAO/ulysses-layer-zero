@@ -10,7 +10,7 @@ import {IBranchRouter} from "./interfaces/IBranchRouter.sol";
 import {ICoreBranchRouter} from "./interfaces/ICoreBranchRouter.sol";
 import {IERC20hTokenBranchFactory as ITokenFactory} from "./interfaces/IERC20hTokenBranchFactory.sol";
 
-import {BaseBranchRouter} from "./BaseBranchRouter.sol";
+import {BaseBranchRouter, DepositInput, DepositMultipleInput} from "./BaseBranchRouter.sol";
 import {ERC20hToken} from "./token/ERC20hToken.sol";
 
 /// @title Core Branch Router Contract
@@ -29,6 +29,34 @@ contract CoreBranchRouter is ICoreBranchRouter, BaseBranchRouter {
      */
     constructor(address _hTokenFactoryAddress) BaseBranchRouter() {
         hTokenFactoryAddress = _hTokenFactoryAddress;
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                           EXTERNAL FUNCTIONS
+    ///////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc IBranchRouter
+    function callOut(bytes calldata, GasParams calldata) external payable override {
+        revert UnrecognizedFunctionId();
+    }
+
+    /// @inheritdoc IBranchRouter
+    function callOutAndBridge(bytes calldata, DepositInput calldata, GasParams calldata) external payable override {
+        revert UnrecognizedFunctionId();
+    }
+
+    /// @inheritdoc IBranchRouter
+    function callOutAndBridgeMultiple(bytes calldata, DepositMultipleInput calldata, GasParams calldata)
+        external
+        payable
+        override
+    {
+        revert UnrecognizedFunctionId();
+    }
+
+    /// @inheritdoc IBranchRouter
+    function retryDeposit(uint32, bytes calldata, GasParams calldata) external payable override {
+        revert UnrecognizedFunctionId();
     }
 
     /*///////////////////////////////////////////////////////////////

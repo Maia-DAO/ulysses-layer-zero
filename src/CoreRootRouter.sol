@@ -395,6 +395,11 @@ contract CoreRootRouter is ICoreRootRouter, Ownable {
         if (IPort(rootPortAddress).isLocalToken(_underlyingAddress, _srcChainId)) revert TokenAlreadyAdded();
         if (IPort(rootPortAddress).isUnderlyingToken(_underlyingAddress, _srcChainId)) revert TokenAlreadyAdded();
 
+        // Verify if the local address is already known by the branch or root chain
+        if (IPort(rootPortAddress).isGlobalAddress(_localAddress)) revert TokenAlreadyAdded();
+        if (IPort(rootPortAddress).isLocalToken(_localAddress, _srcChainId)) revert TokenAlreadyAdded();
+        if (IPort(rootPortAddress).isUnderlyingToken(_localAddress, _srcChainId)) revert TokenAlreadyAdded();
+
         //Create a new global token
         address newToken = address(IFactory(hTokenFactoryAddress).createToken(_name, _symbol, _decimals));
 
@@ -455,8 +460,18 @@ contract CoreRootRouter is ICoreRootRouter, Ownable {
      *   @param _dstChainId local token's chain.
      */
     function _setLocalToken(address _globalAddress, address _localAddress, uint16 _dstChainId) internal {
-        // Verify if the token is already added
+        // Verify if this is a global token
+        if (!IPort(rootPortAddress).isGlobalAddress(_globalAddress)) revert UnrecognizedGlobalToken();
+
+        // Verify if the global address is already known by the branch or root chain
         if (IPort(rootPortAddress).isGlobalToken(_globalAddress, _dstChainId)) revert TokenAlreadyAdded();
+        if (IPort(rootPortAddress).isLocalToken(_globalAddress, _dstChainId)) revert TokenAlreadyAdded();
+        if (IPort(rootPortAddress).isUnderlyingToken(_globalAddress, _dstChainId)) revert TokenAlreadyAdded();
+
+        // Verify if the local address is already known by the branch or root chain
+        if (IPort(rootPortAddress).isGlobalAddress(_localAddress)) revert TokenAlreadyAdded();
+        if (IPort(rootPortAddress).isLocalToken(_localAddress, _dstChainId)) revert TokenAlreadyAdded();
+        if (IPort(rootPortAddress).isUnderlyingToken(_localAddress, _dstChainId)) revert TokenAlreadyAdded();
 
         // Set the global token's new branch chain address
         IPort(rootPortAddress).setLocalAddress(_globalAddress, _localAddress, _dstChainId);

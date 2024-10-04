@@ -1185,7 +1185,7 @@ contract RootBridgeAgent is BridgeAgentConstants, ReentrancyGuard, IRootBridgeAg
     modifier requiresEndpoint(address _endpoint, uint16 _srcChain, bytes calldata _srcAddress) virtual {
         if (msg.sender != address(this)) revert LayerZeroUnauthorizedEndpoint();
 
-        if (_endpoint != getBranchBridgeAgent[localChainId]) {
+        if (_srcChain != localChainId || _endpoint != getBranchBridgeAgent[localChainId]) {
             /// @dev Allow eth_estimateGas to be called by zero address to mock layerzero's endpoint.
             if (_endpoint != lzEndpointAddress) if (_endpoint != address(0)) revert LayerZeroUnauthorizedEndpoint();
 

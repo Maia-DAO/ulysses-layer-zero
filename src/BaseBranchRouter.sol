@@ -79,7 +79,13 @@ contract BaseBranchRouter is IBranchRouter, ReentrancyGuard, Ownable {
     ///////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IBranchRouter
-    function callOut(bytes calldata _params, GasParams calldata _gParams) external payable override nonReentrant {
+    function callOut(bytes calldata _params, GasParams calldata _gParams)
+        external
+        payable
+        virtual
+        override
+        nonReentrant
+    {
         IBridgeAgent(localBridgeAgentAddress).callOut{value: msg.value}(payable(msg.sender), _params, _gParams);
     }
 
@@ -87,6 +93,7 @@ contract BaseBranchRouter is IBranchRouter, ReentrancyGuard, Ownable {
     function callOutAndBridge(bytes calldata _params, DepositInput calldata _dParams, GasParams calldata _gParams)
         external
         payable
+        virtual
         override
         nonReentrant
     {
@@ -104,7 +111,7 @@ contract BaseBranchRouter is IBranchRouter, ReentrancyGuard, Ownable {
         bytes calldata _params,
         DepositMultipleInput calldata _dParams,
         GasParams calldata _gParams
-    ) external payable override nonReentrant {
+    ) external payable virtual override nonReentrant {
         //Transfer tokens to this contract.
         _transferAndApproveMultipleTokens(_dParams);
 
@@ -118,6 +125,7 @@ contract BaseBranchRouter is IBranchRouter, ReentrancyGuard, Ownable {
     function retryDeposit(uint32 _depositNonce, bytes calldata _params, GasParams calldata _gParams)
         external
         payable
+        virtual
         override
     {
         // Perform call to bridge agent.
